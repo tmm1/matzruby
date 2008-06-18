@@ -1,1 +1,39 @@
+= Overview
+
 This is a full git mirror of Matz' Ruby Subversion repository.
+It contains *FULL* MRI history, right frem the revision 1,
+including all branches and all tags.
+
+Currently, the repository is updated manually but quite
+often so that the changes are at most a few days old.
+
+= Branches
+
+The master branch of this repository is intentionally empty
+and contains only this README.
+
+Once you've cloned the repo, invoke 'git branch -a' to see a list
+of all available branches and tags. Then just create a local
+branch to track the remote branch:
+
+git co -b trunk origin/trunk
+
+All you have to do now is invoking 'git pull' from time
+to time to get the latest updates in your branch.
+
+Most interesting branches:
+
+* trunk - The current development branch (1.9 dev)
+* ruby_1_8   - 1.8.* series dev line
+* ruby_1_8_7 - 1.8.7 maint line (bugfixes only)
+* ruby_1_8_6 - 1.8.6 maint line (bugfixes only)
+
+Typically, the changes are first done on trunk, and then
+they are backported to ruby_1_8, and picked up by maintainers
+and further backported to ruby_1_8_7 and in some cases even
+to ruby_1_8_6.
+
+Clearly, you could also switch to any other branch of your
+interest, including ALL patchlevel tags.
+
+Enjoy!
