@@ -7,6 +7,10 @@ including all branches and all tags.
 Currently, the repository is updated manually but quite
 often so that the changes are at most a few days old.
 
+This repository is supposed to be used as any other read-only GIT
+repository, with periodic pulls or fetches. Do *not* use
+git svn command on your clone, there is no need.
+
 = Branches
 
 The master branch of this repository is intentionally empty
@@ -35,5 +39,21 @@ to ruby_1_8_6.
 
 Clearly, you could also switch to any other branch of your
 interest, including ALL patchlevel tags.
+
+= Converting to git-svn repository
+
+If you really wish to have you local clone to be a full
+"git-svn repository" (so that you could fetch the data
+from the main repository yourself), it also can be done,
+by doing so:
+
+git svn init --prefix=origin/ --stdlayout \
+    http://svn.ruby-lang.org/repos/ruby
+
+git svn fetch --all
+
+It would take a while to update the all branches (1-2 hours),
+but still much, much faster than cloning the Ruby subversion
+repository from scratch (which would take 12-15 hours).
 
 Enjoy!
