@@ -17,10 +17,11 @@ The master branch of this repository is intentionally empty
 and contains only this README.
 
 Once you've cloned the repo, invoke 'git branch -a' to see a list
-of all available branches and tags. Then just create a local
-branch to track the remote branch:
+of all available branches or invoke 'git tag -l ' to see a list
+of all available tags. Then just create a local branch to track
+the remote branch:
 
-git co -b trunk origin/trunk
+git checkout -b trunk origin/trunk
 
 All you have to do now is invoking 'git pull' from time
 to time to get the latest updates in your branch.
