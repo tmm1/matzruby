@@ -1,8 +1,8 @@
 = Overview
 
 This is a full git mirror of Matz' Ruby Subversion repository.
-It contains *FULL* MRI history, right frem the revision 1,
-including all branches and all tags.
+It contains *FULL* MRI history, right from the revision 1,
+including most branches and all tags.
 
 Currently, the repository is updated manually but quite
 often so that the changes are at most a few days old.
@@ -51,9 +51,12 @@ by doing so:
 git svn init --prefix=origin/ --stdlayout \
     http://svn.ruby-lang.org/repos/ruby
 
+(this assumes that the remote repo is known in your
+local clone as "origin")
+
 git svn fetch --all
 
-It would take a while to update the all branches (1-2 hours),
+It would take a while to update all the branches (1-2 hours),
 but still much, much faster than cloning the Ruby subversion
 repository from scratch (which would take 12-15 hours).
 
