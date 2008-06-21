@@ -1157,7 +1157,13 @@ if test x"$enable_pthread" = xyes; then
 fi
 if test x"$ac_cv_header_ucontext_h" = xyes; then
     if test x"$rb_with_pthread" = xyes; then
-	AC_CHECK_FUNCS(getcontext setcontext)
+	AC_CHECK_FUNCS(getcontext setcontext sigaltstack)
+	AC_CHECK_FUNCS(pthread_getattr_np pthread_attr_getstack)
+	AC_CHECK_FUNCS(pthread_attr_get_np)
+	AC_CHECK_FUNCS(pthread_get_stackaddr_np pthread_get_stacksize_np)
+	AC_CHECK_FUNCS(thr_stksegment)
+	AC_CHECK_FUNCS(pthread_stackseg_np)
+	AC_CHECK_HEADERS(pthread_np.h sys/signal.h)
     fi
 fi
 

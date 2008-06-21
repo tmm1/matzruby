@@ -265,10 +265,18 @@ void
 rb_thread_terminate_all(void)
 {
     rb_thread_t *th = GET_THREAD(); /* main thread */
-    rb_vm_t *vm = th->vm;
+    rb_vm_t *vm = GET_VM();
+
     if (vm->main_thread != th) {
 	rb_bug("rb_thread_terminate_all: called by child thread (%p, %p)", vm->main_thread, th);
     }
+    rb_vm_thread_terminate_all(vm);
+}
+
+void
+rb_vm_thread_terminate_all(rb_vm_t *vm)
+{
+    rb_thread_t *th = vm->main_thread;
 
     /* unlock all locking mutexes */
     if (th->keeping_mutexes) {
@@ -883,6 +891,9 @@ rb_thread_execute_interrupts(rb_thread_t *th)
 		TH_JUMP_TAG(th, TAG_FATAL);
 	    }
 	    else {
+		if (TYPE(err) == T_CLASS) {
+		    err = rb_make_exception(1, &err);
+		}
 		rb_exc_raise(err);
 	    }
 	}
@@ -2372,6 +2383,8 @@ typedef struct mutex_struct {
     VALUE next_mutex;
 } mutex_t;
 
+static VALUE rb_eMutex_OrphanLock;
+
 #define GetMutexPtr(obj, tobj) \
   Data_Get_Struct(obj, mutex_t, tobj)
 
@@ -2393,8 +2406,12 @@ mutex_free(void *ptr)
 {
     if (ptr) {
 	mutex_t *mutex = ptr;
-	if (mutex->th) {
-	    /* rb_warn("free locked mutex"); */
+	volatile rb_thread_t *th = mutex->th;
+	if (th) {
+	    if (!th->thrown_errinfo) {
+		th->thrown_errinfo = rb_eMutex_OrphanLock;
+	    }
+	    RUBY_VM_SET_INTERRUPT(th);
 	    mutex_unlock(mutex);
 	}
 	native_mutex_destroy(&mutex->lock);
@@ -2670,8 +2687,8 @@ rb_mutex_unlock_all(VALUE mutexes)
 
     while (mutexes) {
 	GetMutexPtr(mutexes, mutex);
-	/* rb_warn("mutex #<%s:%p> remains to be locked by terminated thread",
-		rb_obj_classname(mutexes), (void*)mutexes); */
+	rb_warn("mutex #<%s:%p> remains to be locked by terminated thread",
+		rb_obj_classname(mutexes), (void*)mutexes);
 	mutexes = mutex->next_mutex;
 	err = mutex_unlock(mutex);
 	if (err) rb_bug("invalid keeping_mutexes: %s", err);
@@ -3074,9 +3091,8 @@ rb_thread_remove_event_hook(rb_thread_t *th, rb_event_hook_func_t func)
 }
 
 int
-rb_remove_event_hook(rb_event_hook_func_t func)
+rb_vm_remove_event_hook(rb_vm_t *vm, rb_event_hook_func_t func)
 {
-    rb_vm_t *vm = GET_VM();
     rb_event_hook_t *hook = vm->event_hooks;
     int ret = remove_event_hook(&vm->event_hooks, func);
 
@@ -3085,6 +3101,12 @@ rb_remove_event_hook(rb_event_hook_func_t func)
     }
 
     return ret;
+}
+
+int
+rb_remove_event_hook(rb_event_hook_func_t func)
+{
+    return rb_vm_remove_event_hook(GET_VM(), func);
 }
 
 static int
@@ -3097,10 +3119,16 @@ clear_trace_func_i(st_data_t key, st_data_t val, st_data_t flag)
 }
 
 void
+rb_vm_clear_trace_func(rb_vm_t *vm)
+{
+    st_foreach(vm->living_threads, clear_trace_func_i, (st_data_t) 0);
+    rb_vm_remove_event_hook(vm, 0);
+}
+
+void
 rb_clear_trace_func(void)
 {
-    st_foreach(GET_VM()->living_threads, clear_trace_func_i, (st_data_t) 0);
-    rb_remove_event_hook(0);
+    rb_vm_clear_trace_func(GET_VM());
 }
 
 static void call_trace_func(rb_event_flag_t, VALUE data, VALUE self, ID id, VALUE klass);
@@ -3402,6 +3430,7 @@ Init_Thread(void)
 
     recursive_key = rb_intern("__recursive_key__");
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);
+    rb_eMutex_OrphanLock = rb_define_class_under(rb_cMutex, "OrphanLock", rb_eThreadError);
 
     /* trace */
     rb_define_global_function("set_trace_func", set_trace_func, 1);
@@ -3502,4 +3531,41 @@ rb_check_deadlock(rb_vm_t *vm)
 #endif
 	rb_thread_raise(2, argv, vm->main_thread);
     }
+}
+
+static struct {
+    rb_thread_lock_t lock;
+    int last;
+} specific_key;
+
+int
+rb_vm_key_create(void)
+{
+    int key;
+    native_mutex_lock(&specific_key.lock);
+    key = specific_key.last++;
+    native_mutex_unlock(&specific_key.lock);
+    return key;
+}
+
+VALUE *
+ruby_vm_specific_ptr(rb_vm_t *vm, int key)
+{
+    VALUE *ptr;
+
+    native_mutex_lock(&vm->global_vm_lock);
+    ptr = vm->specific_storage.ptr;
+    if (!ptr || vm->specific_storage.len <= key) {
+	ptr = realloc(vm->specific_storage.ptr, sizeof(VALUE) * (key + 1));
+	vm->specific_storage.ptr = ptr;
+	vm->specific_storage.len = key + 1;
+    }
+    native_mutex_unlock(&vm->global_vm_lock);
+    return &ptr[key];
+}
+
+VALUE *
+rb_vm_specific_ptr(int key)
+{
+    return ruby_vm_specific_ptr(GET_VM(), key);
 }

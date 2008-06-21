@@ -311,8 +311,15 @@ struct rb_vm_struct
     unsigned long trace_flag;
     volatile int sleeper;
 
+    VALUE argf;
+
     /* object management */
     VALUE mark_object_ary;
+
+    struct {
+	VALUE *ptr;
+	long len;
+    } specific_storage;
 
     VALUE special_exceptions[ruby_special_error_count];
 
@@ -332,6 +339,10 @@ struct rb_vm_struct
     int src_encoding_index;
 
     VALUE verbose, debug, progname;
+
+#ifdef RUBY_DEBUG_ENV
+    int enable_coredump;
+#endif
 
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     struct rb_objspace *objspace;

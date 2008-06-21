@@ -29,8 +29,9 @@ main(int argc, char **argv, char **envp)
 
     ruby_sysinit(&argc, &argv);
     {
+	rb_vm_t *vm;
 	RUBY_INIT_STACK;
-	ruby_init();
-	return ruby_run_node(ruby_options(argc, argv));
+	vm = ruby_vm_new();
+	return ruby_vm_run(vm, ruby_vm_parse_options(vm, argc, argv));
     }
 }
