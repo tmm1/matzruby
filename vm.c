@@ -1788,6 +1788,13 @@ Init_BareVM(void)
     ruby_thread_init_stack(th);
 }
 
+rb_vm_t *
+ruby_vm_new(void)
+{
+    ruby_init();
+    return GET_VM();
+}
+
 /* top self */
 
 static VALUE
