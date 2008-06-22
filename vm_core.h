@@ -293,6 +293,8 @@ typedef struct rb_iseq_struct rb_iseq_t;
 #define GetVMPtr(obj, ptr) \
   GetCoreDataFromValue(obj, rb_vm_t, ptr)
 
+#define ENABLE_VM_OBJSPACE 1
+
 struct rb_vm_struct
 {
     VALUE self;
