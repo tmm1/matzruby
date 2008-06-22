@@ -167,12 +167,14 @@ rb_call_super(int argc, const VALUE *argv)
 static inline void
 stack_check(void)
 {
+#ifndef HAVE_SIGALTSTACK
     rb_thread_t *th = GET_THREAD();
 
     if (!rb_thread_raised_p(th, RAISED_STACKOVERFLOW) && ruby_stack_check()) {
 	rb_thread_raised_set(th, RAISED_STACKOVERFLOW);
 	rb_exc_raise(sysstack_error);
     }
+#endif
 }
 
 static inline VALUE

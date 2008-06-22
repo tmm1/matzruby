@@ -1,3 +1,19 @@
+Sun Jun 22 11:12:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (ruby_stack_check), vm_eval.c (stack_check): disable check if
+	  hard stack check is available.
+
+	* signal.c (Init_signal): use alternative stack for SEGV.
+
+	* thread_{pthread,win32}.c (native_thread_init_stack): get stack
+	  boundary.
+
+	* thread_pthread.c (ruby_stack_overflow_p): check fault address is
+	  stack overflow.
+
+	* vm.c (vm_eval_body): if thrown exception is frozen, reraise it to
+	  create a new instance.
+
 Sat Jun 21 17:33:50 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 
 	* win32/win32.c (rb_w32_spawn): no longer support P_WAIT.

@@ -15,6 +15,7 @@
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "vm_core.h"
+#include "eval_intern.h"
 #include <signal.h>
 #include <stdio.h>
 
@@ -424,12 +425,19 @@ rb_gc_mark_trap_list(void)
 #endif
 
 typedef RETSIGTYPE (*sighandler_t)(int);
+#ifdef SA_SIGINFO
+typedef void ruby_sigaction_t(int, siginfo_t*, void*);
+#define SIGINFO_ARG , siginfo_t *info, void *ctx
+#else
+typedef RETSIGTYPE ruby_sigaction_t(int);
+#define SIGINFO_ARG
+#endif
 
 #ifdef POSIX_SIGNAL
-static sighandler_t
-ruby_signal(int signum, sighandler_t handler)
+static int
+ruby_sigaction(int signum, ruby_sigaction_t *handler, int altstack, struct sigaction *old)
 {
-    struct sigaction sigact, old;
+    struct sigaction sigact;
 
 #if 0
     rb_trap_accept_nativethreads[signum] = 0;
@@ -437,18 +445,29 @@ ruby_signal(int signum, sighandler_t handler)
 
     sigemptyset(&sigact.sa_mask);
 #ifdef SA_SIGINFO
-    sigact.sa_sigaction = (void (*)(int, siginfo_t*, void*))handler;
+    sigact.sa_sigaction = handler;
     sigact.sa_flags = SA_SIGINFO;
+#ifdef HAVE_SIGALTSTACK
+    if (altstack)
+	sigact.sa_flags |= SA_ONSTACK;
+#endif
 #else
-    sigact.sa_handler = handler;
+    sigact.sa_handler = (sighandler_t)handler;
     sigact.sa_flags = 0;
 #endif
 
 #ifdef SA_NOCLDWAIT
-    if (signum == SIGCHLD && handler == SIG_IGN)
+    if (signum == SIGCHLD && (sighandler_t)handler == SIG_IGN)
 	sigact.sa_flags |= SA_NOCLDWAIT;
 #endif
-    sigaction(signum, &sigact, &old);
+    return sigaction(signum, &sigact, old);
+}
+
+static sighandler_t
+ruby_signal(int signum, sighandler_t handler)
+{
+    struct sigaction old;
+    ruby_sigaction(signum, (ruby_sigaction_t *)handler, Qfalse, &old);
     return old.sa_handler;
 }
 
@@ -456,6 +475,21 @@ sighandler_t
 posix_signal(int signum, sighandler_t handler)
 {
     return ruby_signal(signum, handler);
+}
+
+void
+ruby_install_altstack(rb_thread_t *th)
+{
+#ifdef HAVE_SIGALTSTACK
+    stack_t sigstk;
+    static void *segv_stack;
+
+    if (!segv_stack) segv_stack = malloc(SIGSTKSZ * 2);
+    sigstk.ss_sp = segv_stack;
+    sigstk.ss_size = SIGSTKSZ;
+    sigstk.ss_flags = 0;
+    sigaltstack(&sigstk, 0);
+#endif
 }
 
 #else /* !POSIX_SIGNAL */
@@ -548,14 +582,31 @@ sigbus(int sig)
 #endif
 
 #ifdef SIGSEGV
+# ifdef HAVE_SIGALTSTACK
+int ruby_stack_overflow_p(siginfo_t*, ucontext_t*);
+# endif
+
 static int segv_received = 0;
 static RETSIGTYPE
-sigsegv(int sig)
+sigsegv(int sig SIGINFO_ARG)
 {
+#ifdef HAVE_SIGALTSTACK
+    if (ruby_stack_overflow_p(info, ctx)) {
+	rb_thread_t *th = GET_THREAD();
+	th->errinfo = sysstack_error;
+	rb_thread_raised_clear(th);
+	TH_JUMP_TAG(th, TAG_RAISE);
+    }
+#endif
     if (segv_received) {
 	fprintf(stderr, "SEGV recieved in SEGV handler\n");
 	exit(EXIT_FAILURE);
     }
+#ifdef RUBY_DEBUG_ENV
+    if (ruby_enable_coredump) {
+	signal(sig, SIG_DFL);
+    }
+#endif
     else {
 	extern int ruby_disable_gc_stress;
 	segv_received = 1;
@@ -697,7 +748,7 @@ default_handler(int sig)
 #endif
 #ifdef SIGSEGV
       case SIGSEGV:
-        func = sigsegv;
+        func = (sighandler_t)sigsegv;
         break;
 #endif
 #ifdef SIGPIPE
@@ -1112,10 +1163,11 @@ Init_signal(void)
 #ifdef SIGBUS
     install_sighandler(SIGBUS, sigbus);
 #endif
-#ifdef SIGSEGV
-    install_sighandler(SIGSEGV, sigsegv);
-#endif
     }
+#ifdef SIGSEGV
+    ruby_sigaction(SIGSEGV, sigsegv, Qtrue, NULL);
+    ruby_install_altstack(GET_THREAD());
+#endif
 #ifdef SIGPIPE
     install_sighandler(SIGPIPE, sigpipe);
 #endif

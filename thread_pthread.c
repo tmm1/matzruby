@@ -13,6 +13,15 @@
 
 #include "gc.h"
 
+#if defined HAVE_PTHREAD_NP_H
+#include <pthread_np.h>
+#elif defined HAVE_THR_STKSEGMENT
+#include <thread.h>
+#endif
+#ifdef HAVE_SYS_SIGNAL_H
+#include <sys/signal.h>
+#endif
+
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
@@ -170,6 +179,59 @@ native_thread_destroy(rb_thread_t *th)
 
 #define USE_THREAD_CACHE 0
 
+static int
+get_stack(void **addr, size_t *size)
+{
+#define STACKADDR_AVAILABLE 1
+#define CHECK_ERR(expr)				\
+    {int err = (expr); if (err) return err;}
+#if defined HAVE_PTHREAD_GETATTR_NP || defined HAVE_PTHREAD_ATTR_GET_NP
+    pthread_attr_t attr;
+    size_t guard = 0;
+
+# ifdef HAVE_PTHREAD_GETATTR_NP
+    CHECK_ERR(pthread_getattr_np(pthread_self(), &attr));
+#   ifdef HAVE_PTHREAD_ATTR_GETSTACK
+    CHECK_ERR(pthread_attr_getstack(&attr, addr, size));
+#   else
+    CHECK_ERR(pthread_attr_getstackaddr(&attr, addr));
+    CHECK_ERR(pthread_attr_getstacksize(&attr, size));
+#   endif
+# else
+    CHECK_ERR(pthread_attr_init(&attr));
+    CHECK_ERR(pthread_attr_get_np(pthread_self(), &attr));
+    CHECK_ERR(pthread_attr_getstackaddr(&attr, addr));
+    CHECK_ERR(pthread_attr_getstacksize(&attr, size));
+# endif
+    CHECK_ERR(pthread_attr_getguardsize(&attr, &guard));
+# ifndef HAVE_PTHREAD_GETATTR_NP
+    pthread_attr_destroy(&attr);
+# endif
+    size -= guard;
+#elif defined HAVE_PTHREAD_GET_STACKADDR_NP && defined HAVE_PTHREAD_GET_STACKSIZE_NP
+    pthread_t th = pthread_self();
+    *addr = pthread_get_stackaddr_np(th);
+    *size = pthread_get_stacksize_np(th);
+#elif defined HAVE_THR_STKSEGMENT || defined HAVE_PTHREAD_STACKSEG_NP
+    stack_t stk;
+# if defined HAVE_THR_STKSEGMENT
+    CHECK_ERR(thr_stksegment(&stk));
+# else
+    CHECK_ERR(pthread_stackseg_np(pthread_self(), &stk));
+# endif
+    *addr = stk.ss_sp;
+    *size = stk.ss_size;
+#else
+#undef STACKADDR_AVAILABLE
+    return -1;
+#endif
+#ifdef STACKADDR_AVAILABLE
+    return 0;
+#endif
+#undef CHECK_ERR
+}
+
+#ifndef STACKADDR_AVAILABLE
 static struct {
     rb_thread_id_t id;
     size_t stack_maxsize;
@@ -178,6 +240,7 @@ static struct {
     VALUE *register_stack_start;
 #endif
 } native_main_thread;
+#endif
 
 #undef ruby_init_stack
 void
@@ -187,6 +250,7 @@ ruby_init_stack(VALUE *addr
 #endif
     )
 {
+#ifndef STACKADDR_AVAILABLE
     native_main_thread.id = pthread_self();
     if (!native_main_thread.stack_start ||
         STACK_UPPER(&addr,
@@ -212,43 +276,49 @@ ruby_init_stack(VALUE *addr
 	}
     }
 #endif
+#endif
 }
 
-#define CHECK_ERR(expr) \
-    {int err = (expr); if (err) {rb_bug("err: %d - %s", err, #expr);}}
+#if STACK_GROW_DIRECTION
+#define STACK_GROW_DIR_DETECTION
+#define STACK_DIR_UPPER(a,b) STACK_UPPER(0, a, b)
+#else
+#define STACK_GROW_DIR_DETECTION VALUE stack_grow_dir_detection
+#define STACK_DIR_UPPER(a,b) STACK_UPPER(&stack_grow_dir_detection, a, b)
+#endif
 
 static int
 native_thread_init_stack(rb_thread_t *th)
 {
-    rb_thread_id_t curr = pthread_self();
-
-    if (pthread_equal(curr, native_main_thread.id)) {
-	th->machine_stack_start = native_main_thread.stack_start;
-	th->machine_stack_maxsize = native_main_thread.stack_maxsize;
-    }
-    else {
-#ifdef HAVE_PTHREAD_GETATTR_NP
-	pthread_attr_t attr;
-	void *start;
-	CHECK_ERR(pthread_getattr_np(curr, &attr));
-# if defined HAVE_PTHREAD_ATTR_GETSTACK
-	CHECK_ERR(pthread_attr_getstack(&attr, &start, &th->machine_stack_maxsize));
-# elif defined HAVE_PTHREAD_ATTR_GETSTACKSIZE && defined HAVE_PTHREAD_ATTR_GETSTACKADDR
-	CHECK_ERR(pthread_attr_getstackaddr(&attr, &start));
-	CHECK_ERR(pthread_attr_getstacksize(&attr, &th->machine_stack_maxsize));
-# endif
-	th->machine_stack_start = start;
+#ifdef STACKADDR_AVAILABLE
+    void *addr;
+    size_t size;
+    int err = get_stack(&addr, &size);
+    STACK_GROW_DIR_DETECTION;
+    if (err) return err;
+    size -= sizeof(VALUE);
+    th->machine_stack_start = (VALUE *)((char *)addr + STACK_DIR_UPPER(0, size));
+    th->machine_stack_maxsize = size;
 #else
-	rb_raise(rb_eNotImpError, "ruby engine can initialize only in the main thread");
+    th->machine_stack_start = native_main_thread.stack_start;
+    th->machine_stack_maxsize = native_main_thread.stack_maxsize;
 #endif
-    }
 #ifdef __ia64
+    th->machine_stack_maxsize += sizeof(VALUE);
+#ifdef STACKADDR_AVAILABLE
     th->machine_register_stack_start = native_main_thread.register_stack_start;
+#else
+    th->machine_register_stack_start =
+	(VALUE *)((char *)th->machine_stack_start - th->machine_stack_maxsize / 2);
+#endif
     th->machine_stack_maxsize /= 2;
+    th->machine_stack_maxsize -= sizeof(VALUE);
     th->machine_register_stack_maxsize = th->machine_stack_maxsize;
 #endif
     return 0;
 }
+
+void ruby_install_altstack(rb_thread_t *);
 
 static void *
 thread_start_func_1(void *th_ptr)
@@ -260,6 +330,17 @@ thread_start_func_1(void *th_ptr)
 	rb_thread_t *th = th_ptr;
 	VALUE stack_start;
 
+#ifdef STACKADDR_AVAILABLE
+	void *addr;
+	size_t size;
+	if (get_stack(&addr, &size)) return 0;
+	size -= STACK_UPPER(&stack_start,
+			    (char *)&stack_start - (char *)addr,
+			    (char *)addr - (char *)&stack_start);
+	th->machine_stack_start = &stack_start;
+	th->machine_stack_maxsize = size;
+#endif
+	ruby_install_altstack(th);
 	/* run */
 	thread_start_func_2(th, &stack_start, rb_ia64_bsp());
     }
@@ -368,6 +449,21 @@ use_cached_thread(rb_thread_t *th)
     return result;
 }
 
+enum {
+    RUBY_STACK_MIN_LIMIT = 512 * 1024, /* 512KB */
+    RUBY_STACK_MIN = (
+#ifdef PTHREAD_STACK_MIN
+	(RUBY_STACK_MIN_LIMIT < PTHREAD_STACK_MIN) ? PTHREAD_STACK_MIN * 2 :
+#endif
+	RUBY_STACK_MIN_LIMIT),
+    RUBY_STACK_SPACE_LIMIT = 1024 * 1024,
+    RUBY_STACK_SPACE = (RUBY_STACK_MIN/5 > RUBY_STACK_SPACE_LIMIT ?
+			RUBY_STACK_SPACE_LIMIT : RUBY_STACK_MIN/5),
+};
+
+#define CHECK_ERR(expr) \
+    {int err = (expr); if (err) {rb_bug("err: %d - %s", err, #expr);}}
+
 static int
 native_thread_create(rb_thread_t *th)
 {
@@ -378,20 +474,17 @@ native_thread_create(rb_thread_t *th)
     }
     else {
 	pthread_attr_t attr;
-	size_t stack_size = 512 * 1024; /* 512KB */
-        size_t space;
-
-#ifdef PTHREAD_STACK_MIN
-	if (stack_size < PTHREAD_STACK_MIN) {
-	    stack_size = PTHREAD_STACK_MIN * 2;
-	}
+	const size_t stack_size = RUBY_STACK_MIN;
+#if HAVE_SIGALTSTACK
+	const size_t space = 0;
+#else
+	const size_t space = RUBY_STACK_SPACE;
 #endif
-        space = stack_size/5;
-        if (space > 1024*1024) space = 1024*1024;
-        th->machine_stack_maxsize = stack_size - space;
+
+	th->machine_stack_maxsize = stack_size - space;
 #ifdef __ia64
-        th->machine_stack_maxsize /= 2;
-        th->machine_register_stack_maxsize = th->machine_stack_maxsize;
+	th->machine_stack_maxsize /= 2;
+	th->machine_register_stack_maxsize = th->machine_stack_maxsize;
 #endif
 
 	CHECK_ERR(pthread_attr_init(&attr));
@@ -695,5 +788,41 @@ rb_thread_create_timer_thread(void)
     }
     rb_disable_interrupt(); /* only timer thread recieve signal */
 }
+
+#ifdef HAVE_SIGALTSTACK
+int
+ruby_stack_overflow_p(siginfo_t *info, ucontext_t *ctx)
+{
+    void *base, *addr = info->si_addr;
+    size_t size;
+    const size_t water_mark = 64 * 1024;
+    rb_thread_t *th = ruby_thread_from_native();
+    STACK_GROW_DIR_DETECTION;
+
+    if (th) {
+	size = th->machine_stack_maxsize;
+	base = (char *)th->machine_stack_start - STACK_DIR_UPPER(0, size);
+    }
+#ifdef STACKADDR_AVAILABLE
+    else if (get_stack(&base, &size) == 0) {
+	STACK_DIR_UPPER(base = (char *)base + size, (void)0);
+    }
+#endif
+    else {
+	return 0;
+    }
+    size /= 5;
+    if (size > water_mark) size = water_mark;
+    if (STACK_DIR_UPPER(1, 0)) {
+	if (size > ~(size_t)base+1) size = ~(size_t)base+1;
+	if (addr > base && addr <= (void *)((char *)base + size)) return 1;
+    }
+    else {
+	if (size > (size_t)base) size = (size_t)base;
+	if (addr > (void *)((char *)base - size) && addr <= base) return 1;
+    }
+    return 0;
+}
+#endif
 
 #endif /* THREAD_SYSTEM_DEPENDENT_IMPLEMENTATION */

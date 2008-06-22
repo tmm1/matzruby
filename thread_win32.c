@@ -436,18 +436,27 @@ ruby_init_stack(VALUE *addr)
 #define CHECK_ERR(expr) \
     {if (!(expr)) {rb_bug("err: %lu - %s", GetLastError(), #expr);}}
 
-static void
-native_thread_init_stack(rb_thread_t *th)
+static int
+native_get_stack(void **addr, size_t *size)
 {
     MEMORY_BASIC_INFORMATION mi;
     char *base, *end;
     DWORD size, space;
-
-    CHECK_ERR(VirtualQuery(&mi, &mi, sizeof(mi)));
+    if (!VirtualQuery(&mi, &mi, sizeof(mi))) return -1;
     base = mi.AllocationBase;
     end = mi.BaseAddress;
     end += mi.RegionSize;
-    size = end - base;
+    *addr = base;
+    *size = end - base;
+}
+
+static void
+native_thread_init_stack(rb_thread_t *th)
+{
+    DWORD size, space;
+    void *end;
+
+    if (native_get_stack(&end, &size)) return;
     space = size / 5;
     if (space > 1024*1024) space = 1024*1024;
     th->machine_stack_start = (VALUE *)end - 1;

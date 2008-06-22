@@ -809,10 +809,14 @@ ruby_stack_length(VALUE **p)
 int
 ruby_stack_check(void)
 {
-    int ret;
+    int ret = 0;
+#if !defined HAVE_SIGALTSTACK || defined __ia64
     rb_thread_t *th = GET_THREAD();
+#endif
+#ifndef HAVE_SIGALTSTACK
     SET_STACK_END;
     ret = STACK_LENGTH > STACK_LEVEL_MAX - GC_WATER_MARK;
+#endif
 #ifdef __ia64
     if (!ret) {
         ret = (VALUE*)rb_ia64_bsp() - th->machine_register_stack_start >
