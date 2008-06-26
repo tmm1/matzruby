@@ -1396,7 +1396,7 @@ set_arg0(VALUE val, ID id, VALUE *var)
 	}
     }
 #endif
-    *var = rb_tainted_str_new(s, i);
+    *var = rb_obj_freeze(rb_tainted_str_new(s, i));
 }
 
 DEPRECATED(void ruby_script(const char *name));
@@ -1404,7 +1404,7 @@ void
 ruby_script(const char *name)
 {
     if (name) {
-	GET_VM()->progname = rb_tainted_str_new2(name);
+	GET_VM()->progname = rb_obj_freeze(rb_tainted_str_new2(name));
     }
 }
 
