@@ -7381,7 +7381,7 @@ argf_binmode_m(VALUE argf)
 static VALUE
 argf_binmode_p(VALUE argf)
 {
-    return argf_binmode ? Qtrue : Qfalse;
+    return argf_of(argf).binmode ? Qtrue : Qfalse;
 }
 
 static VALUE

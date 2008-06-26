@@ -1,7 +1,16 @@
+Fri Jun 27 00:44:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (argf_binmode_p): fix for backport.
+
 Fri Jun 27 00:00:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* ruby.c (set_arg0, ruby_prog_init): freeze $0.  a patch from Keita
 	  Yamaguchi <keita.yamaguchi at gmail.com>.
+
+Thu Jun 26 23:58:29 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* string.c (rb_str_index_m, rb_str_rindex_m, rb_str_include): fix
+	  rdoc.
 
 Thu Jun 26 17:43:41 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 
