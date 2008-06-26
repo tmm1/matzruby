@@ -2613,6 +2613,22 @@ primary		: literal
 			$$ = dispatch1(defined, $5);
 		    %*/
 		    }
+		| keyword_not '(' expr rparen
+		    {
+		    /*%%%*/
+			$$ = call_uni_op(cond($3), '!');
+		    /*%
+			$$ = dispatch2(unary, ripper_intern("not"), $3);
+		    %*/
+		    }
+		| keyword_not '(' rparen
+		    {
+		    /*%%%*/
+			$$ = NEW_LIT(Qtrue);
+		    /*%
+			$$ = dispatch2(unary, ripper_intern("not"), Qnil);
+		    %*/
+		    }
 		| operation brace_block
 		    {
 		    /*%%%*/

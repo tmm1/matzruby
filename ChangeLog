@@ -1,12 +1,91 @@
+Thu Jun 26 17:43:41 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* variable.c (rb_f_trace_var): should not be allowed at safe level 4.  
+	  a patch from Keita Yamaguchi <keita.yamaguchi at gmail.com>.
+
+Thu Jun 26 11:04:30 2008  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rubygems: Update to RubyGems 1.2.0 r1824.  Incorporates patch by
+	Yusuke ENDOH [ruby-core:17353].
+
+Thu Jun 26 00:48:31 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (primary): not operand might be empty.  [ruby-dev:35227]
+
+Wed Jun 25 21:54:34 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (primary): make functional-style not operator to act
+	  like function.  see <http://d.hatena.ne.jp/ku-ma-me/20080624/p1>.
+
 Wed Jun 25 15:28:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* array.c (rb_ary_fill): not depend on unspecified behavior at integer
 	  overflow.  reported by Vincenzo Iozzo <snagg AT openssl.it>.
 
+Wed Jun 25 13:42:44 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* lib/erb.rb (ERB::Compiler:Buffer#new): push magic comment first.
+
+	* lib/erb.rb (ERB::Compiler#compile): fix for broken input.
+
+Wed Jun 25 12:10:01 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* lib/erb.rb (ERB::Compiler#compile): magic comment needs LF.
+
+Wed Jun 25 09:31:11 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* lib/erb.rb (ERB::Compiler#compile): output magic comment.
+
+Tue Jun 24 22:14:36 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* vm_eval.c (eval_string_with_cref): preserve parse_in_eval even if
+	  exception raised.
+
+Tue Jun 24 22:09:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c(ole_invoke): fix memory leak.
+	  [ruby-bugs-20792]
+
 Tue Jun 24 17:20:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* configure.in (rb_cv_fork_with_pthread): check after check for
 	  pthread library, and define the macro when checked only.
+
+Tue Jun 24 17:04:39 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/io/wait/extconf.rb: check sys/socket.h for cygwin.
+
+Tue Jun 24 16:51:51 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* io.c (io_reopen): remove cygwin handling because it seems to be for
+	  C's stdio.
+	  fixed [ruby-dev:35183]
+
+Tue Jun 24 11:12:33 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* include/ruby/win32.h, win32/win32.c (rb_w32_getppid): now support
+	  getppid() on win32 (but only Win2k or later).
+
+	* process.c (get_ppid): remove win32 special logic.
+
+Tue Jun 24 09:40:47 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/socket/socket.c (init_sock): socket is binmode on platforms
+	  which support binmode.
+
+Tue Jun 24 00:21:53 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* compile.c (iseq_build_from_ary): initialize arg_opts, a patch from
+	  Adam Strzelecki <ono@java.pl> in [ruby-core:17220].
+
+Tue Jun 24 00:10:53 2008  wanabe  <s.wanabe@gmail.com>
+	* compile.c (iseq_build_from_ary): fix expression to obtain 
+	  iseq->local_size and iseq->local_table_size.  [ruby-dev:35205]
+
+Mon Jun 23 11:31:41 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/mathn.rb (Rational::power2): removed incomplete method.
+	  see [ruby-dev:35195].   [ruby-core:17293]
 
 Sun Jun 22 16:45:27 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -32,6 +111,31 @@ Sun Jun 22 11:12:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm.c (vm_eval_body): if thrown exception is frozen, reraise it to
 	  create a new instance.
+
+Sun Jun 22 09:51:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* object.c (rb_class_superclass): rdoc improvement, a patch from
+	  Gaston Ramos <ramos.gaston AT gmail.com> in [ruby-core:17371].
+
+Sun Jun 22 09:22:32 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* README.EXT: translated README.EXT.ja
+
+Sun Jun 22 00:42:02 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_osid, rb_w32_osver, CreateChild): XP is
+	  is different from Vista about pipe handle inheritance.
+	  fixed [ruby-core:17367], reported by Lars Christensen <larsch at
+	  belunktum.dk>
+
+Sun Jun 22 00:38:45 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* README.EXT.ja: add note about mark and free.
+
+Sun Jun 22 00:01:36 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* io.c (rb_io_binmode_p, argf_binmode_p, Init_IO): new method
+	  IO#binmode? and ARGF.binmode?  [ruby-dev:35148]
 
 Sat Jun 21 17:33:50 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 
@@ -120,25 +224,25 @@ Fri Jun 20 11:57:46 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 
 Fri Jun 20 11:07:56 2008  Tanaka Akira  <akr@fsij.org>
 
-        * string.c (rb_memhash): randomize hash to avoid algorithmic
-          complexity attacks.
-          (rb_str_hash): use rb_memhash.
+	* string.c (rb_memhash): randomize hash to avoid algorithmic
+	  complexity attacks.
+	  (rb_str_hash): use rb_memhash.
 
-        * include/ruby/intern.h (rb_reset_random_seed): declared.
+	* include/ruby/intern.h (rb_reset_random_seed): declared.
 
-        * thread.c (rb_thread_atfork): call rb_reset_random_seed.
+	* thread.c (rb_thread_atfork): call rb_reset_random_seed.
 
-        * inits.c (rb_call_inits): call Init_RandomSeed at first.
+	* inits.c (rb_call_inits): call Init_RandomSeed at first.
 
-        * random.c (seed_initialized): defined.
-          (fill_random_seed): extracted from random_seed.
-          (make_seed_value): extracted from random_seed.
-          (rb_f_rand): initialize random seed at first.
-          (initial_seed): defined.
-          (Init_RandomSeed): defined.
-          (Init_RandomSeed2): defined.
-          (rb_reset_random_seed): defined.
-          (Init_Random): call Init_RandomSeed2.
+	* random.c (seed_initialized): defined.
+	  (fill_random_seed): extracted from random_seed.
+	  (make_seed_value): extracted from random_seed.
+	  (rb_f_rand): initialize random seed at first.
+	  (initial_seed): defined.
+	  (Init_RandomSeed): defined.
+	  (Init_RandomSeed2): defined.
+	  (rb_reset_random_seed): defined.
+	  (Init_Random): call Init_RandomSeed2.
 
 Wed Jun 18 21:52:38 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
@@ -8771,7 +8875,7 @@ Fri Dec 28 18:45:29 2007  NAKAMURA Usaku  <usa@ruby-lang.org>
 Fri Dec 28 01:55:04 2007  Martin Duerst  <duerst@it.aoyama.ac.jp>
 
 	* transcode.c (transcode_dispatch): reverted some of the changes
-          in r14746.
+	  in r14746.
 
 	* transcode.c, enc/trans/single_byte.c: Added conversions to/from
 	  US-ASCII and ASCII-8BIT (using data tables).

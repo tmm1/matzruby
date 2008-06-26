@@ -3166,6 +3166,20 @@ rb_io_binmode_m(VALUE io)
     return io;
 }
 
+/*
+ *  call-seq:
+ *     ios.binmode?    => true or false
+ *
+ *  Returns <code>true</code> if <em>ios</em> is binmode.
+ */
+static VALUE
+rb_io_binmode_p(VALUE io)
+{
+    rb_io_t *fptr;
+    GetOpenFile(io, fptr);
+    return fptr->mode & FMODE_BINMODE ? Qtrue : Qfalse;
+}
+
 static const char*
 rb_io_flags_mode(int flags)
 {
@@ -4395,7 +4409,6 @@ io_reopen(VALUE io, VALUE nfile)
     GetOpenFile(nfile, orig);
 
     if (fptr == orig) return io;
-#if !defined __CYGWIN__
     if (IS_PREP_STDIO(fptr)) {
         if ((fptr->stdio_file == stdin && !(orig->mode & FMODE_READABLE)) ||
             (fptr->stdio_file == stdout && !(orig->mode & FMODE_WRITABLE)) ||
@@ -4406,7 +4419,6 @@ io_reopen(VALUE io, VALUE nfile)
 		     rb_io_flags_mode(orig->mode));
 	}
     }
-#endif
     if (orig->mode & FMODE_READABLE) {
 	pos = io_tell(orig);
     }
@@ -4429,14 +4441,12 @@ io_reopen(VALUE io, VALUE nfile)
     fd = fptr->fd;
     fd2 = orig->fd;
     if (fd != fd2) {
-#if !defined __CYGWIN__
 	if (IS_PREP_STDIO(fptr)) {
 	    /* need to keep stdio objects */
 	    if (dup2(fd2, fd) < 0)
 		rb_sys_fail(orig->path);
 	}
 	else {
-#endif
             if (fptr->stdio_file)
                 fclose(fptr->stdio_file);
             else
@@ -4446,9 +4456,7 @@ io_reopen(VALUE io, VALUE nfile)
 	    if (dup2(fd2, fd) < 0)
 		rb_sys_fail(orig->path);
             fptr->fd = fd;
-#if !defined __CYGWIN__
 	}
-#endif
 	rb_thread_fd_close(fd);
 	if ((orig->mode & FMODE_READABLE) && pos >= 0) {
 	    if (io_seek(fptr, pos, SEEK_SET) < 0) {
@@ -7371,6 +7379,12 @@ argf_binmode_m(VALUE argf)
 }
 
 static VALUE
+argf_binmode_p(VALUE argf)
+{
+    return argf_binmode ? Qtrue : Qfalse;
+}
+
+static VALUE
 argf_skip(VALUE argf)
 {
     if (argf_of(argf).next_p != -1) {
@@ -7703,6 +7717,7 @@ Init_IO(void)
     rb_define_method(rb_cIO, "isatty", rb_io_isatty, 0);
     rb_define_method(rb_cIO, "tty?", rb_io_isatty, 0);
     rb_define_method(rb_cIO, "binmode",  rb_io_binmode_m, 0);
+    rb_define_method(rb_cIO, "binmode?", rb_io_binmode_p, 0);
     rb_define_method(rb_cIO, "sysseek", rb_io_sysseek, -1);
 
     rb_define_method(rb_cIO, "ioctl", rb_io_ioctl, -1);
@@ -7769,6 +7784,7 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "eof", argf_eof, 0);
     rb_define_method(rb_cARGF, "eof?", argf_eof, 0);
     rb_define_method(rb_cARGF, "binmode", argf_binmode_m, 0);
+    rb_define_method(rb_cARGF, "binmode?", argf_binmode_p, 0);
 
     rb_define_method(rb_cARGF, "filename", argf_filename, 0);
     rb_define_method(rb_cARGF, "path", argf_filename, 0);
