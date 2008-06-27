@@ -1,3 +1,8 @@
+Fri Jun 27 13:10:41 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in: need to check sigaltstack and others regardless
+	  ucontext.
+
 Fri Jun 27 12:28:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* lib/un.rb (mkmf): new command to create makefile.
