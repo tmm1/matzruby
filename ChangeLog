@@ -5,6 +5,22 @@ Fri Jun 27 21:19:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* lib/test/unit/ui/console/testrunner.rb (TestRunner#finished): ditto.
 
+Fri Jun 27 17:45:17 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* lib/erb.rb: adjust line number for magic comment.
+
+	* test/erb/test_erb.rb: add tests for def_method.
+
+Fri Jun 27 14:29:07 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (primary): empty not should call '!' on nil.
+	  cf [ruby-dev:35227]
+
+Fri Jun 27 14:25:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm.c (vm_eval_body): if thrown exception is frozen, reraise it to
+	  create a new instance.
+
 Fri Jun 27 13:29:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* include/ruby/intern.h (rb_str_new2, rb_tainted_str_new2,
