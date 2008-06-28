@@ -1,3 +1,24 @@
+Sat Jun 28 13:12:06 2008  Tanaka Akira  <akr@fsij.org>
+
+	* test/rubygems/test_gem.rb (test_self_path_APPLE_GEM_HOME): don't use
+	  fixed /tmp/apple_gem_home directory.
+
+Sat Jun 28 08:40:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c : check String encoding when
+	  converting String to VT_BSTR in OLE.
+
+	* test/win32ole/test_win32ole.rb : ditto.
+
+Sat Jun 28 01:08:42 2008  Tanaka Akira  <akr@fsij.org>
+
+	* time.c (time_timespec): fix rounding negative float.
+
+Fri Jun 27 21:38:57 2008  Tanaka Akira  <akr@fsij.org>
+
+	* struct.c: __size__ removed.  use the length of __members__ instead.
+	  (num_members): new function.
+
 Fri Jun 27 21:19:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* test/inlinetest.rb (InlineTest.in_progname): workaround for frozen
