@@ -26,6 +26,10 @@ git checkout -b trunk origin/trunk
 All you have to do now is invoking 'git pull' from time
 to time to get the latest updates in your branch.
 
+*NOTE*: If the tags in your repo are not being updated over
+time and you don't see newer tags, invoke 'git fetch -t', this
+will force git go fetch all currently available tags.
+
 Most interesting branches:
 
 * trunk - The current development branch (1.9 dev)
