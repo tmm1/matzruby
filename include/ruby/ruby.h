@@ -522,9 +522,12 @@ struct RArray {
 struct RRegexp {
     struct RBasic basic;
     struct re_pattern_buffer *ptr;
-    long len;
-    char *str;
+    VALUE src;
+    unsigned long usecnt;
 };
+#define RREGEXP_SRC(r) RREGEXP(r)->src
+#define RREGEXP_SRC_PTR(r) RSTRING_PTR(RREGEXP(r)->src)
+#define RREGEXP_SRC_LEN(r) RSTRING_LEN(RREGEXP(r)->src)
 
 struct RHash {
     struct RBasic basic;
@@ -904,9 +907,6 @@ RUBY_EXTERN VALUE rb_cThread;
 RUBY_EXTERN VALUE rb_cTime;
 RUBY_EXTERN VALUE rb_cTrueClass;
 RUBY_EXTERN VALUE rb_cUnboundMethod;
-RUBY_EXTERN VALUE rb_cISeq;
-RUBY_EXTERN VALUE rb_cVM;
-RUBY_EXTERN VALUE rb_cEnv;
 
 RUBY_EXTERN VALUE rb_eException;
 RUBY_EXTERN VALUE rb_eStandardError;

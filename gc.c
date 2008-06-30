@@ -1271,6 +1271,9 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
         break;
 
       case T_REGEXP:
+        gc_mark(objspace, obj->as.regexp.src, lev);
+        break;
+
       case T_FLOAT:
       case T_BIGNUM:
 	break;
@@ -1508,9 +1511,6 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
       case T_REGEXP:
 	if (RANY(obj)->as.regexp.ptr) {
 	    onig_free(RANY(obj)->as.regexp.ptr);
-	}
-	if (RANY(obj)->as.regexp.str) {
-	    xfree(RANY(obj)->as.regexp.str);
 	}
 	break;
       case T_DATA:
