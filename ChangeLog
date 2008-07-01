@@ -1,6 +1,105 @@
+Wed Jul  2 03:10:41 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* compile.h, insns.def: reduce insn operand of "trace".
+
+	* include/ruby/ruby.h: add RUBY_EVENT_COVERAGE event.
+
+Wed Jul  2 02:02:34 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* proc.c, vm.c: fix to refer next ruby level cfp to make binding.
+
+Wed Jul  2 01:58:19 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* insns.def (trace): C99ism.
+
+Wed Jul  2 01:53:40 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* Add coverage measurement constant COVERAGE__.  This constant is not
+	  for casual use.  Usage: (1) assign {} to COVERAGE__, (2) require or
+	  load Ruby source file, and (3) COVERAGE__["sourcefilepath"] will
+	  return an array whose elements represent number of executions per
+	  line of source code.
+
+	* vm_core.h: add field of coverage array to iseq.
+
+	* iseq.c (prepare_iseq_build): ditto.
+
+	* insns.def (trace): update coverage array.
+
+	* parse.y (coverage): create and initialize coverage array.
+
+	* compile.h (ADD_TRACE): add trace instruction to update covearge
+	  array.
+
+	* thread.c (clear_coverage): delete coverage array when forking.
+	  Otherwise, double count of coverage may occur.
+
+	* lib/coverage.rb: sample coverage measurement tool.
+
+	* error.c: distinguish explicitly between parse_in_eval and
+	  mild_compile_error.
+
+	* load.c: ditto.
+
+	* vm_eval.c: ditto.
+
+Tue Jul  1 21:32:43 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* lib/test/unit/ui/console/testrunner.rb: prevent destructive
+	  modification to $0.
+
+	* test/rubygems/gemutilities.rb (build_rake_in): move from
+	  test_gem_ext_rake_builder.rb.
+
+	* test/rubygems/test_gem_ext_rake_builder.rb: ditto.
+
+	* test/rubygems/test_gem_installer.rb: override Gem.ruby and
+	  ENV["rake"].
+
+	* test/rubygems/test_gem_uninstaller.rb: ditto.
+
+
+Tue Jul  1 21:13:17 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* compile.c, vm.c, insns.def: call FrozenCore.set_postexe method
+	  instead to use "postexe" insn.
+
+	* id.c, id.h: add a prepared id for above.
+
+Tue Jul  1 21:09:58 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* lib/mkmf.rb (create_tmpsrc): we need to include COMMON_HEADERS,
+	  namely inclusion of ruby.h, because _GNU_SOURCE is now defined
+	  there (if any) and socket.so requires it on Linux systems.
+
+Tue Jul  1 20:55:07 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (rb_interrupt): trick to suppress GCC warning.
+
+	* sprintf.c (rb_str_format): ditto.
+
+Tue Jul  1 20:44:36 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* tool/instruction.rb: RubyVM is not module.
+
+Tue Jul  1 19:31:24 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/digest/digest.c (rb_digest_instance_inspect): constified.
+
+	* variable.c (rb_path2class): field precision should have type int.
+
+Tue Jul  1 19:01:00 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/shift_jis.c (code_is_ctype): HALF WIDTH KATAKANA is
+	  a character.
+
 Tue Jul  1 17:56:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* missing/vsnprintf.c (BSD__uqtoa): constified.
+
+Tue Jul  1 17:50:44 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* enc/make_encdb.h: always add ';' at the end of line.
 
 Tue Jul  1 17:44:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -16,6 +115,60 @@ Tue Jul  1 17:37:43 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
 	* enc/us_ascii.c: ditto.
 
 	* enc/utf_8.c: ditto.
+
+	* enc/big5.c: ditto.
+
+	* enc/euc_jp.c: ditto.
+
+	* enc/euc_kr.c: ditto.
+
+	* enc/euc_tw.c: ditto.
+
+	* enc/gb2312.c: ditto.
+
+	* enc/gbk.c: ditto.
+
+	* enc/iso_8859_1.c: ditto.
+
+	* enc/iso_8859_2.c: ditto.
+
+	* enc/iso_8859_3.c: ditto.
+
+	* enc/iso_8859_4.c: ditto.
+
+	* enc/iso_8859_5.c: ditto.
+
+	* enc/iso_8859_6.c: ditto.
+
+	* enc/iso_8859_7.c: ditto.
+
+	* enc/iso_8859_8.c: ditto.
+
+	* enc/iso_8859_9.c: ditto.
+
+	* enc/iso_8859_10.c: ditto.
+
+	* enc/iso_8859_11.c: ditto.
+
+	* enc/iso_8859_13.c: ditto.
+
+	* enc/iso_8859_14.c: ditto.
+
+	* enc/iso_8859_15.c: ditto.
+
+	* enc/iso_8859_16.c: ditto.
+
+	* enc/koi8_r.c: ditto.
+
+	* enc/shift_jis.c: ditto.
+
+	* enc/utf_16be.c: ditto.
+
+	* enc/utf_32be.c: ditto.
+
+	* enc/utf_32le.c: ditto.
+
+	* enc/windows_1251.c: ditto.
 
 	* process.c (run_exec_rlimit): ISO C90 forbids mixed declarations
 	  and code
@@ -38,6 +191,8 @@ Tue Jul  1 17:37:43 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
 	* ruby.c (enum dump_flag_bits): ditto.
 
 	* ruby.c (enum disable_flag_bits): ditto.
+
+	* enc/gb18030.c (enum): ditto.
 
 Tue Jul  1 17:21:42 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 

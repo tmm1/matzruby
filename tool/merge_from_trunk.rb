@@ -18,6 +18,9 @@ unless old_revision == new_revision
   end
   File.open(".merged-trunk-revision", "wb") {|f| f.puts new_revision}
 end
+unless conflicts.empty?
+  abort "conflicted #{conflicts.size}"
+end
 curr_revision = `svn cat .merged-trunk-revision`.chomp
 merge = ["svn", "ci", "-m", "* merged from trunk r#{curr_revision}:#{new_revision}.", "."]
 if commit

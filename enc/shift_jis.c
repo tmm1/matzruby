@@ -313,7 +313,7 @@ is_code_ctype(OnigCodePoint code, unsigned int ctype, OnigEncoding enc)
       return ONIGENC_IS_ASCII_CODE_CTYPE(code, ctype);
     else {
       if (CTYPE_IS_WORD_GRAPH_PRINT(ctype)) {
-	return (code_to_mbclen(code, enc) > 1 ? TRUE : FALSE);
+	return TRUE;
       }
     }
   }
@@ -376,7 +376,7 @@ OnigEncodingDefine(shift_jis, Shift_JIS) = {
  * Link: http://www.iana.org/assignments/character-sets
  * Link: http://ja.wikipedia.org/wiki/Shift_JIS
  */
-ENC_ALIAS("SJIS", "Shift_JIS");
+ENC_ALIAS("SJIS", "Shift_JIS")
 
 /*
  * Name: Windows-31J
@@ -386,14 +386,14 @@ ENC_ALIAS("SJIS", "Shift_JIS");
  * Link: http://ja.wikipedia.org/wiki/Windows-31J
  * Link: http://source.icu-project.org/repos/icu/data/trunk/charset/data/ucm/windows-932-2000.ucm
  */
-ENC_REPLICATE("Windows-31J", "Shift_JIS");
-ENC_ALIAS("CP932", "Windows-31J");
-ENC_ALIAS("csWindows31J", "Windows-31J"); /* IANA.  IE6 don't accept Windows-31J but csWindows31J. */
+ENC_REPLICATE("Windows-31J", "Shift_JIS")
+ENC_ALIAS("CP932", "Windows-31J")
+ENC_ALIAS("csWindows31J", "Windows-31J") /* IANA.  IE6 don't accept Windows-31J but csWindows31J. */
 
 /*
  * Name: MacJapanese
  * Link: http://unicode.org/Public/MAPPINGS/VENDORS/APPLE/JAPANESE.TXT
  * Link: http://ja.wikipedia.org/wiki/MacJapanese
  */
-ENC_REPLICATE("MacJapanese", "Shift_JIS");
-ENC_ALIAS("MacJapan", "MacJapanese");
+ENC_REPLICATE("MacJapanese", "Shift_JIS")
+ENC_ALIAS("MacJapan", "MacJapanese")
