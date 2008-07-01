@@ -1,7 +1,130 @@
+Tue Jul  1 17:44:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* iseq.c (COMPILE_OPTION_FALSE), time.c (timegm_noleapsecond),
+	  thread.c (eKillSignal, eTerminateSignal),
+	  missing/vsnprintf.c (BSD_vfprintf): constified.
+
+Tue Jul  1 17:37:43 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* enc/ascii.c: ISO C does not allow extra ';' outside of a
+	  function
+
+	* enc/us_ascii.c: ditto.
+
+	* enc/utf_8.c: ditto.
+
+	* process.c (run_exec_rlimit): ISO C90 forbids mixed declarations
+	  and code
+
+	* include/ruby/ruby.h (enum ruby_special_consts): ISO C forbids
+	  comma at end of enumerator list
+
+	* include/ruby/ruby.h (enum ruby_value_type): ditto.
+
+	* eval_intern.h (enum): ditto.
+
+	* vm_core.h (enum rb_thread_status): ditto.
+
+	* parse.y (enum lex_state_e): ditto.
+
+	* parse.y (enum string_type): ditto.
+
+	* process.c (enum): ditto.
+
+	* ruby.c (enum dump_flag_bits): ditto.
+
+	* ruby.c (enum disable_flag_bits): ditto.
+
+Tue Jul  1 17:21:42 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* regexec.c (stack_double): use MatchStackLimitSize atomically.
+
+	* regparse.c (onig_free_shared_cclass_table): OnigTypeCClassTable
+	  needs atomicity
+
+	* regsyntax.c: constified all predefined OnigSyntaxTypes.
+
+Tue Jul  1 16:57:44 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* include/ruby/st.h (struct st_table): type of bit-field
+	  'num_entries' is a GCC extension
+
+	* include/ruby/ruby.h (rb_intern): prefix __extnsion__ for
+	  braced-groups within expressions.
+
+	* include/ruby/intern.h (rb_usascii_str_new2): ditto.
+
+	* include/ruby/intern.h (rb_tainted_str_new2): ditto.
+
+	* include/ruby/intern.h (rb_str_new2): ditto.
+
+Tue Jul  1 15:01:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/rubygems/ext/builder.rb (Gem::Ext::Builder.make),
+	  (Gem::Ext::Builder.run): EXIT_SUCCESS may be 0 or may not.
+
+	* test/rubygems/test_gem_ext_rake_builder.rb (build_rake_in): override
+	  Gem.ruby and ENV["rake"].
+
+	* runruby.rb: bin/rake does not exist in archdir where architecture
+	  depend script (i.e. rbconfig.rb) exists.
+
+Tue Jul  1 13:19:44 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_fill): check if beg is too big.
+
+Tue Jul  1 12:01:16 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* compile.c, insns.def, vm.c, vm_core.h: remove some insns
+	  (undef, alias, definemethod).
+	  Call RubyVM::FrozenCore's singleton method instead.
+	  Add "putiseq" and "putspecialobject" instructions.
+
+	* id.c, id.h: add ids for above.
+
+	* tool/parse.rb: "VM" no longer exists.  Use RubyVM instead.
+
+Tue Jul  1 03:28:16 2008  Eric Hodel  <drbrain@segment7.net>
+
+	* test/rubygems/test_ext_configure_builder.rb:  Apply locale-free
+	  patch by Yusuke ENDOH.  [ruby-core:17444].
+
+	* runruby.rb:  Set ENV['rake'].  Patch by Yusuke ENDOH
+	  [ruby-core:17442].
+
+Tue Jul  1 01:07:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/cgi.rb (CGI::QueryExtension.read_multipart): blanks inside
+	  double quotes are allowed.  [ruby-list:45140]
+
+Tue Jul  1 00:59:43 2008  Tanaka Akira  <akr@fsij.org>
+
+	* numeric.c (num_coerce): call rb_Float(x) first.  don't depend on
+	  evaluation order of function arguments.
+
+Tue Jul  1 00:49:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (rb_newobj): abort GC phase before rb_bug.
+
+Mon Jun 30 23:15:07 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/openssl/test_ssl.rb (start_server): shutdown TCPServer before
+	  close.
+
 Mon Jun 30 23:01:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* common.mk (RUBY_H_INCLUDES): common headers which are included with
 	  ruby.h together.
+
+Mon Jun 30 22:57:50 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_settracefunc.rb (test_raise): reveal an exception
+	  hided by rescue modifier.
+
+Mon Jun 30 22:49:32 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_array.rb (test_aset): access with too big index
+	  raises not ArgumentError but IndexError now.
 
 Mon Jun 30 22:30:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 

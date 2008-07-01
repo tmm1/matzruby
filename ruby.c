@@ -63,7 +63,7 @@ VALUE rb_parser_set_yydebug(VALUE, VALUE);
 #define DISABLE_BIT(bit) (1U << disable_##bit)
 enum disable_flag_bits {
     disable_gems,
-    disable_rubyopt,
+    disable_rubyopt
 };
 
 #define DUMP_BIT(bit) (1U << dump_##bit)
