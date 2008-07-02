@@ -1,3 +1,60 @@
+Thu Jul  3 07:06:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* Makefile.in (SET_LC_MESSAGES): LC_MESSAGES must be C.
+
+Thu Jul  3 07:02:55 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (Init_eval), gc.c (Init_GC), proc.c (Init_Proc): freeze
+	  messages of preallocated special exceptions also.
+
+Thu Jul  3 04:39:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (rb_during_gc): VALUE cache is irrelevant.
+
+Thu Jul  3 01:44:01 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* regint.h (GET_ALIGNMENT_PAD_SIZE, ALIGNMENT_RIGHT): cast pointer to
+	  uintptr_t instead of unsigned int.
+
+Thu Jul  3 01:23:13 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* sprintf.c: include ieeefp.h to refer isinf.
+
+	* ext/bigdecimal/bigdecimal.c: ditto.
+
+	* ext/json/ext/generator/generator.c: ditto.
+
+	* rational.c: ditto.
+
+Thu Jul  3 01:01:57 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* missing/tgamma.c (tgamma): remove unused variable.
+
+Thu Jul  3 00:18:00 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c: avoid creating Ruby object during
+	  GC. thanks to arton <artonx AT yahoo.co.jp>. [ruby-dev:35313]
+
+	* test/win32ole/test_win32ole_event.rb: ditto.
+
+Thu Jul  3 00:09:31 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* gc.c: add rb_during_gc(). based on a patch from arton <artonx AT
+	  yahoo.co.jp> at [ruby-dev:35313].   
+
+	* include/ruby/intern.h: ditto.
+
+Wed Jul  2 09:49:10 2008  Narihiro Nakamura  <authorNari@gmail.com>
+	
+	* gc.c (gc_lazy_sweep) : use lazy sweep algorithm for response performance gain.
+	 (garbage_collect_force) : mark and lazysweep invoke, after erasing all mark.
+	 (GC_NOT_LAZY_SWEEP) : not lazy sweep flag. for debug.
+
+Wed Jul  2 03:42:44 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_settracefunc.rb: fix expected traces for
+	  RubyVM::FrozenCore's event and r17744.
+
 Wed Jul  2 03:10:41 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* compile.h, insns.def: reduce insn operand of "trace".
