@@ -1395,6 +1395,7 @@ rb_vm_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(vm->load_path);
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
+	RUBY_MARK_UNLESS_NULL(vm->coverages);
 	rb_gc_mark_locations(vm->special_exceptions, vm->special_exceptions + ruby_special_error_count - 1);
 
 	if (vm->loading_table) {
@@ -1914,4 +1915,10 @@ VALUE *
 rb_ruby_debug_ptr(void)
 {
     return ruby_vm_debug_ptr(GET_VM());
+}
+
+VALUE
+rb_vm_get_coverages(void)
+{
+    return GET_VM()->coverages;
 }

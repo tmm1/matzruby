@@ -1,3 +1,157 @@
+Sat Jul  5 20:53:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/test_word.rb: check word installed.
+
+Sat Jul  5 16:12:54 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c: revert. before lazy sweep.
+
+Sat Jul  5 09:55:44 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c: add WIN32OLE#ole_respond_to?
+
+	* test/win32ole/test_win32ole.rb: ditto.
+
+Sat Jul  5 08:48:05 2008  Tanaka Akira  <akr@fsij.org>
+
+	* re.c (unescape_nonascii): add has_property argument not to
+	  raise error by /\p{Hiragana}\u{3042}/ in EUC-JP script.
+	  (rb_reg_preprocess): use has_property argument to make regexp
+	  encoding fixed.
+
+Sat Jul  5 08:29:47 2008  Tanaka Akira  <akr@fsij.org>
+
+	* re.c (unescape_nonascii): make regexp fixed_encoding if \p is used.
+	  fixed [ruby-core:17279].
+
+Fri Jul  4 23:12:53 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (d2time): fix the bug of VT_DATE 
+	  to String conversion when negative value.
+	  
+	* test/win32ole/test_win32ole_variant.rb: ditto.
+
+Fri Jul  4 22:15:29 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/test/unit/testcase.rb: collect decendants of
+	  Test::Unit::TestCase using inherited.
+
+	* lib/test/unit/autorunner.rb: don't use ObjectSpace.each_object.
+
+	* lib/test/unit/collector/dir.rb: ditto.
+
+	* lib/test/unit/collector/objectspace.rb: ditto.
+
+	[ruby-core:17126]
+
+Fri Jul  4 20:43:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/oniguruma.h (OnigEncoding): removed auxiliary_data.
+
+	* include/ruby/encoding.h (ENC_DUMMY_P): moved dummy encoding flag to
+	  rb_encoding from Encoding instance.
+
+	* encoding.c (rb_encoding_list): list of Encoding instances.
+
+	* encoding.c (struct rb_encoding_entry): moved base encoding from
+	  instance variable.
+
+Fri Jul  4 17:51:07 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* numeric.c (check_uint, rb_num2uint, rb_fix2uint): proper check.
+
+Fri Jul  4 14:17:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/net/ftp.rb (Net::FTP#sendport): use divmod.  [ruby-core:17557]
+
+Fri Jul  4 11:08:37 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c (garbage_collect_force): sweep is completely ended.
+
+	* gc.c (os_obj_of): invoke garbage_collect_force() when freelist none.
+
+Fri Jul  4 05:01:26 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* numeric.c (rb_num2uint, rb_fix2uint): typo.
+
+Fri Jul  4 02:21:06 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* numeric.c (check_uint, rb_num2uint, rb_fix2uint): also needs checking
+	  negative value. see [ruby-dev:33683]
+
+Thu Jul  3 23:26:36 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* include/ruby/intern.h: remove prototypes about coverage.
+
+	* iseq.c (prepare_iseq_build): add prototype.
+
+	* parse.y (coverage): ditto.
+
+	* thread.c (clear_coverage): ditto.
+
+	* thread.c (update_coverage): use rb_sourceline.
+
+	* thread.c (rb_get_coverages): rename and move to vm.c.
+
+	* vm.c (rb_vm_get_coverages): ditto.
+
+	* ext/coverage/coverage.c: add rdoc.
+
+Thu Jul  3 21:51:21 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/coverage/coverage.c, ext/coverage/extconf.rb: eliminate
+	  COVERAGE__ and introduce coverage.so instead.  How to measure
+	  coverage: (1) require "coverage.so", (2) require or load Ruby source
+	  file, and (3) Coverage.result will return the same hash as COVERAGE__.
+	  [ruby-dev:35324]
+
+	* thread.c (rb_enable_coverages): start coverage measurement by using
+	  rb_add_event_hook.
+
+	* thread.c (rb_get_coverages): returns current results of coverage
+	  measurement.
+
+	* include/ruby/intern.h: add prototype for above two functions.
+
+	* vm_core.h, vm.c: add field of coverages to rb_vm_t.
+
+	* insns.def (trace): remove special handling for COVERAGE__.
+
+	* iseq.c (prepare_iseq_build): switch COVERAGE__ to
+	  rb_get_coverages().
+
+	* parse.y (coverage): ditto.
+
+	* thread.c (clear_coverage): ditto.
+
+	* lib/coverage.rb: use coverage.so instead of COVERAGE__.
+
+Thu Jul  3 21:20:45 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* thread.c (thread_initialize): NUM2INT returns long.
+
+Thu Jul  3 21:06:16 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (Init_eval): typo fixed in r17833.
+
+Thu Jul  3 19:44:44 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (Init_win32ole): remove duplicate line.
+
+Thu Jul  3 16:08:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* configure.in (erfc): erfc of glibc comes with Debian GNU/Linux Etch
+	  on IA64 is broken.  erfc(10000.0) aborts.
+	  use missing/erf.c instead.
+	  http://sources.redhat.com/ml/libc-hacker/2005-08/msg00008.html
+
+Thu Jul  3 12:49:39 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/net/smtp.rb (Net::SMTP::start): use 'localhost' instead of
+	  'localhost.localdomain'.  [ruby-dev:35333]
+
+	* lib/net/smtp.rb (Net::SMTP::SMTP.start): ditto.
+
 Thu Jul  3 07:06:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* Makefile.in (SET_LC_MESSAGES): LC_MESSAGES must be C.
@@ -45,10 +199,14 @@ Thu Jul  3 00:09:31 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 	* include/ruby/intern.h: ditto.
 
 Wed Jul  2 09:49:10 2008  Narihiro Nakamura  <authorNari@gmail.com>
-	
-	* gc.c (gc_lazy_sweep) : use lazy sweep algorithm for response performance gain.
-	 (garbage_collect_force) : mark and lazysweep invoke, after erasing all mark.
-	 (GC_NOT_LAZY_SWEEP) : not lazy sweep flag. for debug.
+
+	* gc.c (gc_lazy_sweep) : use lazy sweep algorithm for response
+	  performance gain.
+
+	* gc.c (garbage_collect_force) : mark and lazysweep invoke, after
+	  erasing all mark.
+
+	* gc.c (GC_NOT_LAZY_SWEEP) : not lazy sweep flag. for debug.
 
 Wed Jul  2 03:42:44 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 

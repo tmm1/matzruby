@@ -24,6 +24,7 @@
 #include <olectl.h>
 #include <ole2.h>
 #include <stdlib.h>
+#include <math.h>
 #ifdef HAVE_STDARG_PROTOTYPES
 #include <stdarg.h>
 #define va_init_list(a,b) va_start(a,b)
@@ -117,7 +118,7 @@
 
 #define WC2VSTR(x) ole_wc2vstr((x), TRUE)
 
-#define WIN32OLE_VERSION "1.1.8"
+#define WIN32OLE_VERSION "1.2.0"
 
 typedef HRESULT (STDAPICALLTYPE FNCOCREATEINSTANCEEX)
     (REFCLSID, IUnknown*, DWORD, COSERVERINFO*, DWORD, MULTI_QI*);
@@ -367,6 +368,7 @@ static VALUE ole_typelib_from_itypelib(ITypeLib *pTypeLib);
 static VALUE ole_typelib_from_itypeinfo(ITypeInfo *pTypeInfo);
 static VALUE fole_typelib(VALUE self);
 static VALUE fole_query_interface(VALUE self, VALUE str_iid);
+static VALUE fole_respond_to(VALUE self, VALUE method);
 static HRESULT ole_docinfo_from_type(ITypeInfo *pTypeInfo, BSTR *name, BSTR *helpstr, DWORD *helpcontext, BSTR *helpfile);
 static VALUE ole_usertype2val(ITypeInfo *pTypeInfo, TYPEDESC *pTypeDesc, VALUE typedetails);
 static VALUE ole_ptrtype2val(ITypeInfo *pTypeInfo, TYPEDESC *pTypeDesc, VALUE typedetails);
@@ -763,7 +765,7 @@ d2time(double v, int *hh, int *mm, int *ss)
     double d_hh, d_mm, d_ss;
     int    i_hh, i_mm, i_ss;
 
-    double d = v * 86400.0;
+    double d = fabs(v * 86400.0);
 
     d_hh = d / 3600.0;
     i_hh = (int)d_hh;
@@ -4371,6 +4373,32 @@ fole_query_interface(VALUE self, VALUE str_iid)
     }
 
     return create_win32ole_object(cWIN32OLE, pDispatch, 0, 0);
+}
+
+/*
+ *  call-seq:
+ *     WIN32OLE#ole_respond_to?(method) -> true or false
+ * 
+ *  Returns true when OLE object has OLE method, otherwise returns false.
+ *
+ *      ie = WIN32OLE.new('InternetExplorer.Application')
+ *      ie.ole_respond_to?("gohome") => true
+ */
+static VALUE
+fole_respond_to(VALUE self, VALUE method)
+{
+    struct oledata *pole;
+    BSTR wcmdname;
+    DISPID DispID;
+    HRESULT hr;
+    rb_secure(4);
+    Check_SafeStr(method);
+    OLEData_Get_Struct(self, pole);
+    wcmdname = ole_vstr2wc(method);
+    hr = pole->pDispatch->lpVtbl->GetIDsOfNames( pole->pDispatch, &IID_NULL,
+	    &wcmdname, 1, cWIN32OLE_lcid, &DispID);
+    SysFreeString(wcmdname);
+    return SUCCEEDED(hr) ? Qtrue : Qfalse;
 }
 
 static HRESULT
@@ -8281,7 +8309,6 @@ Init_win32ole()
     message_filter.MessagePending = mf_MessagePending;
  
     com_hash = Data_Wrap_Struct(rb_cData, rb_mark_hash, st_free_table, st_init_numtable());
-    com_hash = Data_Wrap_Struct(rb_cData, rb_mark_hash, st_free_table, st_init_numtable());
     rb_register_mark_object(com_hash);
 
     cWIN32OLE = rb_define_class("WIN32OLE", rb_cObject);
@@ -8331,6 +8358,7 @@ Init_win32ole()
     rb_define_alias(cWIN32OLE, "ole_obj_help", "ole_type");
     rb_define_method(cWIN32OLE, "ole_typelib", fole_typelib, 0);
     rb_define_method(cWIN32OLE, "ole_query_interface", fole_query_interface, 1);
+    rb_define_method(cWIN32OLE, "ole_respond_to?", fole_respond_to, 1);
 
     rb_define_const(cWIN32OLE, "VERSION", rb_str_new2(WIN32OLE_VERSION));
     rb_define_const(cWIN32OLE, "ARGV", rb_ary_new());

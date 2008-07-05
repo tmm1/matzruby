@@ -342,6 +342,7 @@ struct rb_vm_struct
     int src_encoding_index;
 
     VALUE verbose, debug, progname;
+    VALUE coverages;
 
 #ifdef RUBY_DEBUG_ENV
     int enable_coredump;

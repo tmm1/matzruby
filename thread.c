@@ -498,7 +498,7 @@ thread_initialize(VALUE thread, VALUE args)
 	    rb_raise(rb_eThreadError, "already initialized thread - %s",
 		     file);
 	}
-        rb_raise(rb_eThreadError, "already initialized thread - %s:%d",
+        rb_raise(rb_eThreadError, "already initialized thread - %s:%ld",
                  file, NUM2INT(line));
     }
     return thread_create_core(thread, args, 0);
@@ -2127,11 +2127,10 @@ clear_coverage_i(st_data_t key, st_data_t val, st_data_t dummy)
 static void
 clear_coverage(void)
 {
-    if (rb_const_defined_at(rb_cObject, rb_intern("COVERAGE__"))) {
-	VALUE hash = rb_const_get_at(rb_cObject, rb_intern("COVERAGE__"));
-	if (TYPE(hash) == T_HASH) {
-	    st_foreach(RHASH_TBL(hash), clear_coverage_i, 0);
-	}
+    extern VALUE rb_vm_get_coverages(void);
+    VALUE coverages = rb_vm_get_coverages();
+    if (RTEST(coverages)) {
+	st_foreach(RHASH_TBL(coverages), clear_coverage_i, 0);
     }
 }
 
@@ -3595,4 +3594,35 @@ VALUE *
 rb_vm_specific_ptr(int key)
 {
     return ruby_vm_specific_ptr(GET_VM(), key);
+}
+
+static void
+update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klass)
+{
+    VALUE coverage = GET_THREAD()->cfp->iseq->coverage;
+    if (coverage) {
+	long line = rb_sourceline() - 1;
+	long count;
+	if (RARRAY_PTR(coverage)[line] == Qnil) {
+	    rb_bug("bug");
+	}
+	count = FIX2LONG(RARRAY_PTR(coverage)[line]) + 1;
+	if (POSFIXABLE(count)) {
+	    RARRAY_PTR(coverage)[line] = LONG2FIX(count);
+	}
+    }
+}
+
+void
+rb_enable_coverages(void)
+{
+    VALUE rb_mCoverage;
+
+    if (!RTEST(GET_VM()->coverages)) {
+	extern VALUE rb_vm_get_coverages(void);
+	GET_VM()->coverages = rb_hash_new();
+	rb_add_event_hook(update_coverage, RUBY_EVENT_COVERAGE, Qnil);
+	rb_mCoverage = rb_define_module("Coverage");
+	rb_define_module_function(rb_mCoverage, "result", rb_vm_get_coverages, 0);
+    }
 }

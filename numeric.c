@@ -1615,9 +1615,10 @@ rb_num2uint(VALUE val)
 {
     unsigned long num = rb_num2ulong(val);
 
-    if (RTEST(rb_funcall(INT2FIX(0), '<', 1, val))) {
+    if (RTEST(rb_funcall(val, '<', 1, INT2FIX(0))))
+	check_int(num);
+    else
 	check_uint(num);
-    }
     return num;
 }
 
@@ -1630,9 +1631,10 @@ rb_fix2uint(VALUE val)
 	return rb_num2uint(val);
     }
     num = FIX2ULONG(val);
-    if (FIX2LONG(val) > 0) {
+    if (RTEST(rb_funcall(val, '<', 1, INT2FIX(0))))
+	check_int(num);
+    else
 	check_uint(num);
-    }
     return num;
 }
 #else
