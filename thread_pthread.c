@@ -734,7 +734,6 @@ remove_signal_thread_list(rb_thread_t *th)
 }
 
 static pthread_t timer_thread_id;
-static void timer_thread_function(void);
 
 static void *
 thread_timer(void *dummy)
@@ -763,7 +762,7 @@ thread_timer(void *dummy)
 	    });
 	}
 #endif
-	timer_thread_function();
+	timer_thread_function(dummy);
     }
     return NULL;
 }
@@ -781,7 +780,7 @@ rb_thread_create_timer_thread(void)
 #ifdef PTHREAD_STACK_MIN
 	pthread_attr_setstacksize(&attr, PTHREAD_STACK_MIN);
 #endif
-	err = pthread_create(&timer_thread_id, &attr, thread_timer, 0);
+	err = pthread_create(&timer_thread_id, &attr, thread_timer, GET_VM());
 	if (err != 0) {
 	    rb_bug("rb_thread_create_timer_thread: return non-zero (%d)", err);
 	}
