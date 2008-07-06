@@ -10,6 +10,7 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+#include "private_object.h"
 
 #include <math.h>
 #include <float.h>
@@ -752,12 +753,16 @@ ceil_log2(register unsigned long x)
 #define KARATSUBA_DIGITS (1L<<LOG2_KARATSUBA_DIGITS)
 #define MAX_BIG2STR_TABLE_ENTRIES 64
 
-static VALUE big2str_power_cache[35][MAX_BIG2STR_TABLE_ENTRIES];
+typedef VALUE (*big2str_power_cache_t)[MAX_BIG2STR_TABLE_ENTRIES];
 
 static void
 power_cache_init(void)
 {
     int i, j;
+    VALUE cache_value = rb_ary_new2(35 * MAX_BIG2STR_TABLE_ENTRIES);
+    big2str_power_cache_t big2str_power_cache =
+	(big2str_power_cache_t)RARRAY_PTR(cache_value);
+
     for (i = 0; i < 35; ++i) {
 	for (j = 0; j < MAX_BIG2STR_TABLE_ENTRIES; ++j) {
 	    big2str_power_cache[i][j] = Qnil;
@@ -768,6 +773,10 @@ power_cache_init(void)
 static inline VALUE
 power_cache_get_power0(int base, int i)
 {
+    VALUE cache_value = rb_big2str_power_cache;
+    big2str_power_cache_t big2str_power_cache =
+	(big2str_power_cache_t)RARRAY_PTR(cache_value);
+
     if (NIL_P(big2str_power_cache[base - 2][i])) {
 	big2str_power_cache[base - 2][i] =
 	    i == 0 ? rb_big_pow(rb_int2big(base), INT2FIX(KARATSUBA_DIGITS))

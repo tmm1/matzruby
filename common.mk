@@ -438,7 +438,7 @@ VM_CORE_H_INCLUDES = {$(VPATH)}vm_core.h {$(VPATH)}private_object.h
 array.$(OBJEXT): {$(VPATH)}array.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}util.h
 bignum.$(OBJEXT): {$(VPATH)}bignum.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h
+  {$(VPATH)}st.h {$(VPATH)}private_object.h
 class.$(OBJEXT): {$(VPATH)}class.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h
 compar.$(OBJEXT): {$(VPATH)}compar.c $(RUBY_H_INCLUDES) \

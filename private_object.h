@@ -59,6 +59,9 @@ enum ruby_private_object_vmkey {
     rb_vmkey_coverages,
 #define rb_vm_coverages (*rb_vm_specific_ptr(rb_vmkey_coverages))
 
+    rb_vmkey_big2str_power_cache,
+#define rb_big2str_power_cache (*rb_vm_specific_ptr(rb_vmkey_big2str_power_cache))
+
     ruby_builtin_object_count,
     ruby_private_object_count = ruby_builtin_object_count - ruby_private_object_vmkey_begin + 1
 };
