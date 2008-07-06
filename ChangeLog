@@ -1,3 +1,45 @@
+Sun Jul  6 23:48:06 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/socket/socket.c (bsock_send, s_recvfrom, ruby_connect, s_accept),
+	  (udp_send, unix_send_io, unix_recv_io): blocking region support.
+
+Sun Jul  6 18:34:35 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/test_win32ole_type.rb (test_initialize): add 
+	  more assertions.
+
+Sun Jul  6 10:12:21 2008  Kouhei Sutou  <kou@cozmixng.org>
+
+	* lib/test/unit/collector/objectspace.rb
+	(Test::Unit::Collector::ObjectSpace::NAME): fix a typo.
+
+Sun Jul  6 00:56:51 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/socket.c (host_str): fix type mismatch in rb_raise
+	  format and argument.
+	  (port_str): ditto.
+	  (unix_recv_io): ditto.
+	  (sock_s_unpack_sockaddr_un): ditto.
+
+Sat Jul  5 23:42:23 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/ruby.h (NUM2INT): cast to int.
+	  (FIX2INT): ditto.
+	  (NUM2UINT): cast to unsigned int.
+	  (FIX2UINT): ditto.
+
+Sat Jul  5 23:10:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (rb_pipe): new function for handling EMFILE and ENFILE
+	  error of pipe().
+	  (UPDATE_MAXFD_PIPE): removed.
+	  (pipe_open): use rb_pipe.
+	  (rb_io_s_pipe): ditto.
+
+	* process.c (pipe_nocrash): use rb_pipe.
+
+	* include/ruby/intern.h (rb_pipe): declared.
+
 Sat Jul  5 22:22:27 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (thread_initialize): NUM2INT() returns int.
