@@ -1,3 +1,8 @@
+Mon Jul  7 00:17:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (struct argf): use defin and defout instead of rb_stdin and
+	  rb_stdout which are process global.
+
 Mon Jul  7 00:00:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* include/ruby/public_object.h: moved global variables to VM specific data.

@@ -130,6 +130,7 @@ struct argf {
     int init_p, next_p;
     VALUE lineno;
     VALUE argv;
+    VALUE defin, defout;
     char *inplace;
     int binmode;
     rb_encoding *enc, *enc2;
@@ -5210,6 +5211,8 @@ argf_mark(void *ptr)
     rb_gc_mark(p->current_file);
     rb_gc_mark(p->lineno);
     rb_gc_mark(p->argv);
+    rb_gc_mark(p->defin);
+    rb_gc_mark(p->defout);
 }
 
 static void
@@ -5226,6 +5229,8 @@ argf_init(struct argf *p, VALUE v)
     p->current_file = Qnil;
     p->lineno = Qnil;
     p->argv = v;
+    p->defin = rb_stdin;
+    p->defout = rb_stdout;
 }
 
 static VALUE
@@ -5284,7 +5289,7 @@ argf_forward(int argc, VALUE *argv, VALUE argf)
 
 #define next_argv() argf_next_argv(argf)
 #define ARGF_GENERIC_INPUT_P() \
-    (argf_of(argf).current_file == rb_stdin && TYPE(argf_of(argf).current_file) != T_FILE)
+    (argf_of(argf).current_file == argf_of(argf).defin && TYPE(argf_of(argf).current_file) != T_FILE)
 #define ARGF_FORWARD(argc, argv) do {\
     if (ARGF_GENERIC_INPUT_P())\
 	return argf_forward(argc, argv, argf);\
@@ -5307,8 +5312,8 @@ argf_next_argv(VALUE argf)
     rb_io_t *fptr;
     int stdout_binmode = 0;
 
-    if (TYPE(rb_stdout) == T_FILE) {
-        GetOpenFile(rb_stdout, fptr);
+    if (TYPE(argf_of(argf).defout) == T_FILE) {
+        GetOpenFile(argf_of(argf).defout, fptr);
         if (fptr->mode & FMODE_BINMODE)
             stdout_binmode = 1;
     }
@@ -5331,7 +5336,7 @@ argf_next_argv(VALUE argf)
 	    argf_of(argf).filename = rb_ary_shift(argf_of(argf).argv);
 	    fn = StringValueCStr(argf_of(argf).filename);
 	    if (strlen(fn) == 1 && fn[0] == '-') {
-		argf_of(argf).current_file = rb_stdin;
+		argf_of(argf).current_file = argf_of(argf).defin;
 		if (argf_of(argf).inplace) {
 		    rb_warn("Can't do inplace edit for stdio; skipping");
 		    goto retry;
@@ -5348,8 +5353,8 @@ argf_next_argv(VALUE argf)
 		    VALUE str;
 		    int fw;
 
-		    if (TYPE(rb_stdout) == T_FILE && rb_stdout != orig_stdout) {
-			rb_io_close(rb_stdout);
+		    if (TYPE(argf_of(argf).defout) == T_FILE && argf_of(argf).defout != orig_stdout) {
+			rb_io_close(argf_of(argf).defout);
 		    }
 		    fstat(fr, &st);
 		    if (*argf_of(argf).inplace) {
@@ -5397,8 +5402,8 @@ argf_next_argv(VALUE argf)
 			fchown(fw, st.st_uid, st.st_gid);
 		    }
 #endif
-		    rb_stdout = prep_io(fw, FMODE_WRITABLE, rb_cFile, fn);
-		    if (stdout_binmode) rb_io_binmode(rb_stdout);
+		    argf_of(argf).defout = prep_io(fw, FMODE_WRITABLE, rb_cFile, fn);
+		    if (stdout_binmode) rb_io_binmode(argf_of(argf).defout);
 		}
 		argf_of(argf).current_file = prep_io(fr, FMODE_READABLE, rb_cFile, fn);
 	    }
@@ -5417,11 +5422,11 @@ argf_next_argv(VALUE argf)
 	}
     }
     else if (argf_of(argf).next_p == -1) {
-	argf_of(argf).current_file = rb_stdin;
+	argf_of(argf).current_file = argf_of(argf).defin;
 	argf_of(argf).filename = rb_str_new2("-");
 	if (argf_of(argf).inplace) {
 	    rb_warn("Can't do inplace edit for stdio");
-	    rb_stdout = orig_stdout;
+	    argf_of(argf).defout = orig_stdout;
 	}
     }
     return Qtrue;
@@ -5625,6 +5630,46 @@ argf_readlines(int argc, VALUE *argv, VALUE argf)
     }
 
     return ary;
+}
+
+static VALUE
+argf_loop(int argc, VALUE *argv, VALUE argf)
+{
+    VALUE line, print = Qfalse, chomp = Qfalse, split = Qfalse;
+    ID id_chomp = rb_intern("chomp!");
+    ID id_split = rb_intern("split");
+
+    rb_scan_args(argc, argv, "03", &print, &chomp, &split);
+    while (!NIL_P(line = argf_gets(0, 0, argf))) {
+	if (chomp == Qtrue) {
+	    rb_funcall2(line, id_chomp, 0, 0);
+	}
+	else if (RTEST(chomp)) {
+	    rb_funcall2(line, id_chomp, 1, &chomp);
+	}
+	if (RTEST(split)) {
+	    if (split == Qtrue) {
+		line = rb_str_split(line, " ");
+	    }
+	    else {
+		line = rb_funcall2(line, id_split, 1, &split);
+	    }
+	    rb_yield_splat(line);
+	}
+	else {
+	    rb_yield(line);
+	}
+	if (RTEST(print)) {
+	    VALUE result[2];
+	    int lines = 1;
+	    result[0] = rb_lastline_get();
+	    if (RTEST(chomp)) {
+		result[lines++] = chomp == Qtrue ? rb_rs : chomp;
+	    }
+	    rb_io_print(lines, result, argf_of(argf).defout);
+	}
+    }
+    return argf;
 }
 
 /*
@@ -7186,6 +7231,12 @@ argf_read(int argc, VALUE *argv, VALUE argf)
     return str;
 }
 
+static VALUE
+argf_write(VALUE argf, VALUE str)
+{
+    return rb_io_write(argf_of(argf).defout, str);
+}
+
 struct argf_call_arg {
     int argc;
     VALUE *argv;
@@ -7499,6 +7550,31 @@ rb_get_argv(void)
     return ruby_vm_get_argv(GET_VM());
 }
 
+static VALUE
+argf_stdin_get(VALUE argf)
+{
+    return argf_of(argf).defin;
+}
+
+static VALUE
+argf_stdin_set(VALUE argf, VALUE f)
+{
+    return argf_of(argf).defin = f;
+}
+
+static VALUE
+argf_stdout_get(VALUE argf)
+{
+    return argf_of(argf).defout;
+}
+
+static VALUE
+argf_stdout_set(VALUE argf, VALUE f)
+{
+    must_respond_to(id_write, f, rb_intern("stdout"));
+    return argf_of(argf).defout = f;
+}
+
 /*
  *  Class <code>IO</code> is the basis for all input and output in Ruby.
  *  An I/O stream may be <em>duplexed</em> (that is, bidirectional), and
@@ -7760,6 +7836,10 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "initialize_copy", argf_initialize_copy, 1);
     rb_define_method(rb_cARGF, "to_s", argf_to_s, 0);
     rb_define_method(rb_cARGF, "argv", argf_argv, 0);
+    rb_define_method(rb_cARGF, "stdin", argf_stdin_get, 0);
+    rb_define_method(rb_cARGF, "stdin=", argf_stdin_set, 1);
+    rb_define_method(rb_cARGF, "stdout", argf_stdout_get, 0);
+    rb_define_method(rb_cARGF, "stdout=", argf_stdout_set, 1);
 
     rb_define_method(rb_cARGF, "fileno", argf_fileno, 0);
     rb_define_method(rb_cARGF, "to_i", argf_fileno, 0);
@@ -7782,6 +7862,12 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "getbyte", argf_getbyte, 0);
     rb_define_method(rb_cARGF, "readchar", argf_readchar, 0);
     rb_define_method(rb_cARGF, "readbyte", argf_readbyte, 0);
+    rb_define_method(rb_cARGF, "write", argf_write, 1);
+    rb_define_method(rb_cARGF, "<<", rb_io_addstr, 1);
+    rb_define_method(rb_cARGF, "print", rb_io_print, -1);
+    rb_define_method(rb_cARGF, "putc", rb_io_putc, 1);
+    rb_define_method(rb_cARGF, "puts", rb_io_puts, -1);
+    rb_define_method(rb_cARGF, "printf", rb_io_printf, -1);
     rb_define_method(rb_cARGF, "tell", argf_tell, 0);
     rb_define_method(rb_cARGF, "seek", argf_seek_m, -1);
     rb_define_method(rb_cARGF, "rewind", argf_rewind, 0);
@@ -7808,6 +7894,8 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "external_encoding", argf_external_encoding, 0);
     rb_define_method(rb_cARGF, "internal_encoding", argf_internal_encoding, 0);
     rb_define_method(rb_cARGF, "set_encoding", argf_set_encoding, -1);
+
+    rb_define_method(rb_cARGF, "loop", argf_loop, -1);
 
     *argfp = rb_class_new_instance(0, 0, rb_cARGF);
 
