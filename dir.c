@@ -756,6 +756,9 @@ static VALUE chdir_thread = Qnil;
 
 struct chdir_data {
     VALUE old_path, new_path;
+#if defined HAVE_DIRFD && defined HAVE_FCHDIR
+    DIR *old_dir;
+#endif
     int done;
 };
 
@@ -777,9 +780,41 @@ chdir_restore(struct chdir_data *args)
 	chdir_blocking--;
 	if (chdir_blocking == 0)
 	    chdir_thread = Qnil;
+#if defined HAVE_DIRFD && defined HAVE_FCHDIR
+	if (fchdir(dirfd(args->old_dir)) < 0) {
+	    closedir(args->old_dir);
+	    rb_sys_fail(RSTRING_PTR(args->old_path));
+	}
+	closedir(args->old_dir);
+#else
 	dir_chdir(args->old_path);
+#endif
     }
     return Qnil;
+}
+
+static void
+dir_chdir_check(void)
+{
+    if (chdir_blocking > 0) {
+	if (!rb_block_given_p() || rb_thread_current() != chdir_thread)
+	    rb_warn("conflicting chdir during another chdir block");
+    }
+}
+
+static VALUE
+dir_chdir_block(VALUE path)
+{
+    struct chdir_data args;
+    char *cwd = my_getcwd();
+
+    args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
+    args.new_path = path;
+#if defined HAVE_DIRFD && defined HAVE_FCHDIR
+    args.old_dir = opendir(".");
+#endif
+    args.done = Qfalse;
+    return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
 }
 
 /*
@@ -839,20 +874,11 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	path = rb_str_new2(dist);
     }
 
-    if (chdir_blocking > 0) {
-	if (!rb_block_given_p() || rb_thread_current() != chdir_thread)
-	    rb_warn("conflicting chdir during another chdir block");
-    }
-
+    dir_chdir_check();
     if (rb_block_given_p()) {
-	struct chdir_data args;
-	char *cwd = my_getcwd();
-
-	args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
-	args.new_path = path;
-	args.done = Qfalse;
-	return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
+	return dir_chdir_block(path);
     }
+
     dir_chdir(path);
 
     return INT2FIX(0);

@@ -1,3 +1,7 @@
+Mon Jul  7 02:04:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (dir_s_chdir): restore cwd by fchdir if possible.
+
 Mon Jul  7 01:24:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* file.c (rb_file_s_extname): fix for file name with spaces.
