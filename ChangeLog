@@ -1,3 +1,13 @@
+Mon Jul  7 02:11:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (rb_dir_open, rb_dir_fchmod, rb_dir_lchmod, rb_dir_fchown),
+	  (rb_dir_lchown, rb_dir_fstat, rb_dir_lstat, rb_dir_utime),
+	  (rb_dir_mkdir, rb_dir_rmdir, rb_dir_unlink, rb_dir_chdir): added.
+
+	* file.c (rb_file_stat_new, rb_stat, ruby_futimesat): made public.
+
+	* io.c (rb_openat): added.
+
 Mon Jul  7 02:04:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* dir.c (dir_s_chdir): restore cwd by fchdir if possible.

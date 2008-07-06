@@ -63,6 +63,9 @@ char *strchr(char*,char);
 
 #include "ruby/util.h"
 
+#define preserving_errno(stmts) \
+	do {int saved_errno = errno; stmts; errno = saved_errno;} while (0)
+
 #if !defined HAVE_LSTAT && !defined lstat
 #define lstat stat
 #endif
@@ -1944,6 +1947,434 @@ file_s_fnmatch(int argc, VALUE *argv, VALUE obj)
     return Qfalse;
 }
 
+/* directory relative feature */
+static const char *
+to_fullpath(volatile VALUE *fname, VALUE base)
+{
+    VALUE fullpath = rb_file_expand_path(*fname, base);
+    RBASIC(fullpath)->klass = 0;
+    OBJ_FREEZE(fullpath);
+    *fname = fullpath;
+    return RSTRING_PTR(fullpath);
+}
+
+VALUE rb_openat(int argc, VALUE *argv, int base, const char *path);
+#if defined HAVE_DIRFD && defined HAVE_OPENAT && defined AT_FDCWD
+#define USE_OPENAT 1
+#else
+#define USE_OPENAT 0
+#endif
+
+/*
+ *  call-seq:
+ *     dir.open(relative-path, mode [, perm]) => File
+ *
+ *  openes relative path.
+ */
+static VALUE
+rb_dir_open(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    int base = -1;
+
+    GetDIR(dir, dp);
+#if USE_OPENAT
+    base = dirfd(dp->dir);
+#endif
+    return rb_openat(argc, argv, base, dp->path);
+}
+
+static long
+apply2filesat(struct dir_data *dp, int (*func)(int, const char *, void *),
+	      int argc, VALUE *argv, void *arg)
+{
+    long i;
+    volatile VALUE path;
+    const char *fullpath;
+    int base, ret;
+#if !USE_OPENAT
+    VALUE basepath;
+#endif
+
+    rb_secure(4);
+#if USE_OPENAT
+    base = dirfd(dp->dir);
+#else
+    basepath = rb_str_new2(dp->path);
+#ifdef AT_FDCWD
+    base = AT_FDCWD;
+#else
+    base = -1;
+#endif
+#endif
+    for (i = 0; i < argc; i++) {
+	path = rb_get_path(argv[i]);
+	
+#if USE_OPENAT
+	ret = (*func)(base, RSTRING_PTR(path), arg);
+#else
+	fullpath = to_fullpath(&path, basepath);
+	ret = (*func)(base, fullpath, arg);
+#endif
+	if (ret < 0) {
+#if USE_OPENAT
+	    preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+#endif
+	    rb_sys_fail(fullpath);
+	}
+    }
+
+    return i;
+}
+
+static int
+fchmodat_internal(int base, const char *path, void *arg)
+{
+    int *p = arg;
+#if USE_OPENAT
+    return fchmodat(base, path, p[0], AT_SYMLINK_NOFOLLOW);
+#else
+    return chmod(path, p[0]);
+#endif
+}
+
+static VALUE
+rb_dir_fchmod(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    int mode;
+    long n;
+
+    rb_secure(2);
+    if (argc < 1) {
+	rb_raise(rb_eArgError, "wrong number of argument (%d for 1)", argc);
+    }
+    --argc;
+    mode = NUM2INT(*argv); ++argv;
+    GetDIR(dir, dp);
+    n = apply2filesat(dp, fchmodat_internal, argc, argv, &mode);
+    return LONG2NUM(n);
+}
+
+static int
+lchmodat_internal(int base, const char *path, void *arg)
+{
+#if USE_OPENAT
+    return fchmodat(base, path, *(int *)arg, 0);
+#elif defined(HAVE_LCHMOD)
+    int *p = arg;
+    return lchmod(path, *(int *)arg);
+#else
+    rb_notimplement();
+    return Qnil;		/* not reached */
+#endif
+}
+
+static VALUE
+rb_dir_lchmod(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    int mode;
+    long n;
+
+    rb_secure(2);
+    if (argc < 1) {
+	rb_raise(rb_eArgError, "wrong number of argument (%d for 1)", argc);
+    }
+    --argc;
+    mode = NUM2INT(*argv); ++argv;
+    GetDIR(dir, dp);
+    n = apply2filesat(dp, lchmodat_internal, argc, argv, &mode);
+    return LONG2NUM(n);
+}
+
+struct chown_args {
+    rb_uid_t owner;
+    rb_gid_t group;
+};
+
+static int
+fchown_internal(int base, const char *path, void *arg)
+{
+    struct chown_args *p = arg;
+#if USE_OPENAT
+    return fchownat(base, path, p->owner, p->group, 0);
+#else
+    return chown(path, p->owner, p->group);
+#endif
+}
+
+static VALUE
+rb_dir_fchown(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    struct chown_args arg;
+    long n;
+
+    rb_secure(2);
+    if (argc < 2) {
+	rb_raise(rb_eArgError, "wrong number of argument (%d for 1)", argc);
+    }
+    argc -= 2;
+    arg.owner = NIL_P(*argv) ? -1 : NUM2UIDT(*argv); ++argv;
+    arg.group = NIL_P(*argv) ? -1 : NUM2GIDT(*argv); ++argv;
+    GetDIR(dir, dp);
+    n = apply2filesat(dp, fchown_internal, argc, argv, &arg);
+    return LONG2NUM(n);
+}
+
+#if defined(AT_FDCWD) || defined(HAVE_LCHOWN)
+static int
+lchown_internal(int base, const char *path, void *arg)
+{
+    struct chown_args *p = arg;
+#if USE_OPENAT
+    return fchownat(base, path, p->owner, p->group, AT_SYMLINK_NOFOLLOW);
+#else
+    return lchown(path, p->owner, p->group);
+#endif
+}
+
+static VALUE
+rb_dir_lchown(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    struct chown_args arg;
+    long n;
+
+    rb_secure(2);
+    if (argc < 2) {
+	rb_raise(rb_eArgError, "wrong number of argument (%d for 1)", argc);
+    }
+    argc -= 2;
+    arg.owner = NIL_P(*argv) ? -1 : NUM2UIDT(*argv); ++argv;
+    arg.group = NIL_P(*argv) ? -1 : NUM2GIDT(*argv); ++argv;
+    GetDIR(dir, dp);
+    n = apply2filesat(dp, lchown_internal, argc, argv, &arg);
+    return LONG2NUM(n);
+}
+#else
+static VALUE
+rb_dir_lchown(int argc, VALUE *argv, VALUE dir)
+{
+    rb_notimplement();
+}
+#endif
+
+VALUE rb_file_stat_new(struct stat *);
+
+static int
+fstatat_internal(int base, const char *path, void *arg)
+{
+    struct stat *p = arg;
+#if USE_OPENAT
+    return fstatat(base, path, p, 0);
+#else
+    return stat(path, p);
+#endif
+}
+
+static VALUE
+rb_dir_fstat(VALUE dir, VALUE path)
+{
+    struct dir_data *dp;
+    struct stat st;
+
+    rb_secure(2);
+    GetDIR(dir, dp);
+    apply2filesat(dp, fstatat_internal, 1, &path, &st);
+    return rb_file_stat_new(&st);
+}
+
+#ifdef HAVE_LSTAT
+static int
+lstatat_internal(int base, const char *path, void *arg)
+{
+    struct stat *p = arg;
+#if USE_OPENAT
+    return fstatat(base, path, p, AT_SYMLINK_NOFOLLOW);
+#else
+    return lstat(path, p);
+#endif
+}
+
+static VALUE
+rb_dir_lstat(VALUE dir, VALUE path)
+{
+    struct dir_data *dp;
+    struct stat st;
+
+    rb_secure(2);
+    GetDIR(dir, dp);
+    apply2filesat(dp, lstatat_internal, 1, &path, &st);
+    return rb_file_stat_new(&st);
+}
+#else
+#define rb_io_lstatat rb_io_fstatat
+#endif
+
+int ruby_futimesat(int base, const char *path, struct timespec *tsp);
+
+static int
+futimesat_internal(int base, const char *path, void *arg)
+{
+    return ruby_futimesat(base, path, arg);
+}
+
+struct timespec rb_time_timespec(VALUE time);
+
+static VALUE
+rb_dir_utime(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    VALUE atime, mtime;
+    struct timespec tss[2], *tsp = NULL;
+    long n;
+
+    rb_secure(2);
+    rb_scan_args(argc, argv, "2*", &atime, &mtime, 0);
+    argc -= 2;
+    argv += 2;
+
+    if (!NIL_P(atime) || !NIL_P(mtime)) {
+	tsp = tss;
+	tsp[0] = rb_time_timespec(atime);
+	tsp[1] = rb_time_timespec(mtime);
+    }
+
+    GetDIR(dir, dp);
+    n = apply2filesat(dp, futimesat_internal, argc, argv, tsp);
+    return LONG2FIX(n);
+}
+
+#if 0
+static VALUE
+rb_dir_link(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+
+    rb_secure(2);
+#if USE_OPENAT
+    FilePathValue(from);
+    FilePathValue(to);
+
+    GetDIR(dir, dp);
+    if (linkat(dirfd(dp->dir), RSTRING_PTR(from), dirfd(dp2->dir), RSTRING_PTR(to)) < 0) {
+    }
+#else
+#endif
+}
+#endif
+
+static VALUE
+rb_dir_mkdir(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    VALUE path, vmode;
+    const char *fullpath;
+    int mode;
+
+    rb_secure(2);
+    if (rb_scan_args(argc, argv, "11", &path, &vmode) == 2) {
+	mode = NUM2INT(vmode);
+    }
+    else {
+	mode = 0777;
+    }
+
+    check_dirname(&path);
+    GetDIR(dir, dp);
+#if USE_OPENAT
+    if (mkdirat(dirfd(dp), RSTRING_PTR(path), mode) == -1) {
+	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	rb_sys_fail(fullpath);
+    }
+#else
+    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    if (mkdir(fullpath, mode) == -1) {
+	rb_sys_fail(fullpath);
+    }
+#endif
+
+    return INT2FIX(0);
+}
+
+static VALUE
+rb_dir_unlink(VALUE dir, VALUE path)
+{
+    struct dir_data *dp;
+    const char *fullpath;
+
+    rb_secure(2);
+    check_dirname(&path);
+    GetDIR(dir, dp);
+#if USE_OPENAT
+    if (unlinkat(dirfd(dp), RSTRING_PTR(path), 0) == -1) {
+	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	rb_sys_fail(fullpath);
+    }
+#else
+    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    if (unlink(fullpath) == -1) {
+	rb_sys_fail(fullpath);
+    }
+#endif
+
+    return INT2FIX(0);
+}
+
+static VALUE
+rb_dir_chdir(int argc, VALUE *argv, VALUE dir)
+{
+    struct dir_data *dp;
+    VALUE path;
+
+    if (rb_scan_args(argc, argv, "01", &path)) {
+	check_dirname(&path);
+    }
+    GetDIR(dir, dp);
+
+#if USE_OPENAT
+    if (fchdir(dirfd(dp->dir))) rb_sys_fail(0);
+#else
+    path = rb_file_expand_path(path, rb_str_new2(dp->path));
+#endif
+    if (chdir(RSTRING_PTR(path))) rb_sys_fail(0);
+
+    return INT2FIX(0);    
+}
+
+static VALUE
+rb_dir_rmdir(VALUE dir, VALUE path)
+{
+    struct dir_data *dp;
+    const char *fullpath;
+
+    rb_secure(2);
+    check_dirname(&path);
+    GetDIR(dir, dp);
+#if USE_OPENAT
+    if (unlinkat(dirfd(dp), RSTRING_PTR(path), AT_REMOVEDIR) == -1) {
+	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	rb_sys_fail(fullpath);
+    }
+#else
+    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    if (rmdir(fullpath) == -1) {
+	rb_sys_fail(fullpath);
+    }
+#endif
+
+    return INT2FIX(0);
+}
+
+/*
+  mknodat
+  readlinkat
+  renameat
+  symlinkat
+*/
+
 /*
  *  Objects of class <code>Dir</code> are directory streams representing
  *  directories in the underlying file system. They provide a variety of
@@ -1978,6 +2409,19 @@ Init_Dir(void)
     rb_define_method(rb_cDir,"pos", dir_tell, 0);
     rb_define_method(rb_cDir,"pos=", dir_set_pos, 1);
     rb_define_method(rb_cDir,"close", dir_close, 0);
+
+    rb_define_method(rb_cDir, "open", rb_dir_open, -1);
+    rb_define_method(rb_cDir, "chmod", rb_dir_fchmod, -1);
+    rb_define_method(rb_cDir, "lchmod", rb_dir_lchmod, -1);
+    rb_define_method(rb_cDir, "chown", rb_dir_fchown, -1);
+    rb_define_method(rb_cDir, "lchown", rb_dir_lchown, -1);
+    rb_define_method(rb_cDir, "stat", rb_dir_fstat, 1);
+    rb_define_method(rb_cDir, "lstat", rb_dir_lstat, 1);
+    rb_define_method(rb_cDir, "utime", rb_dir_utime, -1);
+    rb_define_method(rb_cDir, "mkdir", rb_dir_mkdir, -1);
+    rb_define_method(rb_cDir, "rmdir", rb_dir_rmdir, 1);
+    rb_define_method(rb_cDir, "unlink", rb_dir_unlink, 1);
+    rb_define_method(rb_cDir, "chdir", rb_dir_chdir, -1);
 
     rb_define_singleton_method(rb_cDir,"chdir", dir_s_chdir, -1);
     rb_define_singleton_method(rb_cDir,"getwd", dir_s_getwd, 0);

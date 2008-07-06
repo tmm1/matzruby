@@ -183,11 +183,13 @@ stat_new_0(VALUE klass, struct stat *st)
     return Data_Wrap_Struct(klass, NULL, -1, nst);
 }
 
-static VALUE
-stat_new(struct stat *st)
+VALUE
+rb_file_stat_new(struct stat *st)
 {
     return stat_new_0(rb_cStat, st);
 }
+
+#define stat_new rb_file_stat_new
 
 static struct stat*
 get_stat(VALUE self)
@@ -705,7 +707,7 @@ rb_stat_inspect(VALUE self)
     return str;
 }
 
-static int
+int
 rb_stat(VALUE file, struct stat *st)
 {
     VALUE tmp;
@@ -2058,27 +2060,22 @@ struct timespec rb_time_timespec(VALUE time);
 
 #if defined(HAVE_UTIMES)
 
-static void
-utime_internal(const char *path, void *arg)
+int
+ruby_futimesat(int base, const char *path, struct timespec *tsp)
 {
-    struct timespec *tsp = arg;
-    struct timeval tvbuf[2], *tvp = arg;
+    struct timeval tvbuf[2], *tvp;
 
 #ifdef HAVE_UTIMENSAT
     static int try_utimensat = 1;
-
     if (try_utimensat) {
-        struct timespec *tsp = arg;
-        if (utimensat(AT_FDCWD, path, tsp, 0) < 0) {
-            if (errno == ENOSYS) {
-                try_utimensat = 0;
-                goto no_utimensat;
-            }
-            rb_sys_fail(path);
-        }
-        return;
+	int ret = utimensat(base, path, tsp, 0);
+	if (ret < 0 && errno == ENOSYS) {
+	    try_utimensat = 0;
+	    goto no_utimensat;
+	}
+	return ret;
     }
-no_utimensat:
+  no_utimensat:
 #endif
 
     if (tsp) {
@@ -2088,8 +2085,27 @@ no_utimensat:
         tvbuf[1].tv_usec = tsp[1].tv_nsec / 1000;
         tvp = tvbuf;
     }
-    if (utimes(path, tvp) < 0)
+    else {
+	tvp = 0;
+    }
+#ifdef AT_FDCWD
+    return futimesat(base, path, tvp);
+#else
+    return utimes(path, tvp);
+#endif
+}
+
+static void
+utime_internal(const char *path, void *arg)
+{
+#ifdef AT_FDCWD
+    const int fdcwd = AT_FDCWD;
+#else
+    const int fdcwd = 0;
+#endif
+    if (ruby_futimesat(fdcwd, path, arg) < 0) {
 	rb_sys_fail(path);
+    }
 }
 
 #else
