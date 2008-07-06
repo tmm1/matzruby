@@ -12,7 +12,6 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 
-VALUE rb_cRange;
 static ID id_cmp, id_succ, id_beg, id_end, id_excl;
 
 #define RANGE_BEG(r) (RSTRUCT(r)->as.ary[0])

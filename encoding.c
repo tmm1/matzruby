@@ -12,14 +12,13 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 #include "regenc.h"
+#include "private_object.h"
 #include <ctype.h>
 #ifdef HAVE_LANGINFO_H
 #include <langinfo.h>
 #endif
 
 static ID id_encoding, id_base_encoding;
-VALUE rb_cEncoding;
-static VALUE rb_encoding_list;
 
 struct rb_encoding_entry {
     const char *name;
@@ -1196,7 +1195,6 @@ Init_Encoding(void)
     rb_define_singleton_method(rb_cEncoding, "default_external", get_default_external, 0);
     rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
-    rb_gc_register_address(&rb_encoding_list);
     list = rb_ary_new2(enc_table.count);
     RBASIC(list)->klass = 0;
     rb_encoding_list = list;

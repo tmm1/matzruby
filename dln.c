@@ -1601,6 +1601,7 @@ dln_find_file_r(const char *fname, const char *path, char *buf, int size)
 #endif
 }
 
+#ifndef HAVE_MVM
 static char fbuf[MAXPATHLEN];
 
 char *
@@ -1614,6 +1615,7 @@ dln_find_file(const char *fname, const char *path)
 {
     return dln_find_file_r(fname, path, fbuf, sizeof(fbuf));
 }
+#endif
 
 static char *
 dln_find_1(const char *fname, const char *path, char *fbuf, int size,

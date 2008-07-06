@@ -21,10 +21,7 @@
  * A class which provides a method `each' to be used as an Enumerable
  * object.
  */
-VALUE rb_cEnumerator;
 static VALUE sym_each;
-
-VALUE rb_eStopIteration;
 
 struct enumerator {
     VALUE obj;

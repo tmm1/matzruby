@@ -52,9 +52,6 @@
 #define THREAD_DEBUG 0
 #endif
 
-VALUE rb_cMutex;
-VALUE rb_cBarrier;
-
 static void sleep_timeval(rb_thread_t *th, struct timeval time);
 static void sleep_wait_for_interrupt(rb_thread_t *th, double sleepsec);
 static void sleep_forever(rb_thread_t *th, int nodeadlock);
@@ -297,7 +294,7 @@ rb_vm_thread_terminate_all(rb_vm_t *vm)
 	}
 	POP_TAG();
     }
-    system_working = 0;
+    --system_working;
 }
 
 static void
@@ -2092,8 +2089,7 @@ timer_thread_function(void *arg)
 void
 rb_thread_stop_timer_thread(void)
 {
-    if (timer_thread_id) {
-	system_working = 0;
+    if (timer_thread_id && --system_working == 0) {
 	native_thread_join(timer_thread_id);
 	timer_thread_id = 0;
     }
@@ -2409,8 +2405,6 @@ typedef struct mutex_struct {
     volatile int cond_waiting, cond_notified;
     VALUE next_mutex;
 } mutex_t;
-
-static VALUE rb_eMutex_OrphanLock;
 
 #define GetMutexPtr(obj, tobj) \
   Data_Get_Struct(obj, mutex_t, tobj)
@@ -3563,7 +3557,16 @@ rb_check_deadlock(rb_vm_t *vm)
 static struct {
     rb_thread_lock_t lock;
     int last;
-} specific_key;
+} specific_key = {
+    RB_THREAD_LOCK_INITIALIZER,
+    ruby_builtin_object_count + 8,
+};
+
+int
+rb_vm_key_count(void)
+{
+    return specific_key.last;
+}
 
 int
 rb_vm_key_create(void)
@@ -3580,14 +3583,13 @@ ruby_vm_specific_ptr(rb_vm_t *vm, int key)
 {
     VALUE *ptr;
 
-    native_mutex_lock(&vm->global_vm_lock);
     ptr = vm->specific_storage.ptr;
     if (!ptr || vm->specific_storage.len <= key) {
 	ptr = realloc(vm->specific_storage.ptr, sizeof(VALUE) * (key + 1));
 	vm->specific_storage.ptr = ptr;
+	MEMZERO(ptr, VALUE, key + 1 - vm->specific_storage.len);
 	vm->specific_storage.len = key + 1;
     }
-    native_mutex_unlock(&vm->global_vm_lock);
     return &ptr[key];
 }
 
@@ -3617,11 +3619,12 @@ update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klas
 void
 rb_enable_coverages(void)
 {
+    VALUE *coverages = rb_vm_specific_ptr(rb_vmkey_coverages);
     VALUE rb_mCoverage;
 
-    if (!RTEST(GET_VM()->coverages)) {
+    if (!RTEST(*coverages)) {
 	extern VALUE rb_vm_get_coverages(void);
-	GET_VM()->coverages = rb_hash_new();
+	*coverages = rb_hash_new();
 	rb_add_event_hook(update_coverage, RUBY_EVENT_COVERAGE, Qnil);
 	rb_mCoverage = rb_define_module("Coverage");
 	rb_define_module_function(rb_mCoverage, "result", rb_vm_get_coverages, 0);

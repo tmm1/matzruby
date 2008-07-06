@@ -20,11 +20,6 @@ struct METHOD {
     NODE *body;
 };
 
-VALUE rb_cUnboundMethod;
-VALUE rb_cMethod;
-VALUE rb_cBinding;
-VALUE rb_cProc;
-
 static VALUE bmcall(VALUE, VALUE);
 static int method_arity(VALUE);
 static VALUE rb_obj_is_method(VALUE m);

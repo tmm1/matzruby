@@ -24,6 +24,7 @@
 #include "ruby/signal.h"
 #include "ruby/util.h"
 #include "dln.h"
+#include "private_object.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -93,10 +94,6 @@ be_fchown(int fd, uid_t owner, gid_t group)
 }
 #define fchown be_fchown
 #endif /* __BEOS__ */
-
-VALUE rb_cFile;
-VALUE rb_mFileTest;
-VALUE rb_cStat;
 
 static VALUE
 rb_get_path_check(VALUE obj, int check)
@@ -4327,8 +4324,6 @@ rb_stat_sticky(VALUE obj)
 #endif
     return Qfalse;
 }
-
-VALUE rb_mFConst;
 
 void
 rb_file_const(const char *name, VALUE value)

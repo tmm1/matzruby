@@ -12,6 +12,8 @@
 #ifndef RUBY_MVM_H
 #define RUBY_MVM_H 1
 
+#define HAVE_MVM 1
+
 typedef struct rb_vm_struct rb_vm_t;
 typedef struct rb_thread_struct rb_thread_t;
 
@@ -31,5 +33,10 @@ void rb_vm_thread_terminate_all(rb_vm_t *);
 
 rb_vm_t *ruby_vm_new(void);
 int ruby_vm_run(rb_vm_t *, VALUE);
+
+int rb_vm_key_count(void);
+int rb_vm_key_create(void);
+VALUE *ruby_vm_specific_ptr(rb_vm_t *, int);
+VALUE *rb_vm_specific_ptr(int);
 
 #endif /* RUBY_MVM_H */

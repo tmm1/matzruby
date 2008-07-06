@@ -22,6 +22,8 @@ static const union {
     enum ruby_value_type        value_type;
     enum ruby_tag_type          tag_type;
     enum node_type              node_type;
+    enum ruby_public_object_vmkey public_vmkey;
+    enum ruby_private_object_vmkey private_vmkey;
     enum {
         RUBY_ENCODING_INLINE_MAX = ENCODING_INLINE_MAX,
         RUBY_ENCODING_SHIFT = ENCODING_SHIFT,
@@ -65,7 +67,7 @@ static const union {
         RUBY_NODE_LMASK     = NODE_LMASK,
         RUBY_NODE_FL_NEWLINE   = NODE_FL_NEWLINE
     } various;
-} dummy_gdb_enums;
+} dummy_gdb_enums = {0};
 
 const VALUE RUBY_FL_USER20    = FL_USER20;
 

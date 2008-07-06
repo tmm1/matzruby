@@ -15,8 +15,6 @@
 #include "ruby/st.h"
 #include <ctype.h>
 
-extern st_table *rb_class_tbl;
-
 static VALUE
 class_alloc(VALUE flags, VALUE klass)
 {
@@ -243,7 +241,7 @@ rb_define_class(const char *name, VALUE super)
 	rb_warn("no super class for `%s', Object assumed", name);
     }
     klass = rb_define_class_id(id, super);
-    st_add_direct(rb_class_tbl, id, klass);
+    rb_register_mark_object(klass);
     rb_name_class(klass, id);
     rb_const_set(rb_cObject, id, klass);
     rb_class_inherited(super, klass);
@@ -315,7 +313,7 @@ rb_define_module(const char *name)
 	rb_raise(rb_eTypeError, "%s is not a module", rb_obj_classname(module));
     }
     module = rb_define_module_id(id);
-    st_add_direct(rb_class_tbl, id, module);
+    rb_register_mark_object(module);
     rb_const_set(rb_cObject, id, module);
 
     return module;

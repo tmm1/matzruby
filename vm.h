@@ -18,9 +18,8 @@ typedef unsigned long dindex_t;
 typedef rb_num_t GENTRY;
 typedef rb_iseq_t *ISEQ;
 
-extern VALUE rb_cEnv;
-extern VALUE ruby_vm_global_state_version;
-extern VALUE ruby_vm_redefined_flag;
+#define ruby_vm_global_state_version (GET_VM()->global_state_version)
+#define ruby_vm_redefined_flag (GET_VM()->redefined_flag)
 
 
 /**

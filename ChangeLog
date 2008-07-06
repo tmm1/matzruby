@@ -1,3 +1,7 @@
+Mon Jul  7 00:00:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/public_object.h: moved global variables to VM specific data.
+
 Sun Jul  6 23:48:06 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* ext/socket/socket.c (bsock_send, s_recvfrom, ruby_connect, s_accept),

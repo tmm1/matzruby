@@ -430,7 +430,10 @@ win32.$(OBJEXT): {$(VPATH)}win32.c
 ###
 
 RUBY_H_INCLUDES = {$(VPATH)}ruby.h {$(VPATH)}config.h {$(VPATH)}defines.h \
-		  {$(VPATH)}intern.h {$(VPATH)}missing.h
+		  {$(VPATH)}intern.h {$(VPATH)}missing.h \
+		  {$(VPATH)}public_object.h
+
+VM_CORE_H_INCLUDES = {$(VPATH)}vm_core.h {$(VPATH)}private_object.h
 
 array.$(OBJEXT): {$(VPATH)}array.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}util.h
@@ -450,35 +453,36 @@ dmydln.$(OBJEXT): {$(VPATH)}dmydln.c dln.$(OBJEXT)
 dmyext.$(OBJEXT): {$(VPATH)}dmyext.c
 dmyencoding.$(OBJEXT): {$(VPATH)}dmyencoding.c \
   {$(VPATH)}encoding.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h {$(VPATH)}regenc.h
+  {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h {$(VPATH)}regenc.h \
+  {$(VPATH)}private_object.h
 encoding.$(OBJEXT): dmyencoding.$(OBJEXT)
 enum.$(OBJEXT): {$(VPATH)}enum.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}util.h
 enumerator.$(OBJEXT): {$(VPATH)}enumerator.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}debug.h {$(VPATH)}node.h
 error.$(OBJEXT): {$(VPATH)}error.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}vm_core.h {$(VPATH)}signal.h {$(VPATH)}node.h \
+  {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h {$(VPATH)}node.h \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 eval.$(OBJEXT): {$(VPATH)}eval.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
-  {$(VPATH)}util.h {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h \
   {$(VPATH)}eval_error.c {$(VPATH)}eval_safe.c \
   {$(VPATH)}eval_jump.c
 load.$(OBJEXT): {$(VPATH)}load.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
-  {$(VPATH)}util.h {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h
 file.$(OBJEXT): {$(VPATH)}file.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}io.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h \
-  {$(VPATH)}signal.h {$(VPATH)}util.h {$(VPATH)}dln.h
+  {$(VPATH)}signal.h {$(VPATH)}util.h {$(VPATH)}dln.h {$(VPATH)}private_object.h
 gc.$(OBJEXT): {$(VPATH)}gc.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h {$(VPATH)}re.h \
   {$(VPATH)}regex.h {$(VPATH)}oniguruma.h {$(VPATH)}io.h \
-  {$(VPATH)}encoding.h {$(VPATH)}vm_core.h {$(VPATH)}debug.h \
+  {$(VPATH)}encoding.h $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h \
   {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}thread_$(THREAD_MODEL).h \
   {$(VPATH)}gc.h {$(VPATH)}eval_intern.h
 hash.$(OBJEXT): {$(VPATH)}hash.c $(RUBY_H_INCLUDES) \
@@ -492,12 +496,13 @@ main.$(OBJEXT): {$(VPATH)}main.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 marshal.$(OBJEXT): {$(VPATH)}marshal.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}io.h {$(VPATH)}encoding.h \
-  {$(VPATH)}oniguruma.h {$(VPATH)}util.h
+  {$(VPATH)}oniguruma.h {$(VPATH)}util.h {$(VPATH)}private_object.h
 math.$(OBJEXT): {$(VPATH)}math.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 numeric.$(OBJEXT): {$(VPATH)}numeric.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h
 object.$(OBJEXT): {$(VPATH)}object.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}util.h {$(VPATH)}debug.h {$(VPATH)}node.h
+  {$(VPATH)}st.h {$(VPATH)}util.h {$(VPATH)}debug.h {$(VPATH)}node.h \
+  {$(VPATH)}private_object.h
 pack.$(OBJEXT): {$(VPATH)}pack.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 parse.$(OBJEXT): {$(VPATH)}parse.c {$(VPATH)}parse.y $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
@@ -507,11 +512,11 @@ parse.$(OBJEXT): {$(VPATH)}parse.c {$(VPATH)}parse.y $(RUBY_H_INCLUDES) \
 prec.$(OBJEXT): {$(VPATH)}prec.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 proc.$(OBJEXT): {$(VPATH)}proc.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
-  {$(VPATH)}util.h {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}gc.h
 process.$(OBJEXT): {$(VPATH)}process.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 random.$(OBJEXT): {$(VPATH)}random.c $(RUBY_H_INCLUDES) \
@@ -545,11 +550,11 @@ regsyntax.$(OBJEXT): {$(VPATH)}regsyntax.c {$(VPATH)}regint.h \
 ruby.$(OBJEXT): {$(VPATH)}ruby.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}eval_intern.h {$(VPATH)}util.h \
-  {$(VPATH)}signal.h {$(VPATH)}vm_core.h {$(VPATH)}debug.h \
+  {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h \
   {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}thread_$(THREAD_MODEL).h \
   {$(VPATH)}dln.h
 signal.$(OBJEXT): {$(VPATH)}signal.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 sprintf.$(OBJEXT): {$(VPATH)}sprintf.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
@@ -564,14 +569,14 @@ struct.$(OBJEXT): {$(VPATH)}struct.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 thread.$(OBJEXT): {$(VPATH)}thread.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
-  {$(VPATH)}util.h {$(VPATH)}signal.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}gc.h {$(VPATH)}thread_$(THREAD_MODEL).c
 transcode.$(OBJEXT): {$(VPATH)}transcode.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h {$(VPATH)}transcode_data.h
 cont.$(OBJEXT): {$(VPATH)}cont.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}vm_core.h {$(VPATH)}signal.h {$(VPATH)}node.h \
+  {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h {$(VPATH)}node.h \
   {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}gc.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}dln.h
@@ -580,17 +585,17 @@ time.$(OBJEXT): {$(VPATH)}time.c $(RUBY_H_INCLUDES) \
 util.$(OBJEXT): {$(VPATH)}util.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}util.h
 variable.$(OBJEXT): {$(VPATH)}variable.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}node.h {$(VPATH)}util.h
+  {$(VPATH)}node.h {$(VPATH)}util.h $(VM_CORE_H_INCLUDES)
 version.$(OBJEXT): {$(VPATH)}version.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}version.h $(srcdir)/revision.h
 
 compile.$(OBJEXT): {$(VPATH)}compile.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}node.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}compile.h \
   {$(VPATH)}insns.inc {$(VPATH)}insns_info.inc {$(VPATH)}optinsn.inc
 iseq.$(OBJEXT): {$(VPATH)}iseq.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}gc.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}gc.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}insns.inc \
   {$(VPATH)}insns_info.inc {$(VPATH)}node_name.inc
@@ -598,36 +603,36 @@ vm.$(OBJEXT): {$(VPATH)}vm.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}gc.h {$(VPATH)}insnhelper.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}signal.h \
-  {$(VPATH)}vm_core.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}vm_insnhelper.c {$(VPATH)}insns.inc {$(VPATH)}vm_evalbody.c \
   {$(VPATH)}vmtc.inc {$(VPATH)}vm.inc {$(VPATH)}insns.def \
   {$(VPATH)}vm_method.c {$(VPATH)}vm_eval.c
 vm_dump.$(OBJEXT): {$(VPATH)}vm_dump.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}node.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}vm.h
 debug.$(OBJEXT): {$(VPATH)}debug.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h \
-  {$(VPATH)}debug.h {$(VPATH)}node.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}debug.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}signal.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 blockinlining.$(OBJEXT): {$(VPATH)}blockinlining.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}vm_core.h \
+  {$(VPATH)}st.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 id.$(OBJEXT): {$(VPATH)}id.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}id.h
 miniprelude.$(OBJEXT): {$(VPATH)}miniprelude.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}vm_core.h {$(VPATH)}signal.h \
+  {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
   {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 prelude.$(OBJEXT): {$(VPATH)}prelude.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
-  {$(VPATH)}vm_core.h {$(VPATH)}signal.h \
+  $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
   {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 golf_prelude.$(OBJEXT): {$(VPATH)}golf_prelude.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}vm_core.h {$(VPATH)}signal.h \
+  {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
   {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 goruby.$(OBJEXT): {$(VPATH)}goruby.c {$(VPATH)}main.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h

@@ -1130,6 +1130,18 @@ if test x"$ac_cv_header_ucontext_h" = xyes; then
 	AC_CHECK_FUNCS(getcontext setcontext)
     fi
 fi
+AC_CACHE_CHECK([for thread specific data], rb_cv_thread_specific,
+[rb_cv_thread_specific=no
+for th in "__declspec(thread)" __thread; do
+    AC_TRY_COMPILE(AC_INCLUDES_DEFAULT[
+@%:@ifdef HAVE_PTHREAD_H
+@%:@include <pthread.h>
+@%:@endif
+extern $th int foo_th_extern; static $th int foo_th_static;],
+	[if (foo_th_extern) return foo_th_static;],
+	[rb_cv_thread_specific="$th"; break])
+done])
+test "$rb_cv_thread_specific" = "" || AC_DEFINE_UNQUOTED(THREAD_SPECIFIC, $rb_cv_thread_specific)
 
 if test "$ac_cv_func_fork" = "yes" -a "$rb_with_pthread" = "yes"; then
     AC_CACHE_CHECK([if fork works with pthread], rb_cv_fork_with_pthread,

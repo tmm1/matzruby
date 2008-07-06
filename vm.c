@@ -21,14 +21,9 @@
 #define BUFSIZE 0x100
 #define PROCDEBUG 0
 
-VALUE rb_cRubyVM;
-VALUE rb_cThread;
-VALUE rb_cEnv;
-VALUE rb_mRubyVMFrozenCore;
-
-VALUE ruby_vm_global_state_version = 1;
-rb_thread_t *ruby_current_thread = 0;
-rb_vm_t *ruby_current_vm = 0;
+#ifdef THREAD_SPECIFIC
+THREAD_SPECIFIC rb_thread_t *ruby_current_thread = 0;
+#endif
 
 void vm_analysis_operand(int insn, int n, VALUE op);
 void vm_analysis_register(int reg, int isset);
@@ -784,7 +779,6 @@ rb_vm_cbase(void)
 static VALUE
 make_localjump_error(const char *mesg, VALUE value, int reason)
 {
-    extern VALUE rb_eLocalJumpError;
     VALUE exc = rb_exc_new2(rb_eLocalJumpError, mesg);
     ID id;
 
@@ -883,8 +877,7 @@ rb_iter_break(void)
 
 /* optimization: redefine management */
 
-VALUE ruby_vm_redefined_flag = 0;
-static st_table *vm_opt_method_table = 0;
+#define vm_opt_method_table GET_VM()->opt_method_table
 
 static void
 rb_vm_check_redefinition_opt_method(const NODE *node)
@@ -910,12 +903,12 @@ add_opt_method(VALUE klass, ID mid, VALUE bop)
 }
 
 static void
-vm_init_redefined_flag(void)
+vm_init_redefined_flag(rb_vm_t *vm)
 {
     ID mid;
     VALUE bop;
 
-    vm_opt_method_table = st_init_numtable();
+    vm->opt_method_table = st_init_numtable();
 
 #define OP(mid_, bop_) (mid = id##mid_, bop = BOP_##bop_)
 #define C(k) add_opt_method(rb_c##k, mid, bop)
@@ -1395,12 +1388,14 @@ rb_vm_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(vm->load_path);
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
-	RUBY_MARK_UNLESS_NULL(vm->coverages);
-	rb_gc_mark_locations(vm->special_exceptions, vm->special_exceptions + ruby_special_error_count - 1);
+	rb_gc_mark_locations(vm->specific_storage.ptr, vm->specific_storage.ptr + vm->specific_storage.len - 1);
 
 	if (vm->loading_table) {
 	    rb_mark_tbl(vm->loading_table);
 	}
+
+	rb_vm_mark_global_tbl(vm->global_tbl);
+	rb_mark_end_proc(vm->end_procs);
 
 	mark_event_hooks(vm->event_hooks);
     }
@@ -1413,6 +1408,9 @@ vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
     vm->src_encoding_index = -1;
+    vm->global_state_version = 1;
+    vm->specific_storage.len = rb_vm_key_count();
+    vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
 }
 
 /* Thread */
@@ -1693,11 +1691,6 @@ m_core_set_postexe(VALUE self, VALUE iseqval)
 }
 
 VALUE insns_name_array(void);
-extern VALUE *rb_gc_stack_start;
-extern size_t rb_gc_stack_maxsize;
-#ifdef __ia64
-extern VALUE *rb_gc_register_stack_start;
-#endif
 
 /* debug functions */
 
@@ -1736,20 +1729,21 @@ void
 Init_VM(void)
 {
     VALUE opts;
+    VALUE core;
 
     /* ::VM */
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_undef_alloc_func(rb_cRubyVM);
 
     /* ::VM::FrozenCore */
-    rb_mRubyVMFrozenCore = rb_define_module_under(rb_cRubyVM, "FrozenCore");
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_set_method_alias", m_core_set_method_alias, 3);
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_set_variable_alias", m_core_set_variable_alias, 2);
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_undef_method", m_core_undef_method, 2);
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_define_method", m_core_define_method, 3);
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_define_singleton_method", m_core_define_singleton_method, 3);
-    rb_define_singleton_method(rb_mRubyVMFrozenCore, "core_set_postexe", m_core_set_postexe, 1);
-    rb_obj_freeze(rb_mRubyVMFrozenCore);
+    rb_mRubyVMFrozenCore = core = rb_define_module_under(rb_cRubyVM, "FrozenCore");
+    rb_define_singleton_method(core, "core_set_method_alias", m_core_set_method_alias, 3);
+    rb_define_singleton_method(core, "core_set_variable_alias", m_core_set_variable_alias, 2);
+    rb_define_singleton_method(core, "core_undef_method", m_core_undef_method, 2);
+    rb_define_singleton_method(core, "core_define_method", m_core_define_method, 3);
+    rb_define_singleton_method(core, "core_define_singleton_method", m_core_define_singleton_method, 3);
+    rb_define_singleton_method(core, "core_set_postexe", m_core_set_postexe, 1);
+    rb_obj_freeze(core);
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);
@@ -1807,8 +1801,8 @@ Init_VM(void)
 
     /* VM bootstrap: phase 2 */
     {
-	rb_vm_t *vm = ruby_current_vm;
 	rb_thread_t *th = GET_THREAD();
+	rb_vm_t *vm = th->vm;
 	VALUE filename = rb_str_new2("<dummy toplevel>");
 	volatile VALUE iseqval = rb_iseq_new(0, filename, filename, 0, ISEQ_TYPE_TOP);
         volatile VALUE th_self;
@@ -1833,8 +1827,8 @@ Init_VM(void)
 	GetISeqPtr(iseqval, iseq);
 	th->cfp->iseq = iseq;
 	th->cfp->pc = iseq->iseq_encoded;
+	vm_init_redefined_flag(vm);
     }
-    vm_init_redefined_flag();
 }
 
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
@@ -1856,10 +1850,9 @@ Init_BareVM(void)
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     vm->objspace = rb_objspace_alloc();
 #endif
-    ruby_current_vm = vm;
 
-    th_init2(th, 0);
     th->vm = vm;
+    th_init2(th, 0);
     ruby_thread_init_stack(th);
 }
 
@@ -1896,13 +1889,13 @@ Init_top_self(void)
 VALUE *
 ruby_vm_verbose_ptr(rb_vm_t *vm)
 {
-    return &vm->verbose;
+    return ruby_vm_specific_ptr(vm, rb_vmkey_verbose);
 }
 
 VALUE *
 ruby_vm_debug_ptr(rb_vm_t *vm)
 {
-    return &vm->debug;
+    return ruby_vm_specific_ptr(vm, rb_vmkey_debug);
 }
 
 VALUE *
@@ -1920,5 +1913,5 @@ rb_ruby_debug_ptr(void)
 VALUE
 rb_vm_get_coverages(void)
 {
-    return GET_VM()->coverages;
+    return *rb_vm_specific_ptr(rb_vmkey_coverages);
 }

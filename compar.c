@@ -11,8 +11,6 @@
 
 #include "ruby/ruby.h"
 
-VALUE rb_mComparable;
-
 static ID cmp;
 
 void

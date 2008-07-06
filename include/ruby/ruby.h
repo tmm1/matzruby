@@ -742,6 +742,7 @@ void rb_extend_object(VALUE,VALUE);
 void rb_define_variable(const char*,VALUE*);
 void rb_define_virtual_variable(const char*,VALUE(*)(ANYARGS),void(*)(ANYARGS));
 void rb_define_hooked_variable(const char*,VALUE*,VALUE(*)(ANYARGS),void(*)(ANYARGS));
+void rb_define_vm_specific_variable(const char*,int,VALUE(*)(ANYARGS),void(*)(ANYARGS));
 void rb_define_readonly_variable(const char*,VALUE*);
 void rb_define_const(VALUE,const char*,VALUE);
 void rb_define_global_const(const char*,VALUE);
@@ -861,86 +862,7 @@ void ruby_init(void);
 void *ruby_options(int, char**);
 int ruby_run_node(void *);
 
-RUBY_EXTERN VALUE rb_mKernel;
-RUBY_EXTERN VALUE rb_mComparable;
-RUBY_EXTERN VALUE rb_mEnumerable;
-RUBY_EXTERN VALUE rb_mPrecision;
-RUBY_EXTERN VALUE rb_mErrno;
-RUBY_EXTERN VALUE rb_mFileTest;
-RUBY_EXTERN VALUE rb_mGC;
-RUBY_EXTERN VALUE rb_mMath;
-RUBY_EXTERN VALUE rb_mProcess;
-
-RUBY_EXTERN VALUE rb_cBasicObject;
-RUBY_EXTERN VALUE rb_cObject;
-RUBY_EXTERN VALUE rb_cArray;
-RUBY_EXTERN VALUE rb_cBignum;
-RUBY_EXTERN VALUE rb_cBinding;
-RUBY_EXTERN VALUE rb_cClass;
-RUBY_EXTERN VALUE rb_cCont;
-RUBY_EXTERN VALUE rb_cDir;
-RUBY_EXTERN VALUE rb_cData;
-RUBY_EXTERN VALUE rb_cFalseClass;
-RUBY_EXTERN VALUE rb_cEnumerator;
-RUBY_EXTERN VALUE rb_cFile;
-RUBY_EXTERN VALUE rb_cFixnum;
-RUBY_EXTERN VALUE rb_cFloat;
-RUBY_EXTERN VALUE rb_cHash;
-RUBY_EXTERN VALUE rb_cInteger;
-RUBY_EXTERN VALUE rb_cIO;
-RUBY_EXTERN VALUE rb_cMatch;
-RUBY_EXTERN VALUE rb_cMethod;
-RUBY_EXTERN VALUE rb_cModule;
-RUBY_EXTERN VALUE rb_cNameErrorMesg;
-RUBY_EXTERN VALUE rb_cNilClass;
-RUBY_EXTERN VALUE rb_cNumeric;
-RUBY_EXTERN VALUE rb_cProc;
-RUBY_EXTERN VALUE rb_cRange;
-RUBY_EXTERN VALUE rb_cRational;
-RUBY_EXTERN VALUE rb_cComplex;
-RUBY_EXTERN VALUE rb_cRegexp;
-RUBY_EXTERN VALUE rb_cStat;
-RUBY_EXTERN VALUE rb_cString;
-RUBY_EXTERN VALUE rb_cStruct;
-RUBY_EXTERN VALUE rb_cSymbol;
-RUBY_EXTERN VALUE rb_cThread;
-RUBY_EXTERN VALUE rb_cTime;
-RUBY_EXTERN VALUE rb_cTrueClass;
-RUBY_EXTERN VALUE rb_cUnboundMethod;
-
-RUBY_EXTERN VALUE rb_eException;
-RUBY_EXTERN VALUE rb_eStandardError;
-RUBY_EXTERN VALUE rb_eSystemExit;
-RUBY_EXTERN VALUE rb_eInterrupt;
-RUBY_EXTERN VALUE rb_eSignal;
-RUBY_EXTERN VALUE rb_eFatal;
-RUBY_EXTERN VALUE rb_eArgError;
-RUBY_EXTERN VALUE rb_eEOFError;
-RUBY_EXTERN VALUE rb_eIndexError;
-RUBY_EXTERN VALUE rb_eStopIteration;
-RUBY_EXTERN VALUE rb_eKeyError;
-RUBY_EXTERN VALUE rb_eRangeError;
-RUBY_EXTERN VALUE rb_eIOError;
-RUBY_EXTERN VALUE rb_eRuntimeError;
-RUBY_EXTERN VALUE rb_eSecurityError;
-RUBY_EXTERN VALUE rb_eSystemCallError;
-RUBY_EXTERN VALUE rb_eThreadError;
-RUBY_EXTERN VALUE rb_eTypeError;
-RUBY_EXTERN VALUE rb_eZeroDivError;
-RUBY_EXTERN VALUE rb_eNotImpError;
-RUBY_EXTERN VALUE rb_eNoMemError;
-RUBY_EXTERN VALUE rb_eNoMethodError;
-RUBY_EXTERN VALUE rb_eFloatDomainError;
-RUBY_EXTERN VALUE rb_eLocalJumpError;
-RUBY_EXTERN VALUE rb_eSysStackError;
-RUBY_EXTERN VALUE rb_eRegexpError;
-
-RUBY_EXTERN VALUE rb_eScriptError;
-RUBY_EXTERN VALUE rb_eNameError;
-RUBY_EXTERN VALUE rb_eSyntaxError;
-RUBY_EXTERN VALUE rb_eLoadError;
-
-RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
+#include "ruby/public_object.h"
 
 static inline VALUE
 rb_class_of(VALUE obj)

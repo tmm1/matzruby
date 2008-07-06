@@ -24,10 +24,14 @@ TryEnterCriticalSection(IN OUT LPCRITICAL_SECTION lpCriticalSection);
 typedef HANDLE rb_thread_id_t;
 typedef CRITICAL_SECTION rb_thread_lock_t;
 typedef struct rb_thread_cond_struct rb_thread_cond_t;
+#define RB_THREAD_LOCK_INITIALIZER {}
 
 typedef struct native_thread_data_struct {
     HANDLE interrupt_event;
 } native_thread_data_t;
+
+int ruby_native_thread_lock(rb_thread_lock_t*);
+int ruby_native_thread_unlock(rb_thread_lock_t*);
 
 #endif /* RUBY_THREAD_WIN32_H */
 

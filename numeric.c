@@ -82,14 +82,6 @@ round(double x)
 
 static ID id_coerce, id_to_i, id_eq;
 
-VALUE rb_cNumeric;
-VALUE rb_cFloat;
-VALUE rb_cInteger;
-VALUE rb_cFixnum;
-
-VALUE rb_eZeroDivError;
-VALUE rb_eFloatDomainError;
-
 void
 rb_num_zerodiv(void)
 {

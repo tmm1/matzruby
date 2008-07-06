@@ -13,8 +13,6 @@
 #include <math.h>
 #include <errno.h>
 
-VALUE rb_mMath;
-
 static VALUE
 to_flo(VALUE x)
 {

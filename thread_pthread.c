@@ -135,7 +135,7 @@ static void add_signal_thread_list(rb_thread_t *th);
 #endif
 static void remove_signal_thread_list(rb_thread_t *th);
 
-static rb_thread_lock_t signal_thread_list_lock;
+static rb_thread_lock_t signal_thread_list_lock = RB_THREAD_LOCK_INITIALIZER;;
 
 static pthread_key_t ruby_native_thread_key;
 
@@ -145,29 +145,44 @@ null_func(int i)
     /* null */
 }
 
-static rb_thread_t *
+rb_thread_t *
 ruby_thread_from_native(void)
 {
+#ifdef THREAD_SPECIFIC
+    return ruby_current_thread;
+#else
     return pthread_getspecific(ruby_native_thread_key);
+#endif
 }
 
-static int
+int
 ruby_thread_set_native(rb_thread_t *th)
 {
+#ifdef THREAD_SPECIFIC
+    ruby_current_thread = th;
+    return 1;
+#else
     return pthread_setspecific(ruby_native_thread_key, th) == 0;
+#endif
+}
+
+static void
+init_once_native_thread(void)
+{
+    pthread_key_create(&ruby_native_thread_key, NULL);
+    posix_signal(SIGVTALRM, null_func);
 }
 
 static void
 Init_native_thread(void)
 {
     rb_thread_t *th = GET_THREAD();
+    static pthread_once_t init_for_all_thread = PTHREAD_ONCE_INIT;
 
-    pthread_key_create(&ruby_native_thread_key, NULL);
+    pthread_once(&init_for_all_thread, init_once_native_thread);
     th->thread_id = pthread_self();
     native_cond_initialize(&th->native_thread_data.sleep_cond);
     ruby_thread_set_native(th);
-    native_mutex_initialize(&signal_thread_list_lock);
-    posix_signal(SIGVTALRM, null_func);
 }
 
 static void

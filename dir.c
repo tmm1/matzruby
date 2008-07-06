@@ -338,8 +338,6 @@ fnmatch(
 	return fnmatch_helper(&p, &s, flags);
 }
 
-VALUE rb_cDir;
-
 struct dir_data {
     DIR *dir;
     char *path;

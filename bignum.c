@@ -18,8 +18,6 @@
 #include <ieeefp.h>
 #endif
 
-VALUE rb_cBignum;
-
 #if defined __MINGW32__
 #define USHORT _USHORT
 #endif

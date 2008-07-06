@@ -29,9 +29,6 @@
 #undef rb_tainted_str_new2
 #undef rb_usascii_str_new2
 
-VALUE rb_cString;
-VALUE rb_cSymbol;
-
 #define STR_TMPLOCK FL_USER7
 #define STR_NOEMBED FL_USER1
 #define STR_SHARED  FL_USER2 /* = ELTS_SHARED */

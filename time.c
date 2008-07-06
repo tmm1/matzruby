@@ -21,7 +21,6 @@
 
 #include <math.h>
 
-VALUE rb_cTime;
 static VALUE time_utc_offset _((VALUE));
 
 static ID id_divmod, id_mul, id_submicro;

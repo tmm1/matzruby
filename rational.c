@@ -24,8 +24,6 @@
 #define ONE INT2FIX(1)
 #define TWO INT2FIX(2)
 
-VALUE rb_cRational;
-
 static ID id_Unify, id_abs, id_cmp, id_convert, id_equal_p,
   id_expt, id_floor, id_format, id_idiv, id_inspect, id_negate, id_new,
   id_new_bang, id_to_f, id_to_i, id_to_s, id_truncate;

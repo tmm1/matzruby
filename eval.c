@@ -18,10 +18,8 @@ VALUE rb_binding_new(void);
 NORETURN(void rb_raise_jump(VALUE));
 
 ID rb_frame_callee(void);
-VALUE rb_eLocalJumpError;
-VALUE rb_eSysStackError;
 
-#define exception_error GET_VM()->special_exceptions[ruby_error_reenter]
+#define exception_error rb_errReenterError
 
 #include "eval_error.c"
 #include "eval_safe.c"
@@ -123,7 +121,7 @@ ruby_finalize_0(rb_vm_t *vm)
 	rb_trap_exit();
     }
     POP_TAG();
-    rb_exec_end_proc();
+    rb_exec_end_proc(vm->end_procs);
     rb_clear_trace_func();
 }
 
@@ -620,8 +618,6 @@ rb_f_block_given_p(void)
 	return Qfalse;
     }
 }
-
-VALUE rb_eThreadError;
 
 void
 rb_need_block()
@@ -1177,9 +1173,6 @@ rb_f_method_name(void)
 void
 Init_eval(void)
 {
-    /* TODO: fix position */
-    GET_THREAD()->vm->mark_object_ary = rb_ary_new();
-
     rb_define_virtual_variable("$@", errat_getter, errat_setter);
     rb_define_virtual_variable("$!", errinfo_getter, 0);
 

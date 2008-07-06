@@ -23,8 +23,6 @@
 void iseq_compile(VALUE self, NODE *node);
 int iseq_translate_threaded_code(rb_iseq_t *iseq);
 
-VALUE rb_cISeq;
-
 static void
 compile_data_free(struct iseq_compile_data *compile_data)
 {

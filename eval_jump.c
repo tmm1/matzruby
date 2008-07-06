@@ -54,8 +54,6 @@ struct end_proc_data {
     struct end_proc_data *next;
 };
 
-static struct end_proc_data *end_procs, *ephemeral_end_procs, *tmp_end_procs;
-
 void
 rb_set_end_proc(void (*func)(VALUE), VALUE data)
 {
@@ -64,10 +62,10 @@ rb_set_end_proc(void (*func)(VALUE), VALUE data)
     rb_thread_t *th = GET_THREAD();
 
     if (th->top_wrapper) {
-	list = &ephemeral_end_procs;
+	list = th->vm->end_procs + end_proc_ephemeral;
     }
     else {
-	list = &end_procs;
+	list = th->vm->end_procs + end_proc_ordinary;
     }
     link->next = *list;
     link->func = func;
@@ -77,70 +75,48 @@ rb_set_end_proc(void (*func)(VALUE), VALUE data)
 }
 
 void
-rb_mark_end_proc(void)
+rb_mark_end_proc(struct end_proc_data **endp)
 {
     struct end_proc_data *link;
+    int i;
 
-    link = end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
-    }
-    link = ephemeral_end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
-    }
-    link = tmp_end_procs;
-    while (link) {
-	rb_gc_mark(link->data);
-	link = link->next;
+    for (i = 0; i < end_proc_count; ++i) {
+	link = endp[i];
+	while (link) {
+	    rb_gc_mark(link->data);
+	    link = link->next;
+	}
     }
 }
 
 void
-rb_exec_end_proc(void)
+rb_exec_end_proc(struct end_proc_data **end_procs)
 {
     struct end_proc_data *link, *tmp;
-    int status;
+    int status, i;
     volatile int safe = rb_safe_level();
 
-    while (ephemeral_end_procs) {
-	tmp_end_procs = link = ephemeral_end_procs;
-	ephemeral_end_procs = 0;
-	while (link) {
-	    PUSH_TAG();
-	    if ((status = EXEC_TAG()) == 0) {
-		rb_set_safe_level_force(link->safe);
-		(*link->func) (link->data);
+    i = end_proc_ephemeral;
+    do {
+	while ((link = end_procs[i]) != 0) {
+	    end_procs[i] = 0;
+	    end_procs[end_proc_temporary] = link;
+	    while (link) {
+		PUSH_TAG();
+		if ((status = EXEC_TAG()) == 0) {
+		    rb_set_safe_level_force(link->safe);
+		    (*link->func) (link->data);
+		}
+		POP_TAG();
+		if (status) {
+		    error_handle(status);
+		}
+		tmp = link;
+		end_procs[end_proc_temporary] = link = link->next;
+		xfree(tmp);
 	    }
-	    POP_TAG();
-	    if (status) {
-		error_handle(status);
-	    }
-	    tmp = link;
-	    tmp_end_procs = link = link->next;
-	    xfree(tmp);
 	}
-    }
-    while (end_procs) {
-	tmp_end_procs = link = end_procs;
-	end_procs = 0;
-	while (link) {
-	    PUSH_TAG();
-	    if ((status = EXEC_TAG()) == 0) {
-		rb_set_safe_level_force(link->safe);
-		(*link->func) (link->data);
-	    }
-	    POP_TAG();
-	    if (status) {
-		error_handle(status);
-	    }
-	    tmp = link;
-	    tmp_end_procs = link = link->next;
-	    xfree(tmp);
-	}
-    }
+    } while (i-- > end_proc_ordinary);
     rb_set_safe_level_force(safe);
 }
 

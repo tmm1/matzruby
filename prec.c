@@ -11,8 +11,6 @@
 
 #include "ruby/ruby.h"
 
-VALUE rb_mPrecision;
-
 static ID prc_pr, prc_if;
 
 

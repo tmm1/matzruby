@@ -14,23 +14,13 @@
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
+#include "private_object.h"
 #include "debug.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
 #include <math.h>
 #include <float.h>
-
-VALUE rb_cBasicObject;
-VALUE rb_mKernel;
-VALUE rb_cObject;
-VALUE rb_cModule;
-VALUE rb_cClass;
-VALUE rb_cData;
-
-VALUE rb_cNilClass;
-VALUE rb_cTrueClass;
-VALUE rb_cFalseClass;
 
 static ID id_eq, id_eql, id_match, id_inspect, id_init_copy;
 
@@ -698,8 +688,6 @@ rb_obj_infect(VALUE obj1, VALUE obj2)
     OBJ_INFECT(obj1, obj2);
 }
 
-static st_table *immediate_frozen_tbl = 0;
-
 /*
  *  call-seq:
  *     obj.freeze    => obj
@@ -728,8 +716,15 @@ rb_obj_freeze(VALUE obj)
 	}
 	OBJ_FREEZE(obj);
 	if (SPECIAL_CONST_P(obj)) {
-	    if (!immediate_frozen_tbl) {
+	    VALUE *wrapper = &rb_immediate_frozen_tbl;
+	    st_table *immediate_frozen_tbl;
+
+	    if (*wrapper) {
+		immediate_frozen_tbl = DATA_PTR(*wrapper);
+	    }
+	    else {
 		immediate_frozen_tbl = st_init_numtable();
+		*wrapper = rb_wrap_st_table(immediate_frozen_tbl);
 	    }
 	    st_insert(immediate_frozen_tbl, obj, (st_data_t)Qtrue);
 	}
@@ -753,8 +748,9 @@ rb_obj_frozen_p(VALUE obj)
 {
     if (OBJ_FROZEN(obj)) return Qtrue;
     if (SPECIAL_CONST_P(obj)) {
-	if (!immediate_frozen_tbl) return Qfalse;
-	if (st_lookup(immediate_frozen_tbl, obj, 0)) return Qtrue;
+	VALUE tbl = rb_immediate_frozen_tbl;
+	if (!tbl) return Qfalse;
+	if (st_lookup(DATA_PTR(tbl), obj, 0)) return Qtrue;
     }
     return Qfalse;
 }
@@ -2279,12 +2275,10 @@ rb_f_array(VALUE obj, VALUE arg)
 static VALUE
 boot_defclass(const char *name, VALUE super)
 {
-    extern st_table *rb_class_tbl;
     VALUE obj = rb_class_boot(super);
     ID id = rb_intern(name);
 
     rb_name_class(obj, id);
-    st_add_direct(rb_class_tbl, id, obj);
     rb_const_set((rb_cObject ? rb_cObject : obj), id, obj);
     return obj;
 }

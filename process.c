@@ -73,10 +73,6 @@ struct timeval rb_time_interval(VALUE);
 #include <grp.h>
 #endif
 
-#if defined(HAVE_TIMES) || defined(_WIN32)
-static VALUE rb_cProcessTms;
-#endif
-
 #ifndef WIFEXITED
 #define WIFEXITED(w)    (((w) & 0xff) == 0)
 #endif
@@ -212,8 +208,6 @@ get_ppid(void)
  *  descriptions that follow, when we talk about the integer value of
  *  _stat_, we're referring to this 16 bit value.
  */
-
-static VALUE rb_cProcessStatus;
 
 VALUE
 rb_last_status_get(void)
@@ -5060,11 +5054,6 @@ rb_proc_times(VALUE obj)
 #endif
 }
 
-VALUE rb_mProcess;
-VALUE rb_mProcUID;
-VALUE rb_mProcGID;
-VALUE rb_mProcID_Syscall;
-
 
 /*
  *  The <code>Process</code> module is a collection of methods used to
@@ -5074,6 +5063,10 @@ VALUE rb_mProcID_Syscall;
 void
 Init_process(void)
 {
+    VALUE rb_mProcUID;
+    VALUE rb_mProcGID;
+    VALUE rb_mProcID_Syscall;
+
     rb_define_virtual_variable("$?", rb_last_status_get, 0);
     rb_define_virtual_variable("$$", get_pid, 0);
     rb_define_global_function("exec", rb_f_exec, -1);

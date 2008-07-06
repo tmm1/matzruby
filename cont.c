@@ -39,10 +39,6 @@ typedef struct rb_context_struct {
     enum context_type type;
 } rb_context_t;
 
-static VALUE rb_cContinuation;
-static VALUE rb_cFiber;
-static VALUE rb_eFiberError;
-
 #define GetContPtr(obj, ptr)  \
   Data_Get_Struct(obj, rb_context_t, ptr)
 

@@ -31,8 +31,6 @@ rb_hash_freeze(VALUE hash)
     return rb_obj_freeze(hash);
 }
 
-VALUE rb_cHash;
-
 static VALUE envtbl;
 static ID id_hash, id_yield, id_default;
 

@@ -16,8 +16,6 @@
 #include "regint.h"
 #include <ctype.h>
 
-VALUE rb_eRegexpError;
-
 typedef char onig_errmsg_buffer[ONIG_MAX_ERROR_MESSAGE_LEN];
 
 #define BEG(no) regs->beg[no]
@@ -766,8 +764,6 @@ make_regexp(const char *s, long len, rb_encoding *enc, int flags, onig_errmsg_bu
  *  <code>$2</code>, and so on.
  *
  */
-
-VALUE rb_cMatch;
 
 static VALUE
 match_alloc(VALUE klass)
@@ -1822,8 +1818,6 @@ match_inspect(VALUE match)
 
     return str;
 }
-
-VALUE rb_cRegexp;
 
 static int
 read_escaped_byte(const char **pp, const char *end, onig_errmsg_buffer err)

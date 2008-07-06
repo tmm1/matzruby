@@ -14,6 +14,7 @@
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "ruby/encoding.h"
+#include "private_object.h"
 
 #include <math.h>
 #ifdef HAVE_FLOAT_H
@@ -91,9 +92,6 @@ typedef struct {
     VALUE (*loader)(VALUE, VALUE);
 } marshal_compat_t;
 
-static st_table *compat_allocator_tbl;
-static VALUE compat_allocator_tbl_wrapper;
-
 static int
 mark_marshal_compat_i(st_data_t key, st_data_t value)
 {
@@ -115,6 +113,7 @@ rb_marshal_define_compat(VALUE newclass, VALUE oldclass, VALUE (*dumper)(VALUE),
 {
     marshal_compat_t *compat;
     rb_alloc_func_t allocator = rb_get_alloc_func(newclass);
+    st_table *compat_allocator_tbl = DATA_PTR(rb_compat_allocator_tbl);
 
     if (!allocator) {
         rb_raise(rb_eTypeError, "no allocator");
@@ -140,6 +139,7 @@ struct dump_arg {
     st_table *compat_tbl;
     VALUE wrapper;
     st_table *encodings;
+    st_table *compat_allocator_tbl;
 };
 
 struct dump_call_arg {
@@ -624,7 +624,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
         {
             st_data_t compat_data;
             rb_alloc_func_t allocator = rb_get_alloc_func(RBASIC(obj)->klass);
-            if (st_lookup(compat_allocator_tbl,
+            if (st_lookup(arg->compat_allocator_tbl,
                           (st_data_t)allocator,
                           &compat_data)) {
                 marshal_compat_t *compat = (marshal_compat_t*)compat_data;
@@ -880,6 +880,7 @@ marshal_dump(int argc, VALUE *argv)
     arg.compat_tbl = st_init_numtable();
     arg.wrapper = Data_Wrap_Struct(rb_cData, mark_dump_arg, 0, &arg);
     arg.encodings = 0;
+    arg.compat_allocator_tbl = DATA_PTR(rb_compat_allocator_tbl);
     c_arg.obj   = obj;
     c_arg.arg   = &arg;
     c_arg.limit = limit;
@@ -899,6 +900,7 @@ struct load_arg {
     VALUE data;
     VALUE proc;
     int taint;
+    st_table *compat_allocator_tbl;
     st_table *compat_tbl;
     VALUE compat_tbl_wrapper;
 };
@@ -1094,7 +1096,7 @@ r_leave(VALUE v, struct load_arg *arg)
         VALUE real_obj = (VALUE)data;
         rb_alloc_func_t allocator = rb_get_alloc_func(CLASS_OF(real_obj));
         st_data_t key = v;
-        if (st_lookup(compat_allocator_tbl, (st_data_t)allocator, &data)) {
+        if (st_lookup(arg->compat_allocator_tbl, (st_data_t)allocator, &data)) {
             marshal_compat_t *compat = (marshal_compat_t*)data;
             compat->loader(real_obj, v);
         }
@@ -1161,7 +1163,7 @@ obj_alloc_by_path(const char *path, struct load_arg *arg)
     klass = path2class(path);
 
     allocator = rb_get_alloc_func(klass);
-    if (st_lookup(compat_allocator_tbl, (st_data_t)allocator, &data)) {
+    if (st_lookup(arg->compat_allocator_tbl, (st_data_t)allocator, &data)) {
         marshal_compat_t *compat = (marshal_compat_t*)data;
         VALUE real_obj = rb_obj_alloc(klass);
         VALUE obj = rb_obj_alloc(compat->oldclass);
@@ -1612,6 +1614,7 @@ marshal_load(int argc, VALUE *argv)
     arg.offset = 0;
     arg.compat_tbl = st_init_numtable();
     arg.compat_tbl_wrapper = Data_Wrap_Struct(rb_cData, rb_mark_tbl, 0, arg.compat_tbl);
+    arg.compat_allocator_tbl = DATA_PTR(rb_compat_allocator_tbl);
 
     major = r_byte(&arg);
     minor = r_byte(&arg);
@@ -1695,10 +1698,8 @@ Init_marshal(void)
     rb_define_const(rb_mMarshal, "MAJOR_VERSION", INT2FIX(MARSHAL_MAJOR));
     rb_define_const(rb_mMarshal, "MINOR_VERSION", INT2FIX(MARSHAL_MINOR));
 
-    compat_allocator_tbl = st_init_numtable();
-    rb_gc_register_address(&compat_allocator_tbl_wrapper);
-    compat_allocator_tbl_wrapper =
-	Data_Wrap_Struct(rb_cData, mark_marshal_compat_t, 0, compat_allocator_tbl);
+    rb_compat_allocator_tbl =
+	Data_Wrap_Struct(rb_cData, mark_marshal_compat_t, 0, st_init_numtable());
 }
 
 VALUE
