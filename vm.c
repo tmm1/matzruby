@@ -1388,7 +1388,7 @@ rb_vm_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(vm->load_path);
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
-	rb_gc_mark_locations(vm->specific_storage.ptr, vm->specific_storage.ptr + vm->specific_storage.len - 1);
+	rb_gc_mark_locations(vm->specific_storage.ptr, vm->specific_storage.ptr + vm->specific_storage.len);
 
 	if (vm->loading_table) {
 	    rb_mark_tbl(vm->loading_table);
@@ -1908,10 +1908,4 @@ VALUE *
 rb_ruby_debug_ptr(void)
 {
     return ruby_vm_debug_ptr(GET_VM());
-}
-
-VALUE
-rb_vm_get_coverages(void)
-{
-    return *rb_vm_specific_ptr(rb_vmkey_coverages);
 }

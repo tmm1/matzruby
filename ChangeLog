@@ -1,3 +1,142 @@
+Wed Jul  9 22:41:16 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (sleep_timeval): wait until timed out.  [ruby-core:17270]
+
+Wed Jul  9 20:58:16 2008  Tanaka Akira  <akr@fsij.org>
+
+	* array.c (rb_ary_fill): don't raise even if length is negative.
+	  [ruby-core:17483], [ruby-core:17661]
+
+Wed Jul  9 20:18:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (rb_cv_va_args_macro): check for __VA_ARGS__.
+
+	* thread.c (thread_debug): show source name and line if possible.
+
+	* thread_{pthread,win32}.c (rb_thread_create_timer_thread): needs more
+	  stack for debug.
+
+Wed Jul  9 11:13:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/profiler.rb (Profiler__#print_profile): sort in the descending
+	  order of cumulative time.
+
+Wed Jul  9 11:11:18 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (struct glob_args, rb_glob_caller, rb_glob2, push_pattern),
+	  (glob_brace): make consistent prototypes.
+
+	* dir.c (push_glob): set enc in the caller of rb_glob_caller as well
+	  as rb_glob2.
+
+Wed Jul  9 09:12:11 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/nkf/nkf-utf8/nkf.c (options): use input_endian.
+
+Wed Jul  9 01:38:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_succ): alphabets or numerics mutually enclosing
+	  non-alphanumeric characters can carry up.  e.g., "1.999".succ should
+	  be "2.000".
+
+Wed Jul  9 00:12:31 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* thread.c (rb_set_coverages, rb_reset_coverages): enable and disable
+	  coverage measurement.
+
+	* thread.c (rb_get_coverages): rename and move from vm.c.
+
+	* vm.c (rb_vm_get_coverages): ditto.
+
+	* iseq.c (prepare_iseq_build): ditto.
+
+	* thread.c (clear_coverage): ditto.
+
+	* parse.y (coverage): ditto.
+
+	* ext/coverage/coverage.c: use above functions, add new method
+	  Coverage.start and fix rdoc .
+
+Tue Jul  8 23:02:35 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (find_default_source): bug fix when
+	  OLE object does not have default source interface.
+
+	* test/win32ole/test_win32ole_event.rb: ditto.
+
+Tue Jul  8 22:56:23 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* thread.c (rb_enable_coverages): hide coverage array by setting 0 to
+	  klass during measurement.
+
+	* parse.y (coverage, yycompile0): ditto.
+
+	* iseq.c (prepare_iseq_build): use rb_hash_lookup instead of
+	  rb_hash_aref.
+
+	* thread.c (rb_coverage_result): restore klass of coverage array
+	  and return it.
+
+	* theaad.c (update_coverage): chcek whether its klass is 0.
+
+Tue Jul  8 22:28:25 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* lib/debug.rb, lib/profile.rb: fix to use RubyVM.
+
+	* lib/rdoc/parsers/parse_c.rb: ditto.
+
+Tue Jul  8 21:45:22 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* vm.c (rb_vm_mark): mark the last element of special_exceptions.
+
+Tue Jul  8 19:55:40 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (find_default_source): try to
+	  find COCLASS when WIN32OLE object is not COCLASS. 
+
+	* test/win32ole/test_win32ole_event.rb: ditto
+
+Tue Jul  8 13:38:22 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* compile.h: fix to skip inserting a trace insn.
+
+Tue Jul  8 11:41:17 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* dir.c: shoudn't use ruby object in globbing, because glob service
+	  routines are called before initializing ruby on some platforms (ex.
+	  windows).
+
+Tue Jul  8 10:08:40 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* dir.c (Next): use rb_enc_mbclen. [ruby-dev:35390]
+
+Tue Jul  8 07:59:40 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* dir.c (Next): use rb_enc_precise_mbclen.
+
+Tue Jul  8 02:27:23 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* dir.c: preserve encoding of strings in glob and fnmatch.
+
+	* include/ruby/ruby.h: related changes.
+
+Tue Jul  8 00:22:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_succ): limit carrying in an alphanumeric region if
+	  exists.  [ruby-dev:35094]
+
+Mon Jul  7 20:39:28 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c(Init_win32ole): add
+	  WIN32OLE_TYPE#source_ole_types, WIN32OLE_TYPE#default_ole_types,
+	  WIN32OLE_TYPE#default_event_sources.
+
+	* test/win32ole/test_win32ole_type.rb: ditto.
+
+Mon Jul  7 19:45:22 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/ruby/test_dir.rb (test_chroot_nodir): add Errno::EPERM.
+
 Mon Jul  7 17:12:20 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* lib/ipaddr.rb (IPAddr#initialize): get rid of ArgumentError in
@@ -54,7 +193,7 @@ Sun Jul  6 18:34:35 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 Sun Jul  6 10:12:21 2008  Kouhei Sutou  <kou@cozmixng.org>
 
 	* lib/test/unit/collector/objectspace.rb
-	(Test::Unit::Collector::ObjectSpace::NAME): fix a typo.
+	  (Test::Unit::Collector::ObjectSpace::NAME): fix a typo.
 
 Sun Jul  6 00:56:51 2008  Tanaka Akira  <akr@fsij.org>
 

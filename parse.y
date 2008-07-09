@@ -4672,12 +4672,13 @@ debug_lines(const char *f)
 static VALUE
 coverage(const char *f, int n)
 {
-    extern VALUE rb_vm_get_coverages(void);
-    VALUE coverages = rb_vm_get_coverages();
-    if (RTEST(coverages)) {
+    extern VALUE rb_get_coverages(void);
+    VALUE coverages = rb_get_coverages();
+    if (RTEST(coverages) && RBASIC(coverages)->klass == 0) {
 	VALUE fname = rb_str_new2(f);
 	VALUE lines = rb_ary_new2(n);
 	int i;
+	RBASIC(lines)->klass = 0;
 	for (i = 0; i < n; i++) RARRAY_PTR(lines)[i] = Qnil;
 	RARRAY(lines)->len = n;
 	rb_hash_aset(coverages, fname, lines);
@@ -4718,9 +4719,6 @@ yycompile0(VALUE arg, int tracing)
 
     parser_prepare(parser);
     n = yyparse((void*)parser);
-    if (ruby_coverage) {
-	rb_ary_freeze(ruby_coverage);
-    }
     ruby_debug_lines = 0;
     ruby_coverage = 0;
     compile_for_eval = 0;

@@ -83,97 +83,38 @@ char *strchr(char*,char);
 #define FNM_NOMATCH	1
 #define FNM_ERROR	2
 
-#define downcase(c) (nocase && ISUPPER(c) ? TOLOWER(c) : (c))
-#define compare(c1, c2) (((unsigned char)(c1)) - ((unsigned char)(c2)))
+# define Next(p, e, enc) (p + rb_enc_mbclen(p, e, enc))
+# define Inc(p, e, enc) ((p) = Next(p, e, enc))
 
-/* caution: in case *p == '\0'
-   Next(p) == p + 1 in single byte environment
-   Next(p) == p     in multi byte environment
-*/
-#if defined(CharNext)
-# define Next(p) CharNext(p)
-#elif defined(DJGPP)
-# define Next(p) ((p) + mblen(p, RUBY_MBCHAR_MAXSIZE))
-#elif defined(__EMX__)
-# define Next(p) ((p) + emx_mblen(p))
-static inline int
-emx_mblen(const char *p)
-{
-    int n = mblen(p, RUBY_MBCHAR_MAXSIZE);
-    return (n < 0) ? 1 : n;
-}
-#endif
-
-#ifndef Next /* single byte environment */
-# define Next(p) ((p) + 1)
-# define Inc(p) (++(p))
-# define Compare(p1, p2) (compare(downcase(*(p1)), downcase(*(p2))))
-#else /* multi byte environment */
-# define Inc(p) ((p) = Next(p))
-# define Compare(p1, p2) (CompareImpl(p1, p2, nocase))
 static int
-CompareImpl(const char *p1, const char *p2, int nocase)
+char_casecmp(const char *p1, const char *p2, rb_encoding *enc, const int nocase)
 {
-    const int len1 = Next(p1) - p1;
-    const int len2 = Next(p2) - p2;
-#ifdef _WIN32
-    char buf1[10], buf2[10]; /* large enough? */
-#endif
+    const char *p1end, *p2end;
+    int c1, c2;
 
-    if (len1 < 0 || len2 < 0) {
-	rb_fatal("CompareImpl: negative len");
+    if (!*p1) return *p1;
+    if (!*p2) return -*p2;
+    p1end = p1 + strlen(p1);
+    p2end = p2 + strlen(p2);
+    c1 = rb_enc_codepoint(p1, p1end, enc);
+    c2 = rb_enc_codepoint(p2, p2end, enc);
+
+    if (c1 == c2) return 0;
+    if (nocase) {
+	c1 = rb_enc_toupper(c1, enc);
+	c2 = rb_enc_toupper(c2, enc);
     }
-
-    if (len1 == 0) return  len2;
-    if (len2 == 0) return -len1;
-
-#ifdef _WIN32
-    if (nocase && rb_w32_iswinnt()) {
-	if (len1 > 1) {
-	    if (len1 >= sizeof(buf1)) {
-		rb_fatal("CompareImpl: too large len");
-	    }
-	    memcpy(buf1, p1, len1);
-	    buf1[len1] = '\0';
-	    CharLower(buf1);
-	    p1 = buf1; /* trick */
-	}
-	if (len2 > 1) {
-	    if (len2 >= sizeof(buf2)) {
-		rb_fatal("CompareImpl: too large len");
-	    }
-	    memcpy(buf2, p2, len2);
-	    buf2[len2] = '\0';
-	    CharLower(buf2);
-	    p2 = buf2; /* trick */
-	}
-    }
-#endif
-    if (len1 == 1)
-	if (len2 == 1)
-	    return compare(downcase(*p1), downcase(*p2));
-	else {
-	    const int ret = compare(downcase(*p1), *p2);
-	    return ret ? ret : -1;
-	}
-    else
-	if (len2 == 1) {
-	    const int ret = compare(*p1, downcase(*p2));
-	    return ret ? ret : 1;
-	}
-	else {
-	    const int ret = memcmp(p1, p2, len1 < len2 ? len1 : len2);
-	    return ret ? ret : len1 - len2;
-	}
+    return c1 - c2;
 }
-#endif /* environment */
 
 static char *
 bracket(
     const char *p, /* pattern (next to '[') */
     const char *s, /* string */
-    int flags)
+    int flags,
+    rb_encoding *enc)
 {
+    const char *pend = p + strlen(p);
     const int nocase = flags & FNM_CASEFOLD;
     const int escape = !(flags & FNM_NOESCAPE);
 
@@ -190,19 +131,19 @@ bracket(
 	    t1++;
 	if (!*t1)
 	    return NULL;
-	p = Next(t1);
+	p = Next(t1, pend, enc);
 	if (p[0] == '-' && p[1] != ']') {
 	    const char *t2 = p + 1;
 	    if (escape && *t2 == '\\')
 		t2++;
 	    if (!*t2)
 		return NULL;
-	    p = Next(t2);
-	    if (!ok && Compare(t1, s) <= 0 && Compare(s, t2) <= 0)
+	    p = Next(t2, pend, enc);
+	    if (!ok && char_casecmp(t1, s, enc, nocase) <= 0 && char_casecmp(s, t2, enc, nocase) <= 0)
 		ok = 1;
 	}
 	else
-	    if (!ok && Compare(t1, s) == 0)
+	    if (!ok && char_casecmp(t1, s, enc, nocase) == 0)
 		ok = 1;
     }
 
@@ -222,7 +163,8 @@ static int
 fnmatch_helper(
     const char **pcur, /* pattern */
     const char **scur, /* string */
-    int flags)
+    int flags,
+    rb_encoding *enc)
 {
     const int period = !(flags & FNM_DOTMATCH);
     const int pathname = flags & FNM_PATHNAME;
@@ -233,7 +175,9 @@ fnmatch_helper(
     const char *stmp = 0;
 
     const char *p = *pcur;
+    const char *pend = p + strlen(p);
     const char *s = *scur;
+    const char *send = s + strlen(s);
 
     if (period && *s == '.' && *UNESCAPE(p) != '.') /* leading period */
 	RETURN(FNM_NOMATCH);
@@ -256,16 +200,16 @@ fnmatch_helper(
 	    if (ISEND(s))
 		RETURN(FNM_NOMATCH);
 	    p++;
-	    Inc(s);
+	    Inc(s, send, enc);
 	    continue;
 
 	  case '[': {
 	    const char *t;
 	    if (ISEND(s))
 		RETURN(FNM_NOMATCH);
-	    if ((t = bracket(p + 1, s, flags)) != 0) {
+	    if ((t = bracket(p + 1, s, flags, enc)) != 0) {
 		p = t;
-		Inc(s);
+		Inc(s, send, enc);
 		continue;
 	    }
 	    goto failed;
@@ -278,16 +222,16 @@ fnmatch_helper(
 	    RETURN(ISEND(p) ? 0 : FNM_NOMATCH);
 	if (ISEND(p))
 	    goto failed;
-	if (Compare(p, s) != 0)
+	if (char_casecmp(p, s, enc, nocase) != 0)
 	    goto failed;
-	Inc(p);
-	Inc(s);
+	Inc(p, pend, enc);
+	Inc(s, send, enc);
 	continue;
 
       failed: /* try next '*' position */
 	if (ptmp && stmp) {
 	    p = ptmp;
-	    Inc(stmp); /* !ISEND(*stmp) */
+	    Inc(stmp, send, enc); /* !ISEND(*stmp) */
 	    s = stmp;
 	    continue;
 	}
@@ -297,10 +241,14 @@ fnmatch_helper(
 
 static int
 fnmatch(
-    const char *p, /* pattern */
-    const char *s, /* string */
+    const char *pattern,
+    rb_encoding *enc,
+    const char *string,
     int flags)
 {
+    const char *p = pattern;
+    const char *s = string;
+    const char *send = s + strlen(string);
     const int period = !(flags & FNM_DOTMATCH);
     const int pathname = flags & FNM_PATHNAME;
 
@@ -314,8 +262,8 @@ fnmatch(
 		ptmp = p;
 		stmp = s;
 	    }
-	    if (fnmatch_helper(&p, &s, flags) == 0) {
-		while (*s && *s != '/') Inc(s);
+	    if (fnmatch_helper(&p, &s, flags, enc) == 0) {
+		while (*s && *s != '/') Inc(s, send, enc);
 		if (*p && *s) {
 		    p++;
 		    s++;
@@ -326,7 +274,7 @@ fnmatch(
 	    }
 	    /* failed : try next recursion */
 	    if (ptmp && stmp && !(period && *stmp == '.')) {
-		while (*stmp && *stmp != '/') Inc(stmp);
+		while (*stmp && *stmp != '/') Inc(stmp, send, enc);
 		if (*stmp) {
 		    p = ptmp;
 		    stmp++;
@@ -338,7 +286,7 @@ fnmatch(
 	}
     }
     else
-	return fnmatch_helper(&p, &s, flags);
+	return fnmatch_helper(&p, &s, flags, enc);
 }
 
 struct dir_data {
@@ -1057,12 +1005,13 @@ do_opendir(const char *path, int flags)
 
 /* Return nonzero if S has any special globbing chars in it.  */
 static int
-has_magic(const char *s, int flags)
+has_magic(const char *s, int flags, rb_encoding *enc)
 {
     const int escape = !(flags & FNM_NOESCAPE);
     const int nocase = flags & FNM_CASEFOLD;
 
     register const char *p = s;
+    register const char *pend = p + strlen(p);
     register char c;
 
     while ((c = *p++) != 0) {
@@ -1082,7 +1031,7 @@ has_magic(const char *s, int flags)
 		return 1;
 	}
 
-	p = Next(p-1);
+	p = Next(p-1, pend, enc);
     }
 
     return 0;
@@ -1090,11 +1039,12 @@ has_magic(const char *s, int flags)
 
 /* Find separator in globbing pattern. */
 static char *
-find_dirsep(const char *s, int flags)
+find_dirsep(const char *s, int flags, rb_encoding *enc)
 {
     const int escape = !(flags & FNM_NOESCAPE);
 
     register const char *p = s;
+    register const char *pend = p + strlen(p);
     register char c;
     int open = 0;
 
@@ -1118,7 +1068,7 @@ find_dirsep(const char *s, int flags)
 	    continue;
 	}
 
-	p = Next(p-1);
+	p = Next(p-1, pend, enc);
     }
 
     return (char *)p-1;
@@ -1126,8 +1076,9 @@ find_dirsep(const char *s, int flags)
 
 /* Remove escaping backslashes */
 static void
-remove_backslashes(char *p)
+remove_backslashes(char *p, rb_encoding *enc)
 {
+    register const char *pend = p + strlen(p);
     char *t = p;
     char *s = p;
 
@@ -1139,7 +1090,7 @@ remove_backslashes(char *p)
 	    s = ++p;
 	    if (!*p) break;
 	}
-	Inc(p);
+	Inc(p, pend, enc);
     }
 
     while (*p++);
@@ -1160,7 +1111,7 @@ struct glob_pattern {
 static void glob_free_pattern(struct glob_pattern *list);
 
 static struct glob_pattern *
-glob_make_pattern(const char *p, int flags)
+glob_make_pattern(const char *p, int flags, rb_encoding *enc)
 {
     struct glob_pattern *list, *tmp, **tail = &list;
     int dirsep = 0; /* pattern is terminated with '/' */
@@ -1176,7 +1127,7 @@ glob_make_pattern(const char *p, int flags)
 	    dirsep = 1;
 	}
 	else {
-	    const char *m = find_dirsep(p, flags);
+	    const char *m = find_dirsep(p, flags, enc);
 	    char *buf = GLOB_ALLOC_N(char, m-p+1);
 	    if (!buf) {
 		GLOB_FREE(tmp);
@@ -1184,7 +1135,7 @@ glob_make_pattern(const char *p, int flags)
 	    }
 	    memcpy(buf, p, m-p);
 	    buf[m-p] = '\0';
-	    tmp->type = has_magic(buf, flags) ? MAGICAL : PLAIN;
+	    tmp->type = has_magic(buf, flags, enc) ? MAGICAL : PLAIN;
 	    tmp->str = buf;
 	    if (*m) {
 		dirsep = 1;
@@ -1257,9 +1208,10 @@ enum answer { YES, NO, UNKNOWN };
 #endif
 
 struct glob_args {
-    void (*func)(const char *, VALUE);
+    void (*func)(const char *, VALUE, void *);
     const char *path;
     VALUE value;
+    rb_encoding *enc;
 };
 
 static VALUE
@@ -1267,11 +1219,11 @@ glob_func_caller(VALUE val)
 {
     struct glob_args *args = (struct glob_args *)val;
 
-    (*args->func)(args->path, args->value);
+    (*args->func)(args->path, args->value, args->enc);
     return Qnil;
 }
 
-#define glob_call_func(func, path, arg) (*func)(path, arg)
+#define glob_call_func(func, path, arg, enc) (*func)(path, arg, enc)
 
 static int
 glob_helper(
@@ -1283,7 +1235,8 @@ glob_helper(
     struct glob_pattern **end,
     int flags,
     ruby_glob_func *func,
-    VALUE arg)
+    VALUE arg,
+    rb_encoding *enc)
 {
     struct stat st;
     int status = 0;
@@ -1337,13 +1290,13 @@ glob_helper(
 	    }
 	}
 	if (match_all && exist == YES) {
-	    status = glob_call_func(func, path, arg);
+	    status = glob_call_func(func, path, arg, enc);
 	    if (status) return status;
 	}
 	if (match_dir && isdir == YES) {
 	    char *tmp = join_path(path, dirsep, "");
 	    if (!tmp) return -1;
-	    status = glob_call_func(func, tmp, arg);
+	    status = glob_call_func(func, tmp, arg, enc);
 	    GLOB_FREE(tmp);
 	    if (status) return status;
 	}
@@ -1365,7 +1318,7 @@ glob_helper(
 		break;
 	    }
 	    if (recursive && strcmp(dp->d_name, ".") != 0 && strcmp(dp->d_name, "..") != 0
-		&& fnmatch("*", dp->d_name, flags) == 0) {
+		&& fnmatch("*", rb_usascii_encoding(), dp->d_name, flags) == 0) {
 #ifndef _WIN32
 		if (do_lstat(buf, &st, flags) == 0)
 		    new_isdir = S_ISDIR(st.st_mode) ? YES : S_ISLNK(st.st_mode) ? UNKNOWN : NO;
@@ -1391,12 +1344,13 @@ glob_helper(
 		    p = p->next; /* 0 times recursion */
 		}
 		if (p->type == PLAIN || p->type == MAGICAL) {
-		    if (fnmatch(p->str, dp->d_name, flags) == 0)
+		    if (fnmatch(p->str, enc, dp->d_name, flags) == 0)
 			*new_end++ = p->next;
 		}
 	    }
 
-	    status = glob_helper(buf, 1, YES, new_isdir, new_beg, new_end, flags, func, arg);
+	    status = glob_helper(buf, 1, YES, new_isdir, new_beg, new_end,
+				 flags, func, arg, enc);
 	    GLOB_FREE(buf);
 	    GLOB_FREE(new_beg);
 	    if (status) break;
@@ -1422,7 +1376,7 @@ glob_helper(
 		    break;
 		}
 		strcpy(name, (*cur)->str);
-		if (escape) remove_backslashes(name);
+		if (escape) remove_backslashes(name, enc);
 
 		new_beg = new_end = GLOB_ALLOC_N(struct glob_pattern *, end - beg);
 		if (!new_beg) {
@@ -1432,7 +1386,7 @@ glob_helper(
 		}
 		*new_end++ = (*cur)->next;
 		for (cur2 = cur + 1; cur2 < copy_end; ++cur2) {
-		    if (*cur2 && fnmatch((*cur2)->str, name, flags) == 0) {
+		    if (*cur2 && fnmatch((*cur2)->str, enc, name, flags) == 0) {
 			*new_end++ = (*cur2)->next;
 			*cur2 = 0;
 		    }
@@ -1445,7 +1399,8 @@ glob_helper(
 		    status = -1;
 		    break;
 		}
-		status = glob_helper(buf, 1, UNKNOWN, UNKNOWN, new_beg, new_end, flags, func, arg);
+		status = glob_helper(buf, 1, UNKNOWN, UNKNOWN, new_beg,
+				     new_end, flags, func, arg, enc);
 		GLOB_FREE(buf);
 		GLOB_FREE(new_beg);
 		if (status) break;
@@ -1459,7 +1414,7 @@ glob_helper(
 }
 
 static int
-ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg)
+ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg, rb_encoding *enc)
 {
     struct glob_pattern *list;
     const char *root, *start;
@@ -1481,12 +1436,12 @@ ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg)
     MEMCPY(buf, start, char, n);
     buf[n] = '\0';
 
-    list = glob_make_pattern(root, flags);
+    list = glob_make_pattern(root, flags, enc);
     if (!list) {
 	GLOB_FREE(buf);
 	return -1;
     }
-    status = glob_helper(buf, 0, UNKNOWN, UNKNOWN, &list, &list + 1, flags, func, arg);
+    status = glob_helper(buf, 0, UNKNOWN, UNKNOWN, &list, &list + 1, flags, func, arg, enc);
     glob_free_pattern(list);
     GLOB_FREE(buf);
 
@@ -1496,11 +1451,12 @@ ruby_glob0(const char *path, int flags, ruby_glob_func *func, VALUE arg)
 int
 ruby_glob(const char *path, int flags, ruby_glob_func *func, VALUE arg)
 {
-    return ruby_glob0(path, flags & ~GLOB_VERBOSE, func, arg);
+    return ruby_glob0(path, flags & ~GLOB_VERBOSE, func, arg,
+		      rb_ascii8bit_encoding());
 }
 
 static int
-rb_glob_caller(const char *path, VALUE a)
+rb_glob_caller(const char *path, VALUE a, void *enc)
 {
     int status;
     struct glob_args *args = (struct glob_args *)a;
@@ -1511,38 +1467,46 @@ rb_glob_caller(const char *path, VALUE a)
 }
 
 static int
-rb_glob2(const char *path, int flags, void (*func)(const char *, VALUE), VALUE arg)
+rb_glob2(const char *path, int flags,
+	 void (*func)(const char *, VALUE, void *), VALUE arg,
+	 rb_encoding* enc)
 {
     struct glob_args args;
 
     args.func = func;
     args.value = arg;
+    args.enc = enc;
 
     if (flags & FNM_SYSCASE) {
 	rb_warning("Dir.glob() ignores File::FNM_CASEFOLD");
     }
 
-    return ruby_glob0(path, flags | GLOB_VERBOSE, rb_glob_caller, (VALUE)&args);
+    return ruby_glob0(path, flags | GLOB_VERBOSE, rb_glob_caller, (VALUE)&args,
+		      enc);
 }
 
 void
-rb_glob(const char *path, void (*func)(const char *, VALUE), VALUE arg)
+rb_glob(const char *path, void (*func)(const char *, VALUE, void *), VALUE arg)
 {
-    int status = rb_glob2(path, 0, func, arg);
+    int status = rb_glob2(path, 0, func, arg, rb_ascii8bit_encoding());
     if (status) GLOB_JUMP_TAG(status);
 }
 
 static void
-push_pattern(const char *path, VALUE ary)
+push_pattern(const char *path, VALUE ary, void *enc)
 {
-    rb_ary_push(ary, rb_tainted_str_new2(path));
+    VALUE vpath = rb_tainted_str_new2(path);
+    rb_enc_associate(vpath, enc);
+    rb_ary_push(ary, vpath);
 }
 
-int
-ruby_brace_expand(const char *str, int flags, ruby_glob_func *func, VALUE arg)
+static int
+ruby_brace_expand(const char *str, int flags, ruby_glob_func *func, VALUE arg,
+		  rb_encoding *enc)
 {
     const int escape = !(flags & FNM_NOESCAPE);
     const char *p = str;
+    const char *pend = p + strlen(p);
     const char *s = p;
     const char *lbrace = 0, *rbrace = 0;
     int nest = 0, status = 0;
@@ -1558,7 +1522,7 @@ ruby_brace_expand(const char *str, int flags, ruby_glob_func *func, VALUE arg)
 	if (*p == '\\' && escape) {
 	    if (!*++p) break;
 	}
-	Inc(p);
+	Inc(p, pend, enc);
     }
 
     if (lbrace && rbrace) {
@@ -1578,17 +1542,17 @@ ruby_brace_expand(const char *str, int flags, ruby_glob_func *func, VALUE arg)
 		if (*p == '\\' && escape) {
 		    if (++p == rbrace) break;
 		}
-		Inc(p);
+		Inc(p, pend, enc);
 	    }
 	    memcpy(buf+shift, t, p-t);
 	    strcpy(buf+shift+(p-t), rbrace+1);
-	    status = ruby_brace_expand(buf, flags, func, arg);
+	    status = ruby_brace_expand(buf, flags, func, arg, enc);
 	    if (status) break;
 	}
 	GLOB_FREE(buf);
     }
     else if (!lbrace && !rbrace) {
-	status = (*func)(s, arg);
+	status = (*func)(s, arg, enc);
     }
 
     return status;
@@ -1601,38 +1565,44 @@ struct brace_args {
 };
 
 static int
-glob_brace(const char *path, VALUE val)
+glob_brace(const char *path, VALUE val, void *enc)
 {
     struct brace_args *arg = (struct brace_args *)val;
 
-    return ruby_glob0(path, arg->flags, arg->func, arg->value);
+    return ruby_glob0(path, arg->flags, arg->func, arg->value, enc);
 }
 
 static int
-ruby_brace_glob0(const char *str, int flags, ruby_glob_func *func, VALUE arg)
+ruby_brace_glob0(const char *str, int flags, ruby_glob_func *func, VALUE arg,
+		 rb_encoding* enc)
 {
     struct brace_args args;
 
     args.func = func;
     args.value = arg;
     args.flags = flags;
-    return ruby_brace_expand(str, flags, glob_brace, (VALUE)&args);
+    return ruby_brace_expand(str, flags, glob_brace, (VALUE)&args, enc);
 }
 
 int
 ruby_brace_glob(const char *str, int flags, ruby_glob_func *func, VALUE arg)
 {
-    return ruby_brace_glob0(str, flags & ~GLOB_VERBOSE, func, arg);
+    return ruby_brace_glob0(str, flags & ~GLOB_VERBOSE, func, arg,
+			    rb_ascii8bit_encoding());
 }
 
 static int
-push_glob(VALUE ary, const char *str, int flags)
+push_glob(VALUE ary, VALUE str, int flags)
 {
     struct glob_args args;
+    rb_encoding *enc = rb_enc_get(str);
 
     args.func = push_pattern;
     args.value = ary;
-    return ruby_brace_glob0(str, flags | GLOB_VERBOSE, rb_glob_caller, (VALUE)&args);
+    args.enc = enc;
+
+    return ruby_brace_glob0(RSTRING_PTR(str), flags | GLOB_VERBOSE,
+			    rb_glob_caller, (VALUE)&args, enc);
 }
 
 static VALUE
@@ -1645,11 +1615,13 @@ rb_push_glob(VALUE str, int flags) /* '\0' is delimiter */
     ary = rb_ary_new();
 
     while (offset < RSTRING_LEN(str)) {
-	int status = push_glob(ary, RSTRING_PTR(str) + offset, flags);
 	char *p, *pend;
+	int status;
+	p = RSTRING_PTR(str) + offset;
+	status = push_glob(ary, rb_enc_str_new(p, strlen(p), rb_enc_get(str)),
+			   flags);
 	if (status) GLOB_JUMP_TAG(status);
 	if (offset >= RSTRING_LEN(str)) break;
-	p = RSTRING_PTR(str) + offset;
 	p += strlen(p) + 1;
 	pend = RSTRING_PTR(str) + RSTRING_LEN(str);
 	while (p < pend && !*p)
@@ -1670,7 +1642,7 @@ dir_globs(long argc, VALUE *argv, int flags)
 	int status;
 	VALUE str = argv[i];
 	StringValue(str);
-	status = push_glob(ary, RSTRING_PTR(str), flags);
+	status = push_glob(ary, str, flags);
 	if (status) GLOB_JUMP_TAG(status);
     }
 
@@ -1941,7 +1913,8 @@ file_s_fnmatch(int argc, VALUE *argv, VALUE obj)
     StringValue(pattern);
     FilePathStringValue(path);
 
-    if (fnmatch(RSTRING_PTR(pattern), RSTRING_PTR(path), flags) == 0)
+    if (fnmatch(RSTRING_PTR(pattern), rb_enc_get(pattern), RSTRING_PTR(path),
+		flags) == 0)
 	return Qtrue;
 
     return Qfalse;

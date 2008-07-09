@@ -118,7 +118,17 @@ static void reset_unblock_function(rb_thread_t *th, const struct rb_unblock_call
 } while(0)
 
 #if THREAD_DEBUG
+#ifdef HAVE_VA_ARGS_MACRO
+void rb_thread_debug(const char *file, int line, const char *fmt, ...);
+#define thread_debug(fmt, ...) rb_thread_debug(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define POSITION_FORMAT "%s:%d:"
+#define POSITION_ARGS ,file, line
+#else
 void rb_thread_debug(const char *fmt, ...);
+#define thread_debug rb_thread_debug
+#define POSITION_FORMAT
+#define POSITION_ARGS
+#endif
 
 # if THREAD_DEBUG < 0
 static int rb_thread_debug_enabled;
@@ -138,7 +148,6 @@ rb_thread_s_debug_set(VALUE self, VALUE val)
 # else
 # define rb_thread_debug_enabled THREAD_DEBUG
 # endif
-#define thread_debug rb_thread_debug
 #else
 #define thread_debug if(0)printf
 #endif
@@ -155,7 +164,7 @@ static void timer_thread_function(void *);
 
 #define DEBUG_OUT() \
   WaitForSingleObject(&debug_mutex, INFINITE); \
-  printf("%p - %s", GetCurrentThreadId(), buf); \
+  printf(POSITION_FORMAT"%p - %s" POSITION_ARGS, GetCurrentThreadId(), buf); \
   fflush(stdout); \
   ReleaseMutex(&debug_mutex);
 
@@ -164,7 +173,7 @@ static void timer_thread_function(void *);
 
 #define DEBUG_OUT() \
   pthread_mutex_lock(&debug_mutex); \
-  printf("%p - %s", pthread_self(), buf); \
+  printf(POSITION_FORMAT"%#"PRIxVALUE" - %s" POSITION_ARGS, (VALUE)pthread_self(), buf); \
   fflush(stdout); \
   pthread_mutex_unlock(&debug_mutex);
 
@@ -177,7 +186,11 @@ static int debug_mutex_initialized = 1;
 static rb_thread_lock_t debug_mutex;
 
 void
-rb_thread_debug(const char *fmt, ...)
+rb_thread_debug(
+#ifdef HAVE_VA_ARGS_MACRO
+    const char *file, int line,
+#endif
+    const char *fmt, ...)
 {
     va_list args;
     char buf[BUFSIZ];
@@ -710,9 +723,47 @@ sleep_forever(rb_thread_t *th, int deadlockable)
 }
 
 static void
+getclockofday(struct timeval *tp)
+{
+#if defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+	tp->tv_sec = ts.tv_sec;
+	tp->tv_usec = ts.tv_nsec / 1000;
+    } else
+#endif
+    {
+        gettimeofday(tp, NULL);
+    }
+}
+
+static void
 sleep_timeval(rb_thread_t *th, struct timeval tv)
 {
-    native_sleep(th, &tv, 0);
+    struct timeval to, tvn;
+
+    getclockofday(&to);
+    to.tv_sec += tv.tv_sec;
+    if ((to.tv_usec += tv.tv_usec) >= 1000000) {
+	to.tv_sec++;
+	to.tv_usec -= 1000000;
+    }
+
+    for (;;) {
+	native_sleep(th, &tv, 0);
+	getclockofday(&tvn);
+	if (to.tv_sec < tvn.tv_sec) break;
+	if (to.tv_sec == tvn.tv_sec && to.tv_usec <= tvn.tv_usec) break;
+	thread_debug("sleep_timeval: %ld.%.6ld > %ld.%.6ld\n",
+		     (long)to.tv_sec, to.tv_usec,
+		     (long)tvn.tv_sec, tvn.tv_usec);
+	tv.tv_sec = to.tv_sec - tvn.tv_sec;
+	if ((tv.tv_usec = to.tv_usec - tvn.tv_usec) < 0) {
+	    --tv.tv_sec;
+	    tv.tv_usec += 1000000;
+	}
+    }
 }
 
 void
@@ -2124,8 +2175,8 @@ clear_coverage_i(st_data_t key, st_data_t val, st_data_t dummy)
 static void
 clear_coverage(void)
 {
-    extern VALUE rb_vm_get_coverages(void);
-    VALUE coverages = rb_vm_get_coverages();
+    extern VALUE rb_get_coverages(void);
+    VALUE coverages = rb_get_coverages();
     if (RTEST(coverages)) {
 	st_foreach(RHASH_TBL(coverages), clear_coverage_i, 0);
     }
@@ -3603,7 +3654,7 @@ static void
 update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klass)
 {
     VALUE coverage = GET_THREAD()->cfp->iseq->coverage;
-    if (coverage) {
+    if (coverage && RBASIC(coverage)->klass == 0) {
 	long line = rb_sourceline() - 1;
 	long count;
 	if (RARRAY_PTR(coverage)[line] == Qnil) {
@@ -3616,17 +3667,22 @@ update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klas
     }
 }
 
-void
-rb_enable_coverages(void)
+VALUE
+rb_get_coverages(void)
 {
-    VALUE *coverages = rb_vm_specific_ptr(rb_vmkey_coverages);
-    VALUE rb_mCoverage;
+    return rb_vm_specific_ptr(rb_vmkey_coverages);
+}
 
-    if (!RTEST(*coverages)) {
-	extern VALUE rb_vm_get_coverages(void);
-	*coverages = rb_hash_new();
-	rb_add_event_hook(update_coverage, RUBY_EVENT_COVERAGE, Qnil);
-	rb_mCoverage = rb_define_module("Coverage");
-	rb_define_module_function(rb_mCoverage, "result", rb_vm_get_coverages, 0);
-    }
+void
+rb_set_coverages(VALUE coverages)
+{
+    *rb_vm_specific_ptr(rb_vmkey_coverages) = coverages;
+    rb_add_event_hook(update_coverage, RUBY_EVENT_COVERAGE, Qnil);
+}
+
+void
+rb_reset_coverages(void)
+{
+    *rb_vm_specific_ptr(rb_vmkey_coverages) = Qfalse;
+    rb_remove_event_hook(update_coverage);
 }
