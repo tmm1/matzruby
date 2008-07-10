@@ -3670,7 +3670,7 @@ update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klas
 VALUE
 rb_get_coverages(void)
 {
-    return rb_vm_specific_ptr(rb_vmkey_coverages);
+    return *rb_vm_specific_ptr(rb_vmkey_coverages);
 }
 
 void
