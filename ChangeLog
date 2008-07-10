@@ -1,3 +1,9 @@
+Fri Jul 11 06:44:06 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (fcntl.h): needed for AT_FDCWD.
+
+	* dir.c (rb_dir_mkdir, rb_dir_unlink, rb_dir_rmdir): fix for dirfd().
+
 Fri Jul 11 06:26:29 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_get_coverages): return VM specific data instead of the
