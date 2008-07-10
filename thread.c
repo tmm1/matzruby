@@ -445,9 +445,9 @@ thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
     GetThreadPtr(thval, th);
 
     /* setup thread environment */
-    th->first_args = args;
-    th->first_proc = fn ? Qfalse : rb_block_proc();
     th->first_func = fn;
+    th->first_proc = fn ? Qfalse : rb_block_proc();
+    th->first_args = args; /* GC: shouldn't put before above line */
 
     th->priority = GET_THREAD()->priority;
     th->thgroup = GET_THREAD()->thgroup;
@@ -741,29 +741,7 @@ getclockofday(struct timeval *tp)
 static void
 sleep_timeval(rb_thread_t *th, struct timeval tv)
 {
-    struct timeval to, tvn;
-
-    getclockofday(&to);
-    to.tv_sec += tv.tv_sec;
-    if ((to.tv_usec += tv.tv_usec) >= 1000000) {
-	to.tv_sec++;
-	to.tv_usec -= 1000000;
-    }
-
-    for (;;) {
-	native_sleep(th, &tv, 0);
-	getclockofday(&tvn);
-	if (to.tv_sec < tvn.tv_sec) break;
-	if (to.tv_sec == tvn.tv_sec && to.tv_usec <= tvn.tv_usec) break;
-	thread_debug("sleep_timeval: %ld.%.6ld > %ld.%.6ld\n",
-		     (long)to.tv_sec, to.tv_usec,
-		     (long)tvn.tv_sec, tvn.tv_usec);
-	tv.tv_sec = to.tv_sec - tvn.tv_sec;
-	if ((tv.tv_usec = to.tv_usec - tvn.tv_usec) < 0) {
-	    --tv.tv_sec;
-	    tv.tv_usec += 1000000;
-	}
-    }
+    native_sleep(th, &tv, 0);
 }
 
 void
@@ -816,7 +794,29 @@ void
 rb_thread_wait_for(struct timeval time)
 {
     rb_thread_t *th = GET_THREAD();
-    sleep_timeval(th, time);
+    struct timeval to, tvn;
+
+    getclockofday(&to);
+    to.tv_sec += time.tv_sec;
+    if ((to.tv_usec += time.tv_usec) >= 1000000) {
+	to.tv_sec++;
+	to.tv_usec -= 1000000;
+    }
+
+    for (;;) {
+	sleep_timeval(th, time);
+	getclockofday(&tvn);
+	if (to.tv_sec < tvn.tv_sec) break;
+	if (to.tv_sec == tvn.tv_sec && to.tv_usec <= tvn.tv_usec) break;
+	thread_debug("sleep_timeval: %ld.%.6ld > %ld.%.6ld\n",
+		     (long)to.tv_sec, to.tv_usec,
+		     (long)tvn.tv_sec, tvn.tv_usec);
+	time.tv_sec = to.tv_sec - tvn.tv_sec;
+	if ((time.tv_usec = to.tv_usec - tvn.tv_usec) < 0) {
+	    --time.tv_sec;
+	    time.tv_usec += 1000000;
+	}
+    }
 }
 
 void

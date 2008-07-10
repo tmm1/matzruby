@@ -1384,7 +1384,6 @@ rb_vm_mark(void *ptr)
 	}
 	RUBY_MARK_UNLESS_NULL(vm->thgroup_default);
 	RUBY_MARK_UNLESS_NULL(vm->mark_object_ary);
-	RUBY_MARK_UNLESS_NULL(vm->last_status);
 	RUBY_MARK_UNLESS_NULL(vm->load_path);
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
@@ -1545,6 +1544,7 @@ rb_thread_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(th->fiber);
 	RUBY_MARK_UNLESS_NULL(th->root_fiber);
 	RUBY_MARK_UNLESS_NULL(th->stat_insn_usage);
+	RUBY_MARK_UNLESS_NULL(th->last_status);
 
 	RUBY_MARK_UNLESS_NULL(th->locking_mutex);
 
@@ -1593,6 +1593,7 @@ th_init2(rb_thread_t *th, VALUE self)
 
     th->status = THREAD_RUNNABLE;
     th->errinfo = Qnil;
+    th->last_status = Qnil;
 
 #if USE_VALUE_CACHE
     th->value_cache_ptr = &th->value_cache[0];
