@@ -310,6 +310,12 @@ rb_vm_thread_terminate_all(rb_vm_t *vm)
     --system_working;
 }
 
+int
+ruby_system_alone(void)
+{
+    return system_working <= 1;
+}
+
 static void
 thread_cleanup_func_before_exec(void *th_ptr)
 {
@@ -455,6 +461,10 @@ thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
     native_mutex_initialize(&th->interrupt_lock);
     /* kick thread */
     st_insert(th->vm->living_threads, thval, (st_data_t) th->thread_id);
+#if USE_OPENAT
+    th->cwd.fd = openat(GET_THREAD()->cwd.fd, ".", O_RDONLY);
+#endif
+    th->cwd.path = strdup(GET_THREAD()->cwd.path);
     native_thread_create(th);
     return thval;
 }
@@ -3418,6 +3428,28 @@ ruby_suppress_tracing(VALUE (*func)(VALUE, int), VALUE arg, int always)
     }
 
     return result;
+}
+
+char *
+ruby_thread_getcwd(rb_thread_t *th)
+{
+#if USE_OPENAT && defined HAVE_READLINK
+    extern char *ruby_readlink(const char *, long *);
+    static const char fdpat[] = "/proc/self/fd/%d";
+    char fdname[sizeof(fdpat) + sizeof(int) * 5 / 2], *cwd;
+    long len;
+
+    snprintf(fdname, sizeof(fdname), fdpat, th->cwd.fd);
+    cwd = ruby_readlink(fdname, &len);
+    if (cwd) return cwd;
+#endif
+    return ruby_strdup(th->cwd.path);
+}
+
+char *
+ruby_getcwd(void)
+{
+    return ruby_thread_getcwd(GET_THREAD());
 }
 
 /*

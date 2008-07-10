@@ -39,4 +39,6 @@ int rb_vm_key_create(void);
 VALUE *ruby_vm_specific_ptr(rb_vm_t *, int);
 VALUE *rb_vm_specific_ptr(int);
 
+char *ruby_thread_getcwd(rb_thread_t *);
+
 #endif /* RUBY_MVM_H */

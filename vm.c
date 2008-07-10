@@ -1829,6 +1829,10 @@ Init_VM(void)
 	th->cfp->iseq = iseq;
 	th->cfp->pc = iseq->iseq_encoded;
 	vm_init_redefined_flag(vm);
+#if USE_OPENAT
+	th->cwd.fd = openat(AT_FDCWD, ".", O_RDONLY);
+#endif
+	th->cwd.path = ruby_getcwd();
     }
 }
 

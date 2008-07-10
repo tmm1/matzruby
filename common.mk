@@ -446,7 +446,7 @@ compar.$(OBJEXT): {$(VPATH)}compar.c $(RUBY_H_INCLUDES) \
 complex.$(OBJEXT): {$(VPATH)}complex.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 dir.$(OBJEXT): {$(VPATH)}dir.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}util.h
+  {$(VPATH)}st.h {$(VPATH)}util.h $(VM_CORE_H_INCLUDES)
 dln.$(OBJEXT): {$(VPATH)}dln.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}dln.h
 dmydln.$(OBJEXT): {$(VPATH)}dmydln.c dln.$(OBJEXT)

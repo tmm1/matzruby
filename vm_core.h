@@ -405,6 +405,14 @@ struct rb_vm_trap_tag {
 
 #define RUBY_VM_VALUE_CACHE_SIZE 0x1000
 #define USE_VALUE_CACHE 0
+#if defined HAVE_DIRFD && defined HAVE_OPENAT
+#define USE_OPENAT 1
+#else
+#define USE_OPENAT 0
+#endif
+#if USE_OPENAT
+#include <fcntl.h>
+#endif
 
 struct rb_unblock_callback {
     rb_unblock_function_t *func;
@@ -473,6 +481,13 @@ struct rb_thread_struct
     VALUE value_cache[RUBY_VM_VALUE_CACHE_SIZE + 1];
     VALUE *value_cache_ptr;
 #endif
+
+    struct {
+#if USE_OPENAT
+	int fd;
+#endif
+	char *path;
+    } cwd;
 
     struct rb_thread_struct *join_list_next;
     struct rb_thread_struct *join_list_head;

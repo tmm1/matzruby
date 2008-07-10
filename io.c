@@ -3395,7 +3395,12 @@ rb_io_mode_enc(rb_io_t *fptr, const char *mode)
 }
 
 struct sysopen_struct {
-    char *fname;
+#if USE_OPENAT
+    int base;
+#else
+    VALUE fullpath;
+#endif
+    const char *fname;
     int flag;
     unsigned int mode;
 };
@@ -3404,29 +3409,50 @@ static VALUE
 sysopen_func(void *ptr)
 {
     struct sysopen_struct *data = ptr;
+#if USE_OPENAT
+    return (VALUE)openat(data->base, data->fname, data->flag, data->mode);
+#else
     return (VALUE)open(data->fname, data->flag, data->mode);
+#endif
+}
+
+static void
+rb_sysopen_prepare(struct sysopen_struct *data, const char *fname, int flags, unsigned int mode)
+{
+#if USE_OPENAT
+    data->base = GET_THREAD()->cwd.fd;
+#else
+    if (ruby_absolute_path_p(fname)) {
+	data->base = Qnil;
+    }
+    else {
+	data->base = rb_file_expand_path(rb_str_new2(fname), Qnil);
+	fname = RSTRING_PTR(data->base);
+    }
+#endif
+    data->fname = fname;
+    data->flag = flags;
+    data->mode = mode;
 }
 
 static int
-rb_sysopen_internal(char *fname, int flags, unsigned int mode)
+rb_sysopen_internal(struct sysopen_struct *data)
 {
-    struct sysopen_struct data;
-    data.fname = fname;
-    data.flag = flags;
-    data.mode = mode;
-    return (int)rb_thread_blocking_region(sysopen_func, &data, RB_UBF_DFL, 0);
+    return (int)rb_thread_blocking_region(sysopen_func, data, RB_UBF_DFL, 0);
 }
 
 static int
 rb_sysopen(char *fname, int flags, unsigned int mode)
 {
     int fd;
+    struct sysopen_struct data;
 
-    fd = rb_sysopen_internal(fname, flags, mode);
+    rb_sysopen_prepare(&data, fname, flags, mode); 
+    fd = rb_sysopen_internal(&data);
     if (fd < 0) {
 	if (errno == EMFILE || errno == ENFILE) {
 	    rb_gc();
-	    fd = rb_sysopen_internal(fname, flags, mode);
+	    fd = rb_sysopen_internal(&data);
 	}
 	if (fd < 0) {
 	    rb_sys_fail(fname);

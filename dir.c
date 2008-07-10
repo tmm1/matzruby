@@ -13,6 +13,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
+#include "vm_core.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -701,18 +702,46 @@ dir_close(VALUE dir)
 static void
 dir_chdir(VALUE path)
 {
-    if (chdir(RSTRING_PTR(path)) < 0)
+    rb_thread_t *th = GET_THREAD();
+#if USE_OPENAT
+    int dir = openat(th->cwd.fd, RSTRING_PTR(path), O_RDONLY);
+    if (dir < 0)
 	rb_sys_fail(RSTRING_PTR(path));
+    if (ruby_system_alone() && rb_thread_alone()) {
+	if (fchdir(dir) < 0) {
+	    rb_sys_fail(RSTRING_PTR(path));
+	}
+    }
+    close(th->cwd.fd);
+    th->cwd.fd = dir;
+#else
+    VALUE fullpath;
+    struct stat st;
+    const char *dir;
+    char *olddir = th->cwd.path;
+
+    RB_GC_GUARD(fullpath) = rb_file_expand_path(path, Qnil);
+    dir = RSTRING_PTR(fullpath);
+    if (eaccess(dir, X_OK) != 0 || stat(dir, &st) != 0 ||
+	(!S_ISDIR(st.st_mode) && (errno = ENOTDIR))) {
+	rb_sys_fail(RSTRING_PTR(path));
+    }
+    if (ruby_system_alone() && rb_thread_alone()) {
+	if (chdir(dir) < 0) {
+	    rb_sys_fail(RSTRING_PTR(path));
+	}
+    }
+    th->cwd.path = ruby_strdup(dir);
+    xfree(olddir);
+#endif
 }
 
-static int chdir_blocking = 0;
-static VALUE chdir_thread = Qnil;
-
 struct chdir_data {
-    VALUE old_path, new_path;
-#if defined HAVE_DIRFD && defined HAVE_FCHDIR
-    DIR *old_dir;
+    VALUE new_path;
+#if USE_OPENAT
+    int old_dir;
 #endif
+    VALUE old_path;
     int done;
 };
 
@@ -721,9 +750,6 @@ chdir_yield(struct chdir_data *args)
 {
     dir_chdir(args->new_path);
     args->done = Qtrue;
-    chdir_blocking++;
-    if (chdir_thread == Qnil)
-	chdir_thread = rb_thread_current();
     return rb_yield(args->new_path);
 }
 
@@ -731,15 +757,12 @@ static VALUE
 chdir_restore(struct chdir_data *args)
 {
     if (args->done) {
-	chdir_blocking--;
-	if (chdir_blocking == 0)
-	    chdir_thread = Qnil;
 #if defined HAVE_DIRFD && defined HAVE_FCHDIR
-	if (fchdir(dirfd(args->old_dir)) < 0) {
-	    closedir(args->old_dir);
+	if (fchdir(args->old_dir) < 0) {
+	    close(args->old_dir);
 	    rb_sys_fail(RSTRING_PTR(args->old_path));
 	}
-	closedir(args->old_dir);
+	close(args->old_dir);
 #else
 	dir_chdir(args->old_path);
 #endif
@@ -747,26 +770,15 @@ chdir_restore(struct chdir_data *args)
     return Qnil;
 }
 
-static void
-dir_chdir_check(void)
-{
-    if (chdir_blocking > 0) {
-	if (!rb_block_given_p() || rb_thread_current() != chdir_thread)
-	    rb_warn("conflicting chdir during another chdir block");
-    }
-}
-
 static VALUE
 dir_chdir_block(VALUE path)
 {
     struct chdir_data args;
-    char *cwd = my_getcwd();
-
-    args.old_path = rb_tainted_str_new2(cwd); xfree(cwd);
-    args.new_path = path;
-#if defined HAVE_DIRFD && defined HAVE_FCHDIR
-    args.old_dir = opendir(".");
+#if USE_OPENAT
+    args.old_dir = openat(GET_THREAD()->cwd.fd, ".", O_RDONLY);
 #endif
+    args.old_path = rb_tainted_str_new2(GET_THREAD()->cwd.path);
+    args.new_path = path;
     args.done = Qfalse;
     return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
 }
@@ -828,7 +840,6 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	path = rb_str_new2(dist);
     }
 
-    dir_chdir_check();
     if (rb_block_given_p()) {
 	return dir_chdir_block(path);
     }
@@ -1935,11 +1946,6 @@ to_fullpath(volatile VALUE *fname, VALUE base)
 }
 
 VALUE rb_openat(int argc, VALUE *argv, int base, const char *path);
-#if defined HAVE_DIRFD && defined HAVE_OPENAT && defined AT_FDCWD
-#define USE_OPENAT 1
-#else
-#define USE_OPENAT 0
-#endif
 
 /*
  *  call-seq:

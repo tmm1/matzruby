@@ -2256,6 +2256,41 @@ rb_file_s_symlink(VALUE klass, VALUE from, VALUE to)
 #endif
 }
 
+#ifdef HAVE_READLINK
+char *
+ruby_readlink(const char *path, long *len)
+{
+    char *buf, *tmp;
+    int size = 100;
+    int rv;
+ 
+    buf = malloc(size);
+    if (!buf) return 0;
+    while ((rv = readlink(path, buf, size)) == size
+#ifdef _AIX
+	    || (rv < 0 && errno == ERANGE) /* quirky behavior of GPFS */
+#endif
+	) {
+	size *= 2;
+	tmp = realloc(buf, size);
+	if (!tmp) {
+	    free(buf);
+	    return 0;
+	}
+    }
+    if (rv < 0) {
+	free(buf);
+	return 0;
+    }
+    buf[rv] = '\0';
+    if (size > rv + 1) {
+	buf = realloc(buf, rv + 1);
+    }
+    *len = rv;
+    return buf;
+}
+#endif
+
 /*
  *  call-seq:
  *     File.readlink(link_name) -> file_name
@@ -2272,29 +2307,15 @@ rb_file_s_readlink(VALUE klass, VALUE path)
 {
 #ifdef HAVE_READLINK
     char *buf;
-    int size = 100;
-    int rv;
-    VALUE v;
+    long rv;
 
     rb_secure(2);
     FilePathValue(path);
-    buf = xmalloc(size);
-    while ((rv = readlink(RSTRING_PTR(path), buf, size)) == size
-#ifdef _AIX
-	    || (rv < 0 && errno == ERANGE) /* quirky behavior of GPFS */
-#endif
-	) {
-	size *= 2;
-	buf = xrealloc(buf, size);
-    }
-    if (rv < 0) {
-	xfree(buf);
+    buf = ruby_readlink(RSTRING_PTR(path), &rv);
+    if (!buf) {
 	rb_sys_fail(RSTRING_PTR(path));
     }
-    v = rb_tainted_str_new(buf, rv);
-    xfree(buf);
-
-    return v;
+    return rb_str_wrap(buf, rv);
 #else
     rb_notimplement();
     return Qnil;		/* not reached */
@@ -2608,7 +2629,8 @@ ntfs_tail(const char *path)
     (void)(extenc || (extenc = rb_default_external_encoding())),\
     rb_enc_associate(result, extenc))
 
-static int is_absolute_path(const char*);
+#define is_absolute_path(path) ruby_absolute_path_p(path)
+int ruby_absolute_path_p(const char*);
 
 static VALUE
 file_expand_path(VALUE fname, VALUE dname, VALUE result)
@@ -4347,8 +4369,8 @@ rb_file_const(const char *name, VALUE value)
     rb_define_const(rb_mFConst, name, value);
 }
 
-static int
-is_absolute_path(const char *path)
+int
+ruby_absolute_path_p(const char *path)
 {
 #ifdef DOSISH_DRIVE_LETTER
     if (has_drive_letter(path) && isdirsep(path[2])) return 1;

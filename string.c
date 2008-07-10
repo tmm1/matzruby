@@ -374,6 +374,27 @@ str_new(VALUE klass, const char *ptr, long len)
 }
 
 VALUE
+rb_str_wrap(char *ptr, long len)
+{
+    VALUE str;
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "NULL pointer given");
+    }
+    if (len < 0) {
+	rb_raise(rb_eArgError, "negative string size (or size too big)");
+    }
+
+    str = str_alloc(rb_cString);
+    RSTRING(str)->as.heap.aux.capa = len;
+    RSTRING(str)->as.heap.ptr = ptr;
+    STR_SET_NOEMBED(str);
+    STR_SET_LEN(str, len);
+    RSTRING_PTR(str)[len] = '\0';
+    return str;
+}
+
+VALUE
 rb_str_new(const char *ptr, long len)
 {
     return str_new(rb_cString, ptr, len);
