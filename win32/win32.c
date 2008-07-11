@@ -894,7 +894,7 @@ CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
     if (!psa) {
 	sa.nLength              = sizeof (SECURITY_ATTRIBUTES);
 	sa.lpSecurityDescriptor = NULL;
-	sa.bInheritHandle       = IsWinNT() && rb_w32_osver() > 5 ? FALSE : TRUE;
+	sa.bInheritHandle       = TRUE;
 	psa = &sa;
     }
 
@@ -2269,7 +2269,7 @@ rb_w32_accept(int s, struct sockaddr *addr, int *addrlen)
 	    s = -1;
 	}
 	else {
-	    s = rb_w32_open_osfhandle(r, O_RDWR|O_BINARY);
+	    s = rb_w32_open_osfhandle(r, O_RDWR|O_BINARY|O_NOINHERIT);
 	}
     });
     return s;
@@ -2568,7 +2568,7 @@ rb_w32_socket(int af, int type, int protocol)
 	    fd = -1;
 	}
 	else {
-	    fd = rb_w32_open_osfhandle(s, O_RDWR|O_BINARY);
+	    fd = rb_w32_open_osfhandle(s, O_RDWR|O_BINARY|O_NOINHERIT);
 	}
     });
     return fd;
@@ -2788,8 +2788,8 @@ rb_w32_socketpair(int af, int type, int protocol, int *sv)
 
     if (socketpair_internal(af, type, protocol, pair) < 0)
 	return -1;
-    sv[0] = rb_w32_open_osfhandle(pair[0], O_RDWR|O_BINARY);
-    sv[1] = rb_w32_open_osfhandle(pair[1], O_RDWR|O_BINARY);
+    sv[0] = rb_w32_open_osfhandle(pair[0], O_RDWR|O_BINARY|O_NOINHERIT);
+    sv[1] = rb_w32_open_osfhandle(pair[1], O_RDWR|O_BINARY|O_NOINHERIT);
 
     return 0;
 }
