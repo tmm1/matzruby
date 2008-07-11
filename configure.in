@@ -242,6 +242,9 @@ hiuxmpp*)
     # by TOYODA Eizi <toyoda@npd.kishou.go.jp>
     AC_DEFINE(__HIUX_MPP__)
     ;;
+*)
+    AC_CHECK_TOOL(NM, nm)
+    ;;
 esac
 
 AC_PROG_LN_S

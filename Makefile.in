@@ -206,3 +206,14 @@ distclean-local::
 
 ext/extinit.$(OBJEXT): ext/extinit.c $(SETUP)
 	$(CC) $(CFLAGS) $(XCFLAGS) $(CPPFLAGS) $(COUTFLAG)$@ -c ext/extinit.c
+
+gvar: $(LIBRUBY_A)
+	@$(NM) $? | \
+	sed -e '/\.$(OBJEXT):$$/{p;d}' \
+	    -e '/.* [B-Db-d] /!d;s///' \
+	    -e '/^rb_intern_id_cache/d' \
+	    -e '/^id/d;/^sym/d;/^s_/d' \
+	    -e '/^Onig/d' \
+	    -e 's/\.[0-9][0-9]*$$/ #static#/' \
+	    -e 's/^/  /' \
+	    > $@.r`sed -n 's/^#define RUBY_REVISION //p' $(srcdir)/revision.h`
