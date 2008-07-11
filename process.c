@@ -2132,6 +2132,15 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
         if (chdir(RSTRING_PTR(obj)) == -1)
             return -1;
     }
+    else {
+#if USE_OPENAT
+        if (fchdir(GET_THREAD()->cwd.fd) == -1)
+            return -1;
+#else
+        if (chdir(GET_THREAD()->cwd.path) == -1)
+            return -1;
+#endif
+    }
 
     obj = rb_ary_entry(options, EXEC_OPTION_UMASK);
     if (!NIL_P(obj)) {

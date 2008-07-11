@@ -1,3 +1,7 @@
+Fri Jul 11 15:01:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* process.c (rb_run_exec_options): default to thread cwd.
+
 Fri Jul 11 06:45:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (rb_thread_t): per-thread cwd support.  [EXPERIMENTAL]
