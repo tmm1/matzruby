@@ -1,3 +1,8 @@
+Mon Jul 14 18:16:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/merge_from_trunk.rb: try to resolve ChangeLog conflicts
+	  automatically if possible.
+
 Fri Jul 11 16:45:20 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* Makefile.in (gvar): make global/static variables list.
