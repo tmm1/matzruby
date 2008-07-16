@@ -736,9 +736,27 @@ dir_chdir(VALUE path)
 #endif
 }
 
+#ifdef HAVE_FCHDIR
+# if defined HAVE_OPENAT
+#   define get_cwd_fd() openat(GET_THREAD()->cwd.fd, ".", O_RDONLY)
+# elif defined HAVE_DIRFD
+void
+get_cwd_fd(void)
+{
+    DIR *cwd = opendir(GET_THREAD()->cwd.path);
+    int fd = dup(dirfd(cwd));
+    closedir(cwd);
+    return fd;
+}
+#   define get_cwd_fd() get_cwd_fd()
+# elif defined O_DIRECTORY
+#   define get_cwd_fd() open(GET_THREAD()->cwd.path, O_RDONLY|O_DIRECTORY)
+# endif
+#endif
+
 struct chdir_data {
     VALUE new_path;
-#if USE_OPENAT
+#ifdef get_cwd_fd
     int old_dir;
 #endif
     VALUE old_path;
@@ -757,7 +775,7 @@ static VALUE
 chdir_restore(struct chdir_data *args)
 {
     if (args->done) {
-#if defined HAVE_DIRFD && defined HAVE_FCHDIR
+#ifdef get_cwd_fd
 	if (fchdir(args->old_dir) < 0) {
 	    close(args->old_dir);
 	    rb_sys_fail(RSTRING_PTR(args->old_path));
@@ -774,8 +792,8 @@ static VALUE
 dir_chdir_block(VALUE path)
 {
     struct chdir_data args;
-#if USE_OPENAT
-    args.old_dir = openat(GET_THREAD()->cwd.fd, ".", O_RDONLY);
+#ifdef get_cwd_fd
+    args.old_dir = get_cwd_fd();
 #endif
     args.old_path = rb_tainted_str_new2(GET_THREAD()->cwd.path);
     args.new_path = path;

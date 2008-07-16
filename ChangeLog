@@ -1,3 +1,8 @@
+Thu Jul 17 06:09:48 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (get_cwd_fd): support for platforms which has fchdir but no
+	  openat.
+
 Mon Jul 14 18:16:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/merge_from_trunk.rb: try to resolve ChangeLog conflicts
