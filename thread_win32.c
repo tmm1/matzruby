@@ -204,9 +204,8 @@ rb_w32_Sleep(unsigned long msec)
 }
 
 static void
-native_sleep(rb_thread_t *th, struct timeval *tv, int deadlockable)
+native_sleep(rb_thread_t *th, struct timeval *tv)
 {
-    int prev_status = th->status;
     DWORD msec;
 
     if (tv) {
@@ -214,15 +213,6 @@ native_sleep(rb_thread_t *th, struct timeval *tv, int deadlockable)
     }
     else {
 	msec = INFINITE;
-    }
-
-    if (!tv && deadlockable) {
-	th->status = THREAD_STOPPED_FOREVER;
-	th->vm->sleeper++;
-	rb_check_deadlock(th->vm);
-    }
-    else {
-	th->status = THREAD_STOPPED;
     }
 
     GVL_UNLOCK_BEGIN();
@@ -249,9 +239,6 @@ native_sleep(rb_thread_t *th, struct timeval *tv, int deadlockable)
 	native_mutex_unlock(&th->interrupt_lock);
     }
     GVL_UNLOCK_END();
-    th->status = prev_status;
-    if (!tv && deadlockable) th->vm->sleeper--;
-    RUBY_VM_CHECK_INTS();
 }
 
 static int
@@ -553,8 +540,19 @@ native_thread_apply_priority(rb_thread_t *th)
 static void
 ubf_handle(void *ptr)
 {
+    static int checked = 0;
+    typedef BOOL (WINAPI *cancel_io_func_t)(HANDLE);
+    static cancel_io_func_t cancel_func = NULL;
     rb_thread_t *th = (rb_thread_t *)ptr;
     thread_debug("ubf_handle: %p\n", th);
+
+    if (!checked) {
+	cancel_func = (cancel_io_func_t)GetProcAddress(GetModuleHandle("kernel32"), "CancelSynchronousIo");
+	checked = 1;
+    }
+    if (cancel_func)
+	cancel_func((HANDLE)th->thread_id);
+
     w32_set_event(th->native_thread_data.interrupt_event);
 }
 

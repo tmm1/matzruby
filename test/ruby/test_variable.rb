@@ -1,4 +1,5 @@
 require 'test/unit'
+require_relative 'envutil'
 
 class TestVariable < Test::Unit::TestCase
   class Gods
@@ -74,5 +75,9 @@ class TestVariable < Test::Unit::TestCase
         assert_equal([:x, :y, :z], local_variables.sort)
       end
     end.call
+  end
+
+  def test_global_variable_0
+    assert_in_out_err(["-e", "$0='t'*1000;print $0"], "", /\At+\z/, [])
   end
 end

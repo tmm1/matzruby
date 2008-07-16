@@ -15,8 +15,11 @@
 #include "transcode_data.h"
 #include <ctype.h>
 
-static VALUE sym_invalid, sym_ignore;
+static VALUE sym_invalid, sym_undef, sym_ignore, sym_replace;
 #define INVALID_IGNORE 0x1
+#define INVALID_REPLACE 0x2
+#define UNDEF_IGNORE 0x10
+#define UNDEF_REPLACE 0x20
 
 /*
  *  Dispatch data and logic
@@ -119,26 +122,59 @@ transcode_dispatch(const char* from_encoding, const char* to_encoding)
     return (rb_transcoder *)val;
 }
 
+static const char*
+get_replacement_character(rb_encoding *enc)
+{
+    static rb_encoding *utf16be_encoding, *utf16le_encoding;
+    static rb_encoding *utf32be_encoding, *utf32le_encoding;
+    if (!utf16be_encoding) {
+	utf16be_encoding = rb_enc_find("UTF-16BE");
+	utf16le_encoding = rb_enc_find("UTF-16LE");
+	utf32be_encoding = rb_enc_find("UTF-32BE");
+	utf32le_encoding = rb_enc_find("UTF-32LE");
+    }
+    if (rb_enc_asciicompat(enc)) {
+	return "?";
+    }
+    else if (utf16be_encoding = enc) {
+	return "\x00?";
+    }
+    else if (utf16le_encoding = enc) {
+	return "?\x00";
+    }
+    else if (utf32be_encoding = enc) {
+	return "\x00\x00\x00?";
+    }
+    else if (utf32le_encoding = enc) {
+	return "?\x00\x00\x00";
+    }
+    else {
+	return "?";
+    }
+}
 
 /*
  *  Transcoding engine logic
  */
 static void
-transcode_loop(unsigned char **in_pos, unsigned char **out_pos,
-	       unsigned char *in_stop, unsigned char *out_stop,
+transcode_loop(const unsigned char **in_pos, unsigned char **out_pos,
+	       const unsigned char *in_stop, unsigned char *out_stop,
 	       const rb_transcoder *my_transcoder,
 	       rb_transcoding *my_transcoding,
 	       const int opt)
 {
-    unsigned char *in_p = *in_pos, *out_p = *out_pos;
+    const unsigned char *in_p = *in_pos;
+    unsigned char *out_p = *out_pos;
     const BYTE_LOOKUP *conv_tree_start = my_transcoder->conv_tree_start;
     const BYTE_LOOKUP *next_table;
-    unsigned char *char_start;
+    const unsigned char *char_start;
     unsigned int next_offset;
     VALUE next_info;
     unsigned char next_byte;
     int from_utf8 = my_transcoder->from_utf8;
     unsigned char *out_s = out_stop - my_transcoder->max_output + 1;
+    rb_encoding *to_encoding = rb_enc_find(my_transcoder->to_encoding);
+
     while (in_p < in_stop) {
 	char_start = in_p;
 	next_table = conv_tree_start;
@@ -209,9 +245,7 @@ transcode_loop(unsigned char **in_pos, unsigned char **out_pos,
 	  case INVALID:
 	    goto invalid;
 	  case UNDEF:
-	    /* todo: add code for alternate behaviors */
-	    rb_raise(rb_eRuntimeError /*@@@change exception*/, "conversion undefined for byte sequence (maybe invalid byte sequence)");
-	    continue;
+	    goto undef;
 	}
 	continue;
       invalid:
@@ -220,7 +254,30 @@ transcode_loop(unsigned char **in_pos, unsigned char **out_pos,
 	if (opt&INVALID_IGNORE) {
 	    continue;
 	}
+	else if (opt&INVALID_REPLACE) {
+	    const char *rep = get_replacement_character(to_encoding);
+	    do {
+		*out_p++ = *rep++;
+	    } while (*rep);
+	    continue;
+	}
 	rb_raise(rb_eRuntimeError /*change exception*/, "invalid byte sequence");
+	continue;
+      undef:
+	/* valid character in from encoding
+	 * but no related character(s) in to encoding */
+	/* todo: add more alternative behaviors */
+	if (opt&UNDEF_IGNORE) {
+	    continue;
+	}
+	else if (opt&UNDEF_REPLACE) {
+	    const char *rep = get_replacement_character(to_encoding);
+	    do {
+		*out_p++ = *rep++;
+	    } while (*rep);
+	    continue;
+	}
+	rb_raise(rb_eRuntimeError /*@@@change exception*/, "conversion undefined for byte sequence (maybe invalid byte sequence)");
 	continue;
     }
     /* cleanup */
@@ -247,7 +304,8 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
     VALUE dest;
     VALUE str = *self;
     long blen, slen;
-    unsigned char *buf, *bp, *sp, *fromp;
+    unsigned char *buf, *bp, *sp;
+    const unsigned char *fromp;
     rb_encoding *from_enc, *to_enc;
     const char *from_e, *to_e;
     int from_encidx, to_encidx;
@@ -265,10 +323,28 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	argc--;
 	v = rb_hash_aref(opt, sym_invalid);
 	if (NIL_P(v)) {
-	    rb_raise(rb_eArgError, "unknown value for invalid: setting");
 	}
 	else if (v==sym_ignore) {
 	    options |= INVALID_IGNORE;
+	}
+	else if (v==sym_replace) {
+	    options |= INVALID_REPLACE;
+	    v = rb_hash_aref(opt, sym_replace);
+	}
+	else {
+	    rb_raise(rb_eArgError, "unknown value for invalid: setting");
+	}
+	v = rb_hash_aref(opt, sym_undef);
+	if (NIL_P(v)) {
+	}
+	else if (v==sym_ignore) {
+	    options |= UNDEF_IGNORE;
+	}
+	else if (v==sym_replace) {
+	    options |= UNDEF_REPLACE;
+	}
+	else {
+	    rb_raise(rb_eArgError, "unknown value for undef: setting");
 	}
     }
     if (argc < 1 || argc > 2) {
@@ -326,11 +402,9 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->preprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
-		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
+		rb_raise(rb_eArgError, "not fully converted, %"PRIdPTRDIFF" bytes left", sp+slen-fromp);
 	    }
-	    buf = (unsigned char *)RSTRING_PTR(dest);
-	    *bp = '\0';
-	    rb_str_set_len(dest, bp - buf);
+	    rb_str_set_len(dest, (char *)bp - RSTRING_PTR(dest));
 	    str = dest;
 	}
 	fromp = sp = (unsigned char *)RSTRING_PTR(str);
@@ -343,7 +417,7 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 
 	transcode_loop(&fromp, &bp, (sp+slen), (bp+blen), my_transcoder, &my_transcoding, options);
 	if (fromp != sp+slen) {
-	    rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
+	    rb_raise(rb_eArgError, "not fully converted, %"PRIdPTRDIFF" bytes left", sp+slen-fromp);
 	}
 	buf = (unsigned char *)RSTRING_PTR(dest);
 	*bp = '\0';
@@ -358,10 +432,9 @@ str_transcode(int argc, VALUE *argv, VALUE *self)
 	    my_transcoding.ruby_string_dest = dest;
 	    (*my_transcoder->postprocessor)(&fromp, &bp, (sp+slen), (bp+blen), &my_transcoding);
 	    if (fromp != sp+slen) {
-		rb_raise(rb_eArgError, "not fully converted, %td bytes left", sp+slen-fromp);
+		rb_raise(rb_eArgError, "not fully converted, %"PRIdPTRDIFF" bytes left", sp+slen-fromp);
 	    }
 	    buf = (unsigned char *)RSTRING_PTR(dest);
-	    *bp = '\0';
 	    rb_str_set_len(dest, bp - buf);
 	}
 
@@ -451,7 +524,9 @@ Init_transcode(void)
     transcoder_lib_table = st_init_strcasetable();
 
     sym_invalid = ID2SYM(rb_intern("invalid"));
+    sym_undef = ID2SYM(rb_intern("undef"));
     sym_ignore = ID2SYM(rb_intern("ignore"));
+    sym_replace = ID2SYM(rb_intern("replace"));
 
     rb_define_method(rb_cString, "encode", str_encode, -1);
     rb_define_method(rb_cString, "encode!", str_encode_bang, -1);

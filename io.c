@@ -606,6 +606,9 @@ rb_io_wait_readable(int f)
 {
     rb_fdset_t rfds;
 
+    if (f < 0) {
+	rb_raise(rb_eIOError, "closed stream");
+    }
     switch (errno) {
       case EINTR:
 #if defined(ERESTART)
@@ -648,6 +651,9 @@ rb_io_wait_writable(int f)
 {
     rb_fdset_t wfds;
 
+    if (f < 0) {
+	rb_raise(rb_eIOError, "closed stream");
+    }
     switch (errno) {
       case EINTR:
 #if defined(ERESTART)
@@ -1482,11 +1488,8 @@ io_getpartial(int argc, VALUE *argv, VALUE io, int nonblock)
 	if (RSTRING_LEN(str) != len) goto modified;
         if (nonblock) {
             rb_io_set_nonblock(fptr);
-	    n = rb_read_internal(fptr->fd, RSTRING_PTR(str), len);
         }
-        else {
-            n = rb_read_internal(fptr->fd, RSTRING_PTR(str), len);
-	}
+	n = rb_read_internal(fptr->fd, RSTRING_PTR(str), len);
         if (n < 0) {
             if (!nonblock && rb_io_wait_readable(fptr->fd))
                 goto again;
@@ -1757,7 +1760,7 @@ appendline(rb_io_t *fptr, int delim, VALUE *strp, long *lp)
 	    }
 	    if (limit > 0 && limit == pending) {
 		char *p = fptr->rbuf+fptr->rbuf_off;
-		char *pp = p + limit;
+		char *pp = p + limit - 1;
 		char *pl = rb_enc_left_char_head(p, pp, enc);
 
 		if (pl < pp) {

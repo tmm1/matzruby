@@ -551,7 +551,8 @@ bsock_send(int argc, VALUE *argv, VALUE sock)
     GetOpenFile(sock, fptr);
     arg.fd = fptr->fd;
     arg.flags = NUM2INT(flags);
-    while ((n = (int)BLOCKING_REGION(func, &arg)) < 0) {
+    while (rb_thread_fd_writable(arg.fd),
+	   (n = (int)BLOCKING_REGION(func, &arg)) < 0) {
 	if (rb_io_wait_writable(arg.fd)) {
 	    continue;
 	}
@@ -640,6 +641,7 @@ s_recvfrom(VALUE sock, int argc, VALUE *argv, enum sock_recv_type from)
     RBASIC(str)->klass = 0;
 
     while (rb_io_check_closed(fptr),
+	   rb_thread_wait_fd(arg.fd),
 	   (slen = BLOCKING_REGION(recvfrom_blocking, &arg)) < 0) {
 	if (RBASIC(str)->klass || RSTRING_LEN(str) != buflen) {
 	    rb_raise(rb_eRuntimeError, "buffer string modified");
@@ -883,8 +885,8 @@ host_str(VALUE host, char *hbuf, size_t len)
 	    make_inetaddr(INADDR_BROADCAST, hbuf, len);
 	}
 	else if (strlen(name) >= len) {
-	    rb_raise(rb_eArgError, "hostname too long (%"PRIuVALUE")",
-                (VALUE)strlen(name));
+	    rb_raise(rb_eArgError, "hostname too long (%"PRIuSIZE")",
+                strlen(name));
 	}
 	else {
 	    strcpy(hbuf, name);
@@ -909,8 +911,8 @@ port_str(VALUE port, char *pbuf, size_t len)
 	SafeStringValue(port);
 	serv = RSTRING_PTR(port);
 	if (strlen(serv) >= len) {
-	    rb_raise(rb_eArgError, "service name too long (%"PRIuVALUE")",
-                (VALUE)strlen(serv));
+	    rb_raise(rb_eArgError, "service name too long (%"PRIuSIZE")",
+                strlen(serv));
 	}
 	strcpy(pbuf, serv);
 	return pbuf;
@@ -1144,7 +1146,7 @@ static VALUE
 connect_blocking(void *data)
 {
     struct connect_arg *arg = data;
-    return (VALUE)connect(arg->fd, arg->sockaddr, arg->len);
+    return connect(arg->fd, arg->sockaddr, arg->len);
 }
 
 #if defined(SOCKS) && !defined(SOCKS5)
@@ -1152,7 +1154,7 @@ static VALUE
 socks_connect_blocking(void *data)
 {
     struct connect_arg *arg = data;
-    return (VALUE)Rconnect(arg->fd, arg->sockaddr, arg->len);
+    return Rconnect(arg->fd, arg->sockaddr, arg->len);
 }
 #endif
 
@@ -1175,7 +1177,8 @@ ruby_connect(int fd, const struct sockaddr *sockaddr, int len, int socks)
     if (socks) func = socks_connect_blocking;
 #endif
     for (;;) {
-	status = (int)BLOCKING_REGION(func, &arg);
+	rb_thread_fd_writable(fd);
+	status = BLOCKING_REGION(func, &arg);
 	if (status < 0) {
 	    switch (errno) {
 	      case EAGAIN:
@@ -1550,7 +1553,8 @@ s_accept(VALUE klass, int fd, struct sockaddr *sockaddr, socklen_t *len)
     arg.sockaddr = sockaddr;
     arg.len = len;
   retry:
-    fd2 = (int)BLOCKING_REGION(accept_blocking, &arg);
+    rb_thread_wait_fd(fd);
+    fd2 = BLOCKING_REGION(accept_blocking, &arg);
     if (fd2 < 0) {
 	switch (errno) {
 	  case EMFILE:
@@ -1852,6 +1856,7 @@ udp_send(int argc, VALUE *argv, VALUE sock)
       retry:
 	arg.to = res->ai_addr;
 	arg.tolen = res->ai_addrlen;
+	rb_thread_fd_writable(arg.fd);
 	n = (int)BLOCKING_REGION(sendto_blocking, &arg);
 	if (n >= 0) {
 	    freeaddrinfo(res0);
@@ -2036,6 +2041,7 @@ unix_send_io(VALUE sock, VALUE val)
 #endif
 
     arg.fd = fptr->fd;
+    rb_thread_fd_writable(arg.fd);
     if ((int)BLOCKING_REGION(sendmsg_blocking, &arg) == -1)
 	rb_sys_fail("sendmsg(2)");
 
@@ -2102,6 +2108,7 @@ unix_recv_io(int argc, VALUE *argv, VALUE sock)
 #endif
 
     arg.fd = fptr->fd;
+    rb_thread_wait_fd(arg.fd);
     if ((int)BLOCKING_REGION(recvmsg_blocking, &arg) == -1)
 	rb_sys_fail("recvmsg(2)");
 

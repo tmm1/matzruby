@@ -11,14 +11,14 @@
 
 #include "ruby.h"
 
-#ifdef HAVE_RUBY_RUBY_H
-/* #include "ruby/ruby.h" */
+#ifdef HAVE_RUBY_SIGNAL_H
 #include "ruby/signal.h"
+#else
+#include "rubysig.h"
+#endif
+#ifdef HAVE_RUBY_ST_H
 #include "ruby/st.h"
 #else
-/* #include "ruby.h" */
-#include "rubysig.h"
-#include "version.h"
 #include "st.h"
 #endif
 

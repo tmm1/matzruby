@@ -3,10 +3,200 @@ Thu Jul 17 06:09:48 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* dir.c (get_cwd_fd): support for platforms which has fchdir but no
 	  openat.
 
+Thu Jul 17 04:19:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (thread_start_func_2): wake up joining threads.
+
+	* thread.c (sleep_forever, sleep_timeval): return when interrupted.
+	  [ruby-dev:35542]
+
+	* thread.c (timer_thread_function): restore main thread status.
+	  [ruby-core:17270]
+
+Thu Jul 17 01:27:38 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* io.c (appendline): remove invalid access.
+
+Wed Jul 16 18:04:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* signal.c (signal_exec, trap_handler): trap accepts a string as
+	  command.  [ruby-dev:35533]
+
+Wed Jul 16 00:04:30 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/envutil.rb (Test::Unit::Assertions#assert_in_out_err): new
+	  method.
+
+	* test/ruby/test_argf.rb: use assert_in_out_err instead of
+	  EnvUtil.rubyexec.
+
+	* test/ruby/test_module.rb: ditto.
+
+	* test/ruby/test_require.rb: ditto.
+
+	* test/ruby/test_objectspace.rb: ditto.
+
+	* test/ruby/test_object.rb: ditto.
+
+	* test/ruby/test_string.rb: ditto.
+
+	* test/ruby/test_method.rb: ditto.
+
+	* test/ruby/test_variable.rb: ditto.
+
+	* test/ruby/test_io.rb: ditto.
+
+	* test/ruby/test_rubyoptions.rb: ditto.
+
+	* test/ruby/test_exception.rb: ditto.
+
+	* test/ruby/test_class.rb: ditto.
+
+	* test/ruby/test_thread.rb: ditto.
+
+Tue Jul 15 22:34:03 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/Makefile.sub (ruby_version): follow changes in configure.in.
+
+Tue Jul 15 21:58:20 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/tk/{,tkutil/}extconf.rb: ruby/ruby.h no longer needs to be
+	  checked.
+
+	* ext/tk/{tcltklib.c,tkutil/tkutil.c}: check macros for each headers.
+
+Tue Jul 15 21:45:41 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* ext/tk/extconf.rb, ext/tk/tcltklib.c, ext/tk/tkutil/tkutil.c: Do
+	  not test ruby/ruby.h, which makes OS X's gcc pick the wrong
+	  header file from Ruby.framework.
+
+Tue Jul 15 21:31:26 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* configure.in (--with-ruby-version): Add a new option to specify
+	  the ruby version string for version specific directories.
+	  [ruby-dev:35490]
+
+	* mkconfig.rb: Definition of ruby_version is now determined by the
+	  configure script.
+
+Tue Jul 15 18:14:20 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/socket/socket.c (ruby_connect, s_accept): check before readable/
+	  writable by select() instead of wrapping in blocking region.
+
+	* ext/socket/socket.c (bsock_send, s_recvfrom, udp_send, unix_send_io,
+	  unix_recv_io): should check readable/writable before calling blocking
+	  functions.
+	  see [ruby-dev:35446]
+
+Tue Jul 15 18:12:02 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* thread_win32.c (ubf_handle): cancel blocking IO if it can (only
+	  Vista). see [ruby-dev:35446]
+
+	* win32/win32.c (errmap): add ERROR_OPERATION_ABORTED as EINTR.
+
+Mon Jul 14 20:35:21 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/test_win32ole_event.rb (teardown): fix typo.
+
+Mon Jul 14 18:47:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* transcode.c (transcode_loop): constified.
+
+	* transcode.c (str_transcode): rb_str_set_len() sets a delimiter.
+
+	* transcode_data.h (rb_transcoder): constified preprocessor and
+	  postprocessor input.
+
+	* enc/trans/japanese.c: ditto.
+
 Mon Jul 14 18:16:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/merge_from_trunk.rb: try to resolve ChangeLog conflicts
 	  automatically if possible.
+
+Sun Jul 13 05:37:50 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* include/ruby/ruby.h (PRI_PTRDIFF_PREFIX, PRI_SIZE_PREFIX): typo.
+
+	* {bcc32,win32}/Makefile.sub: (SIZEOF_SIZE_T, SIZEOF_PTRDIFF_T): added.
+
+Sat Jul 12 23:54:55 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/Makefile.sub (LIBRUBY_DLDFLAGS): import library which created
+	  with DLL is broken. save import library which created by lib.exe and
+	  install it. 
+	  fixed the problem mentioned at the postscript of [ruby-dev:35448]
+
+Sat Jul 12 23:24:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/socket.c: use PRIuSIZE.
+
+Sat Jul 12 22:41:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/ruby.h (PRI_PTRDIFF_PREFIX, PRI_SIZE_PREFIX): fixed typo.
+
+Sat Jul 12 22:30:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h (HAVE_RUBY_RUBY_H): defines macros so that
+	  extconf.rb do not need to check if headers exist under separated
+	  directory.  [ruby-dev:35437]
+
+	* include/{ruby,rubyio,rubysig}.h, include/ruby/intern.h: use
+	  "ruby/..." instead of <ruby/...>.
+
+Sat Jul 12 22:17:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (sizeof ptrdiff_t): check for size of ptrdiff_t.
+
+	* include/ruby/ruby.h (PRI?PTRDIFF, PRI?SIZE): printf conversion
+	  specifiers for ptrdiff_t and size_t/ssize_t.
+
+	* insns.def (leave), marshal.c (long_toobig), transcode.c
+	  (str_transcode), vm_dump.c (control_frame_dump, stack_dump_each),
+	  (debug_print_register, debug_print_pre): t and z length modifiers
+	  are C99.
+
+Sat Jul 12 16:02:31 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/xmlrpc/client.rb (XMLRPC::Client#do_rpc): requires
+	  webrick/cookie.  [ ruby-Bugs-21139 ]
+
+Sat Jul 12 09:25:07 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/test_win32ole_event.rb: add test
+	  for WIN32OLE_EVENT#on_event_with_outargs
+
+	* test/win32ole/test_win32ole_event.rb(teardown): calling 
+	  WIN32OLE_EVENT.message_loop
+
+Sat Jul 12 01:54:13 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_select): shoudn't pass non-socket handle to
+	  original select().
+
+Fri Jul 11 23:05:40 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/zlib/test_zlib.rb: add a test for Zlib::Deflate#params.
+
+Fri Jul 11 22:58:28 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/zlib/zlib.c (rb_deflate_params): flush before deflateParams.
+	  [ruby-core:17675]
+
+Fri Jul 11 22:09:01 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/setup.rb, win32/Makefile.sub (PLATFORM): use $(PLATFORM)
+	  instead of $(OS) because ENV["OS"] is used in test-all (drb).
+
+Fri Jul 11 20:51:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (rb_io_wait_readable, rb_io_wait_writable): check if the file
+	  descriptor is closed.
+
+	* thread.c (rb_thread_wait_fd_rw): ditto.
 
 Fri Jul 11 16:45:20 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
