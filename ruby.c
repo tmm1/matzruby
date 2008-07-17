@@ -1062,11 +1062,12 @@ process_options(VALUE arg)
 	}
     }
 
-    ruby_script(opt->script);
+    opt->script_name = rb_tainted_str_new2(opt->script);
+    *rb_vm_specific_ptr(rb_vmkey_progname) = opt->script_name;
 #if defined DOSISH || defined __CYGWIN__
-    translate_char(RSTRING_PTR(*ruby_vm_specific_ptr(vm, rb_vmkey_progname)), '\\', '/');
+    translate_char(RSTRING_PTR(opt->script_name), '\\', '/');
 #endif
-    opt->script_name = rb_str_new4(*ruby_vm_specific_ptr(vm, rb_vmkey_progname));
+    OBJ_FREEZE(opt->script_name);
     opt->script = RSTRING_PTR(opt->script_name);
     ruby_vm_set_argv(vm, argc, argv);
     process_sflag(vm, opt);
@@ -1395,10 +1396,9 @@ set_arg0(VALUE val, ID id, VALUE *var)
 	}
     }
 #endif
-    *rb_vm_specific_ptr((int)var) = rb_obj_freeze(rb_tainted_str_new(s, i));
+    *var = rb_obj_freeze(rb_tainted_str_new(s, i));
 }
 
-DEPRECATED(void ruby_script(const char *name));
 void
 ruby_script(const char *name)
 {

@@ -1,3 +1,11 @@
+Thu Jul 17 13:13:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (process_options): set script_name directly and translate
+	  before frozen.
+
+	* ruby.c (set_arg0): now setter of VM specific variable is called for
+	  the pointer instead of the key.
+
 Thu Jul 17 06:09:48 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* dir.c (get_cwd_fd): support for platforms which has fchdir but no
