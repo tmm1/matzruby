@@ -1,5 +1,6 @@
 require 'test/unit'
 require 'tmpdir'
+require 'pathname'
 require_relative 'envutil'
 
 class TestProcess < Test::Unit::TestCase
@@ -21,6 +22,7 @@ class TestProcess < Test::Unit::TestCase
 
   def with_tmpchdir
     Dir.mktmpdir {|d|
+      d = Pathname.new(d).realpath.to_s
       Dir.chdir(d) {
         yield d
       }
@@ -946,15 +948,15 @@ class TestProcess < Test::Unit::TestCase
   end
 
   def test_getpriority
-    assert_kind_of(Integer, Process.getpriority(Process::PRIO_USER, 0))
+    assert_kind_of(Integer, Process.getpriority(Process::PRIO_PROCESS, $$))
   rescue NameError, NotImplementedError
   end
 
   def test_setpriority
     if defined? Process::PRIO_USER
       assert_nothing_raised do
-        pr = Process.getpriority(Process::PRIO_USER, 0)
-        Process.setpriority(Process::PRIO_USER, 0, pr)
+        pr = Process.getpriority(Process::PRIO_PROCESS, $$)
+        Process.setpriority(Process::PRIO_PROCESS, $$, pr)
       end
     end
   end

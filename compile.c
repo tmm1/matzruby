@@ -4527,11 +4527,20 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 	break;
       }
       case NODE_POSTEXE:{
+	LABEL *lstart = NEW_LABEL(nd_line(node));
+	LABEL *lend = NEW_LABEL(nd_line(node));
 	VALUE block = NEW_CHILD_ISEQVAL(node->nd_body, make_name_for_block(iseq), ISEQ_TYPE_BLOCK);
+
+	ADD_LABEL(ret, lstart);
+	ADD_INSN2(ret, nd_line(node), onceinlinecache, 0, lend);
+	ADD_INSN(ret, nd_line(node), pop);
 
 	ADD_INSN1(ret, nd_line(node), putspecialobject, INT2FIX(VM_SPECIAL_OBJECT_VMCORE));
 	ADD_INSN1(ret, nd_line(node), putiseq, block);
 	ADD_SEND (ret, nd_line(node), ID2SYM(id_core_set_postexe), INT2FIX(1));
+
+	ADD_INSN1(ret, nd_line(node), setinlinecache, lstart);
+	ADD_LABEL(ret, lend);
 
 	if (poped) {
 	    ADD_INSN(ret, nd_line(node), pop);
@@ -4670,10 +4679,8 @@ insn_data_to_s_detail(INSN *iobj)
 	    switch (type) {
 	      case TS_OFFSET:	/* label(destination position) */
 		{
-		    char buff[0x100];
 		    LABEL *lobj = (LABEL *)OPERAND_AT(iobj, j);
-		    snprintf(buff, sizeof(buff), "<L%03d>", lobj->label_no);
-		    rb_str_concat(str, rb_str_new2(buff));
+		    rb_str_catf(str, "<L%03d>", lobj->label_no);
 		    break;
 		}
 		break;

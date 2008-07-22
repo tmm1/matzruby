@@ -93,8 +93,12 @@ respectively.  They are singletons for the data type.
 
 The T_FIXNUM data is a 31bit length fixed integer (63bit length on
 some machines), which can be converted to a C integer by using the
-FIX2INT() macro.  There is also NUM2INT() which converts any Ruby
-numbers into C integers.  The NUM2INT() macro includes a type check,
+FIX2INT() macro or FIX2LONG().  Though you have to check that the
+data is really FIXNUM before using them, they are faster.  FIX2LONG()
+never raises exceptions, but FIX2INT() raises RangeError if the
+result is bigger or smaller than the size of int.
+There are also NUM2INT() and NUM2LONG() which converts any Ruby
+numbers into C integers.  These macros includes a type check,
 so an exception will be raised if the conversion failed.  NUM2DBL()
 can be used to retrieve the double float value in the same way.
 
@@ -185,9 +189,27 @@ listed below:
 
     Creates a new tainted Ruby string from a C string.
 
+  rb_sprintf(const char *format, ...)
+  rb_vsprintf(const char *format, va_list ap)
+
+    Creates a new Ruby string with printf(3) format.
+
   rb_str_cat(VALUE str, const char *ptr, long len)
 
     Appends len bytes of data from ptr to the Ruby string.
+
+  rb_str_cat2(VALUE str, const char* ptr)
+
+    Appends C string ptr to Ruby string str.  This function is
+    equivalent to rb_str_cat(str, ptr, strlen(ptr)).
+
+  rb_str_catf(VALUE str, const char* format, ...)
+  rb_str_vcatf(VALUE str, const char* format, va_list ap)
+
+    Appends C string format and successive arguments to Ruby string
+    str according to a printf-like format.  These functions are
+    equivalent to rb_str_cat2(str, rb_sprintf(format, ...)) and
+    rb_str_cat2(str, rb_vsprintf(format, ap)), respectively.
 
  Array functions
 
@@ -809,8 +831,10 @@ void Check_SafeStr(VALUE value)
 ** Data type conversion
 
 FIX2INT(value)
+FIX2LONG(value)
 INT2FIX(i)
 NUM2INT(value)
+NUM2LONG(value)
 INT2NUM(i)
 NUM2DBL(value)
 rb_float_new(f)

@@ -1802,9 +1802,7 @@ match_inspect(VALUE match)
             if (names[i].name)
                 rb_str_buf_cat(str, (const char *)names[i].name, names[i].len);
             else {
-                char buf[sizeof(i)*3+1];
-                snprintf(buf, sizeof(buf), "%d", i);
-                rb_str_buf_cat2(str, buf);
+                rb_str_catf(str, "%d", i);
             }
             rb_str_buf_cat2(str, ":");
         }
@@ -3012,7 +3010,7 @@ rb_reg_s_union(VALUE self, VALUE args0)
 		v = rb_reg_to_s(v);
 	    }
 	    else {
-                rb_encoding *enc = rb_enc_get(e);
+                rb_encoding *enc;
                 StringValue(e);
                 enc = rb_enc_get(e);
                 if (!rb_enc_str_asciicompat_p(e)) {

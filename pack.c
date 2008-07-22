@@ -691,11 +691,11 @@ pack_pack(VALUE ary, VALUE fmt)
 	  case 'i':		/* signed int */
 	  case 'I':		/* unsigned int */
 	    while (len-- > 0) {
-		long i;
+		int i;
 
 		from = NEXTFROM;
 		i = num2i32(from);
-		rb_str_buf_cat(res, OFF32(&i), NATINT_LEN(int,4));
+		rb_str_buf_cat(res, (char*)&i, sizeof(int));
 	    }
 	    break;
 
@@ -1617,7 +1617,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	    PACK_LENGTH_ADJUST(unsigned short,2);
 	    while (len-- > 0) {
 		unsigned short tmp = 0;
-		memcpy(OFF16(&tmp), s, NATINT_LEN(unsigned short,2));
+		memcpy(&tmp, s, NATINT_LEN(unsigned short,2));
 		s += NATINT_LEN(unsigned short,2);
 		UNPACK_PUSH(UINT2NUM(vtohs(tmp)));
 	    }
@@ -1628,7 +1628,7 @@ pack_unpack(VALUE str, VALUE fmt)
 	    PACK_LENGTH_ADJUST(unsigned long,4);
 	    while (len-- > 0) {
 		unsigned long tmp = 0;
-		memcpy(OFF32(&tmp), s, NATINT_LEN(long,4));
+		memcpy(&tmp, s, NATINT_LEN(long,4));
 		s += NATINT_LEN(long,4);
 		UNPACK_PUSH(ULONG2NUM(vtohl(tmp)));
 	    }

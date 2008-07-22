@@ -353,7 +353,7 @@ dir_initialize(int argc, VALUE *argv, VALUE dir)
 
     if (!NIL_P(opt)) {
         VALUE v, extenc=Qnil, intenc=Qnil;
-        opt = rb_check_convert_type(opt, T_HASH, "Hash", "to_hash");
+        opt = rb_convert_type(opt, T_HASH, "Hash", "to_hash");
 
         v = rb_hash_aref(opt, sym_intenc);
         if (!NIL_P(v)) intenc = v;
@@ -377,6 +377,7 @@ dir_initialize(int argc, VALUE *argv, VALUE dir)
 	}
     }
 
+    FilePathValue(dirname);
     {
 	rb_encoding  *dirname_encoding = rb_enc_get(dirname);
 	if (rb_usascii_encoding() != dirname_encoding
@@ -389,7 +390,6 @@ dir_initialize(int argc, VALUE *argv, VALUE dir)
 	    dirname = rb_str_transcode(dirname, rb_enc_from_encoding(extencoding));
 	}
     }
-    FilePathValue(dirname);
 
     Data_Get_Struct(dir, struct dir_data, dp);
     if (dp->dir) closedir(dp->dir);
@@ -482,10 +482,7 @@ dir_inspect(VALUE dir)
     Data_Get_Struct(dir, struct dir_data, dirp);
     if (dirp->path) {
 	const char *c = rb_obj_classname(dir);
-	int len = strlen(c) + strlen(dirp->path) + 4;
-	VALUE s = rb_str_new(0, len);
-	snprintf(RSTRING_PTR(s), len+1, "#<%s:%s>", c, dirp->path);
-	return s;
+	return rb_sprintf("#<%s:%s>", c, dirp->path);
     }
     return rb_funcall(dir, rb_intern("to_s"), 0, 0);
 }

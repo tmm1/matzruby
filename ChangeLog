@@ -2,6 +2,187 @@ Tue Jul 22 21:07:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* dir.c (get_cwd_fd): returns int.
 
+Tue Jul 22 20:42:24 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimalCmp): BigDecimal#<=> should
+	  return nil if an argument can't be coerced into BigDecimal.
+
+	* ext/bigdecimal/bigdecimal.h, ext/bigdecimal/bigdecimal.c
+	  (VpIsNegDoubleZero, VpItoV): comment out unused functions.
+
+Tue Jul 22 20:33:54 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/rdoc/test_rdoc_parser_ruby.rb (teardown): close tempfile.
+
+Tue Jul 22 19:38:38 2008  Martin Duerst  <duerst@it.aoyama.ac.jp>
+
+	* test/ruby/test_transcode.rb: added two comments
+
+Tue Jul 22 18:08:34 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* README.EXT, README.EXT.ja: mention about FIX2LONG and NUM2LONG.
+	  see [ruby-dev:35197]
+
+Tue Jul 22 17:53:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* compile.c (insn_data_to_s_detail), file.c (rb_stat_inspect),
+	  iseq.c (ruby_iseq_disasm_insn, ruby_iseq_disasm),
+	  process.c (pst_message), re.c (match_inspect): use rb_str_catf.
+
+	* dir.c (dir_inspect), iseq.c (iseq_inspect, insn_operand_intern): use
+	  rb_sprintf.
+
+	* error.c (rb_name_error, rb_raise, rb_loaderror, rb_fatal): use
+	  rb_vsprintf.
+
+Tue Jul 22 17:20:25 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (init_func): new function to get API's address which
+	  is often used and not supported on all Windows.
+
+	* win32/win32.c (overlapped_socket_io): shouldn't use overlapped I/O if
+	  CancelIo() is not supported.
+
+Tue Jul 22 16:47:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h, sprintf.c (rb_str_catf, rb_str_vcatf): new
+	  functions.  [ruby-dev:35597]
+
+	* string.c (rb_str_capacity): new function to return the capacity.
+
+Tue Jul 22 16:08:58 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/socket/socket.c (connect_blocking, socks_connect_blocking,
+	  ruby_connect): cast.
+
+Tue Jul 22 11:05:08 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* test/ruby/test_dir.rb: use realpath of tmpdir. [ruby-dev:35481]
+
+	* test/ruby/test_process.rb: ditto.
+
+Tue Jul 22 09:51:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-mode.el: fix here-doc strings with inner quotes.  patches
+	  by Nathan Weizenbaum <nex342 AT gmail.com> from [ruby-core:17615]
+	  through [ruby-core:17910].
+
+Tue Jul 22 04:26:16 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h (rb_str_buf_new2): optimization for literals.
+
+	* string.c (str_buf_cat): returns VALUE.
+
+Tue Jul 22 03:34:01 2008  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rdoc*: Update to RDoc 2.1.0 r112.
+
+Tue Jul 22 02:51:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h (rb_str_buf_cat2, rb_str_cat2): optimization
+	  for literals.
+
+Tue Jul 22 02:50:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* README.EXT, README.EXT.ja (1.5 Manipulating Ruby data): fix the
+	  prototype of rb_vsprintf, and added rb_str_cat2.  [ruby-dev:35622]
+
+Mon Jul 21 17:15:38 2008  Tanaka Akira  <akr@fsij.org>
+
+	* encoding.c (rb_filesystem_encoding): use locale encoding on Unix.
+	  [ruby-dev:35617]
+
+Mon Jul 21 15:29:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* missing/vsnprintf.c (struct __sbuf, FILE): use size_t.
+
+	* sprintf.c (ruby__sfvwrite): ditto.
+
+Mon Jul 21 13:55:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* README.EXT, README.EXT.ja (1.5 Manipulating Ruby data): mentioned
+	  rb_sprintf and rb_vsprintf.  [ruby-dev:35611]
+
+Mon Jul 21 10:25:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (prepare_getline_args): check if rs is a string when non-nil
+	  lim is given.  [ruby-dev:35610]
+
+Mon Jul 21 04:55:20 2008  Tanaka Akira  <akr@fsij.org>
+
+	* dir.c (dir_initialize): use rb_convert_type instead of
+	  rb_check_convert_type to prevent SEGV by Dir.new(".", true).
+	  (dir_initialize): use FilePathValue before rb_enc_get(dirname) to
+	  prevent SEGV by Dir.new(0).
+
+Mon Jul 21 04:42:15 2008  Tanaka Akira  <akr@fsij.org>
+
+	* re.c (rb_reg_s_union): useless rb_enc_get call removed to prevent
+	  SEGV by Regexp.union("", nil).
+
+Sun Jul 20 22:50:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* compile.c (iseq_compile_each): NODE_POSTEXE should set each end
+	  procs only once.  [ruby-dev:35596]
+
+Sun Jul 20 16:00:37 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (EVENTSINK_Invoke): use rb_protect
+	  instead of rb_rescue2. [ruby-dev:35595]
+
+Sun Jul 20 01:23:24 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (EVENTSINK_Invoke): little refactoring.
+
+	* ext/win32ole/win32ole.c (EVENTSINK_GetIDsOfNames): return
+	  ITypeInfo::GetIDsOfNames().
+
+Sat Jul 19 09:31:35 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (EVENTSINK_Invoke): little refactoring.
+
+	* ext/win32ole/win32ole.c: add document of inspect methods.
+
+Sat Jul 19 06:08:43 2008  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rdoc*: Import RDoc r104.  Various make test-all fixes.
+
+Sat Jul 19 00:27:58 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* numeric.c (check_uint, rb_num2uint, rb_fix2uint): fixed wrong check
+	  about 64bit positive value.
+
+Fri Jul 18 23:23:37 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (EVENTSINK_Invoke): avoid cfp consistency
+	  error when exception raised in event callback.
+
+Fri Jul 18 14:52:14 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (socklist): table for registering socket options
+	  (currently only O_NONBLOCK).
+
+	* win32/win32.c (StartSockets, exit_handler): alloc/free socklist.
+
+	* win32/win32.c (is_socket): use socklist.
+
+	* win32/win32.c (rb_w32_accept, rb_w32_socket, rb_w32_socketpair):
+	  register new socket to socklist.
+
+	* win32/win32.c (rb_w32_close): remove closing socket from socklist.
+
+	* win32/win32.c (fcntl): register socket options.
+
+	* win32/win32.c (overlapped_socket_io): send to/recv from socket with
+	  overlapped operation if the socket is not nonblocking mode.
+	  [experimental]
+
+	* win32/win32.c (rb_w32_send, rb_w32_sendto, rb_w32_recv,
+	  rb_w32_recvfrom): use overlapped_socket_io().
+
+	* win32/win32.c (open_ifs_socket): set overlapped mode. this is the
+	  default mode of winsock's socket(), so lacking it is an old bug.
+
 Thu Jul 17 13:13:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* ruby.c (process_options): set script_name directly and translate
@@ -139,7 +320,7 @@ Sat Jul 12 23:54:55 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 
 	* win32/Makefile.sub (LIBRUBY_DLDFLAGS): import library which created
 	  with DLL is broken. save import library which created by lib.exe and
-	  install it. 
+	  install it.
 	  fixed the problem mentioned at the postscript of [ruby-dev:35448]
 
 Sat Jul 12 23:24:21 2008  Tanaka Akira  <akr@fsij.org>
@@ -181,7 +362,7 @@ Sat Jul 12 09:25:07 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 	* test/win32ole/test_win32ole_event.rb: add test
 	  for WIN32OLE_EVENT#on_event_with_outargs
 
-	* test/win32ole/test_win32ole_event.rb(teardown): calling 
+	* test/win32ole/test_win32ole_event.rb(teardown): calling
 	  WIN32OLE_EVENT.message_loop
 
 Sat Jul 12 01:54:13 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
@@ -275,13 +456,13 @@ Thu Jul 10 21:15:49 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
 	* test/win32ole/test_win32ole_typelib.rb: add some illegal argument
 	  test.
-	
+
 	* test/win32ole/test_win32ole_type.rb: ditto.
 
 	* test/win32ole/test_win32ole_event.rb: ditto.
 
-	* test/win32ole/test_win32ole_param.rb: ditto. 
-	
+	* test/win32ole/test_win32ole_param.rb: ditto.
+
 	* test/win32ole/test_win32ole_method.rb: ditto.
 
 Thu Jul 10 19:38:35 2008  wanabe  <s.wanabe@gmail.com>
@@ -412,7 +593,7 @@ Tue Jul  8 21:45:22 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 Tue Jul  8 19:55:40 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
 	* ext/win32ole/win32ole.c (find_default_source): try to
-	  find COCLASS when WIN32OLE object is not COCLASS. 
+	  find COCLASS when WIN32OLE object is not COCLASS.
 
 	* test/win32ole/test_win32ole_event.rb: ditto
 
@@ -507,7 +688,7 @@ Sun Jul  6 23:48:06 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 Sun Jul  6 18:34:35 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
-	* test/win32ole/test_win32ole_type.rb (test_initialize): add 
+	* test/win32ole/test_win32ole_type.rb (test_initialize): add
 	  more assertions.
 
 Sun Jul  6 10:12:21 2008  Kouhei Sutou  <kou@cozmixng.org>
@@ -578,9 +759,9 @@ Sat Jul  5 08:29:47 2008  Tanaka Akira  <akr@fsij.org>
 
 Fri Jul  4 23:12:53 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
-	* ext/win32ole/win32ole.c (d2time): fix the bug of VT_DATE 
+	* ext/win32ole/win32ole.c (d2time): fix the bug of VT_DATE
 	  to String conversion when negative value.
-	  
+
 	* test/win32ole/test_win32ole_variant.rb: ditto.
 
 Fri Jul  4 22:15:29 2008  Tanaka Akira  <akr@fsij.org>
@@ -746,19 +927,19 @@ Thu Jul  3 00:18:00 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 Thu Jul  3 00:09:31 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
 	* gc.c: add rb_during_gc(). based on a patch from arton <artonx AT
-	  yahoo.co.jp> at [ruby-dev:35313].   
+	  yahoo.co.jp> at [ruby-dev:35313].
 
 	* include/ruby/intern.h: ditto.
 
 Wed Jul  2 09:49:10 2008  Narihiro Nakamura  <authorNari@gmail.com>
 
-	* gc.c (gc_lazy_sweep) : use lazy sweep algorithm for response
+	* gc.c (gc_lazy_sweep): use lazy sweep algorithm for response
 	  performance gain.
 
-	* gc.c (garbage_collect_force) : mark and lazysweep invoke, after
+	* gc.c (garbage_collect_force): mark and lazysweep invoke, after
 	  erasing all mark.
 
-	* gc.c (GC_NOT_LAZY_SWEEP) : not lazy sweep flag. for debug.
+	* gc.c (GC_NOT_LAZY_SWEEP): not lazy sweep flag. for debug.
 
 Wed Jul  2 03:42:44 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 
@@ -1015,7 +1196,7 @@ Tue Jul  1 03:28:16 2008  Eric Hodel  <drbrain@segment7.net>
 	* test/rubygems/test_ext_configure_builder.rb:  Apply locale-free
 	  patch by Yusuke ENDOH.  [ruby-core:17444].
 
-	* runruby.rb:  Set ENV['rake'].  Patch by Yusuke ENDOH
+	* runruby.rb: Set ENV['rake'].  Patch by Yusuke ENDOH
 	  [ruby-core:17442].
 
 Tue Jul  1 01:07:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>

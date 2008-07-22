@@ -39,7 +39,7 @@ class RDoc::Options
   ##
   # Pattern for additional attr_... style methods
 
-  attr_reader :extra_accessors
+  attr_accessor :extra_accessors
 
   ##
   # Should we draw fileboxes in diagrams
@@ -61,6 +61,11 @@ class RDoc::Options
 
   attr_accessor :generator
 
+  ##
+  # Formatter to mark up text with
+
+  attr_accessor :formatter
+  
   ##
   # image format for diagrams
 
@@ -95,17 +100,12 @@ class RDoc::Options
   ##
   # The name to use for the output
 
-  attr_reader :op_name
+  attr_accessor :op_name
 
   ##
   # Are we promiscuous about showing module contents across multiple files
 
   attr_reader :promiscuous
-
-  ##
-  # Don't display progress as we process the files
-
-  attr_reader :quiet
 
   ##
   # Array of directories to search for files to satisfy an :include:
@@ -145,18 +145,22 @@ class RDoc::Options
   attr_reader :title
 
   ##
+  # Verbosity, zero means quiet
+
+  attr_accessor :verbosity
+
+  ##
   # URL of web cvs frontend
 
   attr_reader :webcvs
 
-  def initialize(generators) # :nodoc:
+  def initialize(generators = {}) # :nodoc:
     @op_dir = "doc"
     @op_name = nil
     @show_all = false
     @main_page = nil
     @merge = false
     @exclude = []
-    @quiet = false
     @generators = generators
     @generator_name = 'html'
     @generator = @generators[@generator_name]
@@ -175,7 +179,7 @@ class RDoc::Options
     @extra_accessor_flags = {}
     @promiscuous = false
     @force_update = false
-    @title = "RDoc Documentation"
+    @verbosity = 1
 
     @css = nil
     @webcvs = nil
@@ -420,8 +424,14 @@ Usage: #{opt.program_name} [options] [names...]
 
       opt.on("--quiet", "-q",
              "Don't show progress as we parse.") do |value|
-        @quiet = value
+        @verbosity = 0
       end
+
+      opt.on("--verbose", "-v",
+             "Display extra progress as we parse.") do |value|
+        @verbosity = 2
+      end
+
 
       opt.separator nil
 
@@ -513,6 +523,8 @@ Usage: #{opt.program_name} [options] [names...]
       end
     end
 
+    argv.insert(0, *ENV['RDOCOPT'].split) if ENV['RDOCOPT']
+
     opts.parse! argv
 
     @files = argv.dup
@@ -551,6 +563,17 @@ Usage: #{opt.program_name} [options] [names...]
 
   def title=(string)
     @title ||= string
+  end
+
+  ##
+  # Don't display progress as we process the files
+
+  def quiet
+    @verbosity.zero?
+  end
+
+  def quiet=(bool)
+    @verbosity = bool ? 0 : 1
   end
 
   private
@@ -607,8 +630,8 @@ Usage: #{opt.program_name} [options] [names...]
 
   def check_files
     @files.each do |f|
-      stat = File.stat f rescue abort("File not found: #{f}")
-      abort("File '#{f}' not readable") unless stat.readable?
+      stat = File.stat f
+      raise RDoc::Error, "file '#{f}' not readable" unless stat.readable?
     end
   end
 

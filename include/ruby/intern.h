@@ -522,6 +522,8 @@ void ruby_default_signal(int);
 VALUE rb_f_sprintf(int, const VALUE*);
 PRINTF_ARGS(VALUE rb_sprintf(const char*, ...), 1, 2);
 VALUE rb_vsprintf(const char*, va_list);
+PRINTF_ARGS(VALUE rb_str_catf(VALUE, const char*, ...), 2, 3);
+VALUE rb_str_vcatf(VALUE, const char*, va_list);
 VALUE rb_str_format(int, const VALUE *, VALUE);
 /* string.c */
 VALUE rb_str_wrap(char*, long);
@@ -537,26 +539,6 @@ VALUE rb_str_buf_new2(const char*);
 VALUE rb_str_tmp_new(long);
 VALUE rb_usascii_str_new(const char*, long);
 VALUE rb_usascii_str_new2(const char*);
-#if defined __GNUC__
-#define rb_str_new2(str) __extension__ (	\
-{						\
-    (__builtin_constant_p(str)) ?	       \
-	rb_str_new(str, strlen(str)) :		\
-	rb_str_new2(str);			\
-})
-#define rb_tainted_str_new2(str) __extension__ ( \
-{					       \
-    (__builtin_constant_p(str)) ?	       \
-	rb_tainted_str_new(str, strlen(str)) : \
-	rb_tainted_str_new2(str);	       \
-})
-#define rb_usascii_str_new2(str) __extension__ ( \
-{					       \
-    (__builtin_constant_p(str)) ?	       \
-	rb_usascii_str_new(str, strlen(str)) : \
-	rb_usascii_str_new2(str);	       \
-})
-#endif
 void rb_str_free(VALUE);
 void rb_str_shared_replace(VALUE, VALUE);
 VALUE rb_str_buf_append(VALUE, VALUE);
@@ -598,6 +580,46 @@ void rb_str_setter(VALUE, ID, VALUE*);
 VALUE rb_str_intern(VALUE);
 VALUE rb_sym_to_s(VALUE);
 VALUE rb_str_length(VALUE);
+size_t rb_str_capacity(VALUE);
+#if defined __GNUC__
+#define rb_str_new2(str) __extension__ (	\
+{						\
+    (__builtin_constant_p(str)) ?		\
+	rb_str_new(str, strlen(str)) :		\
+	rb_str_new2(str);			\
+})
+#define rb_tainted_str_new2(str) __extension__ ( \
+{					       \
+    (__builtin_constant_p(str)) ?	       \
+	rb_tainted_str_new(str, strlen(str)) : \
+	rb_tainted_str_new2(str);	       \
+})
+#define rb_usascii_str_new2(str) __extension__ ( \
+{					       \
+    (__builtin_constant_p(str)) ?	       \
+	rb_usascii_str_new(str, strlen(str)) : \
+	rb_usascii_str_new2(str);	       \
+})
+#define rb_str_buf_new2(str) __extension__ ( \
+{						\
+    (__builtin_constant_p(str)) ?		\
+	rb_str_buf_cat(rb_str_buf_new(strlen(str)), \
+		       str, strlen(str)) :	\
+	rb_str_buf_new2(str);			\
+})
+#define rb_str_buf_cat2(str, ptr) __extension__ ( \
+{						\
+    (__builtin_constant_p(ptr)) ?	        \
+	rb_str_buf_cat(str, ptr, strlen(ptr)) :	\
+	rb_str_buf_cat2(str, ptr);		\
+})
+#define rb_str_cat2(str, ptr) __extension__ (	\
+{						\
+    (__builtin_constant_p(ptr)) ?	        \
+	rb_str_cat(str, ptr, strlen(ptr)) :	\
+	rb_str_cat2(str, ptr);			\
+})
+#endif
 /* struct.c */
 VALUE rb_struct_new(VALUE, ...);
 VALUE rb_struct_define(const char*, ...);

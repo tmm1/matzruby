@@ -1,15 +1,16 @@
 require 'stringio'
 require 'tempfile'
 require 'test/unit'
-require 'rdoc/parsers/parse_c'
+require 'rdoc/options'
+require 'rdoc/parser/c'
 
-class RDoc::C_Parser
+class RDoc::Parser::C
   attr_accessor :classes
 
   public :do_classes, :do_constants
 end
 
-class TestRdocC_Parser < Test::Unit::TestCase
+class TestRdocParserC < Test::Unit::TestCase
 
   def setup
     @tempfile = Tempfile.new self.class.name
@@ -17,14 +18,12 @@ class TestRdocC_Parser < Test::Unit::TestCase
 
     @top_level = RDoc::TopLevel.new filename
     @fn = filename
-    @options = RDoc::Options.new Hash.new
-    @stats = RDoc::Stats.new
-
-    @progress = StringIO.new
+    @options = RDoc::Options.new
+    @stats = RDoc::Stats.new 0
   end
 
   def teardown
-    @tempfile.unlink
+    @tempfile.close
   end
 
   def test_do_classes_boot_class
@@ -252,9 +251,7 @@ Init_Foo(void) {
   end
 
   def util_parser(content)
-    parser = RDoc::C_Parser.new @top_level, @fn, content, @options, @stats
-    parser.progress = @progress
-    parser
+    RDoc::Parser::C.new @top_level, @fn, content, @options, @stats
   end
 
 end
