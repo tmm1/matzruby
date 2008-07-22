@@ -740,7 +740,7 @@ dir_chdir(VALUE path)
 # if defined HAVE_OPENAT
 #   define get_cwd_fd() openat(GET_THREAD()->cwd.fd, ".", O_RDONLY)
 # elif defined HAVE_DIRFD
-void
+int
 get_cwd_fd(void)
 {
     DIR *cwd = opendir(GET_THREAD()->cwd.path);

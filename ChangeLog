@@ -1,3 +1,7 @@
+Tue Jul 22 21:07:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (get_cwd_fd): returns int.
+
 Thu Jul 17 13:13:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* ruby.c (process_options): set script_name directly and translate
