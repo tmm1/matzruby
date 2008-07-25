@@ -2624,7 +2624,6 @@ ntfs_tail(const char *path)
     rb_enc_associate(result, extenc))
 
 #define is_absolute_path(path) ruby_absolute_path_p(path)
-int ruby_absolute_path_p(const char*);
 
 static VALUE
 file_expand_path(VALUE fname, VALUE dname, VALUE result)

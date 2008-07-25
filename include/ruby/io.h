@@ -122,6 +122,8 @@ DEPRECATED(long rb_io_fread(char *, long, FILE *));
 DEPRECATED(long rb_io_fwrite(const char *, long, FILE *));
 DEPRECATED(int rb_read_pending(FILE*));
 
+int ruby_absolute_path_p(const char*);
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */

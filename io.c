@@ -3429,11 +3429,11 @@ rb_sysopen_prepare(struct sysopen_struct *data, const char *fname, int flags, un
     data->base = GET_THREAD()->cwd.fd;
 #else
     if (ruby_absolute_path_p(fname)) {
-	data->base = Qnil;
+	data->fullpath = Qnil;
     }
     else {
-	data->base = rb_file_expand_path(rb_str_new2(fname), Qnil);
-	fname = RSTRING_PTR(data->base);
+	data->fullpath = rb_file_expand_path(rb_str_new2(fname), Qnil);
+	fname = RSTRING_PTR(data->fullpath);
     }
 #endif
     data->fname = fname;
