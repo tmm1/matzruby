@@ -3467,17 +3467,21 @@ ruby_suppress_tracing(VALUE (*func)(VALUE, int), VALUE arg, int always)
 char *
 ruby_thread_getcwd(rb_thread_t *th)
 {
+    char *ruby_sys_getcwd(void);
+    char *cwd;
 #if USE_OPENAT && defined HAVE_READLINK
     extern char *ruby_readlink(const char *, long *);
     static const char fdpat[] = "/proc/self/fd/%d";
-    char fdname[sizeof(fdpat) + sizeof(int) * 5 / 2], *cwd;
+    char fdname[sizeof(fdpat) + sizeof(int) * 5 / 2];
     long len;
 
     snprintf(fdname, sizeof(fdname), fdpat, th->cwd.fd);
     cwd = ruby_readlink(fdname, &len);
     if (cwd) return cwd;
 #endif
-    return ruby_strdup(th->cwd.path);
+    if ((cwd = th->cwd.path) != 0)
+	return ruby_strdup(cwd);
+    return ruby_sys_getcwd();
 }
 
 char *
