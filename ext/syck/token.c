@@ -1116,7 +1116,7 @@ Directive:
 #line 1117 "<stdout>"
 {
 	YYCTYPE yych;
-	unsigned int yyaccept;
+	unsigned int yyaccept = 0;
 	goto yy94;
 	++YYCURSOR;
 yy94:
@@ -2713,7 +2713,7 @@ syckwrap()
 }
 
 void 
-syckerror( char *msg )
+syckerror( const char *msg )
 {
     if ( syck_parser_ptr->error_handler == NULL )
         syck_parser_ptr->error_handler = syck_default_error_handler;

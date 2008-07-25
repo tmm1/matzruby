@@ -439,7 +439,7 @@ exit_handler(void)
 {
     if (NtSocketsInitialized) {
 	WSACleanup();
-	xfree(socklist);
+	st_free_table(socklist);
 	socklist = NULL;
 	NtSocketsInitialized = 0;
     }
@@ -751,10 +751,9 @@ rb_w32_join_argv(char *cmd, char *const *argv)
     return cmd;
 }
 
-static int socketpair_internal(int af, int type, int protocol, SOCKET *sv);
-
 rb_pid_t
-rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe, int *write_pipe)
+rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe,
+		 int *write_pipe)
 {
     struct ChildRecord* child;
     HANDLE hIn, hOut;
@@ -762,7 +761,6 @@ rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe, int *wr
     HANDLE hCurProc;
     SECURITY_ATTRIBUTES sa;
     BOOL reading, writing;
-    int binmode;
     int ret;
 
     /* Figure out what we're doing... */
@@ -777,7 +775,9 @@ rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe, int *wr
 	reading = TRUE;
 	writing = FALSE;
     }
-    binmode |= (mode & O_BINARY) ? O_BINARY : O_TEXT;
+    mode &= ~(O_RDWR|O_RDONLY|O_WRONLY);
+    if (!(mode & O_BINARY))
+	mode |= O_TEXT;
 
     sa.nLength              = sizeof (SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = NULL;
@@ -837,21 +837,31 @@ rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe, int *wr
 
 	/* associate handle to file descritor */
 	if (reading) {
-	    *pipe = rb_w32_open_osfhandle((intptr_t)hDupIn, _O_RDONLY | binmode);
+	    *pipe = rb_w32_open_osfhandle((intptr_t)hDupIn, O_RDONLY | mode);
 	    if (writing)
-		*write_pipe = rb_w32_open_osfhandle((intptr_t)hDupOut, _O_WRONLY | binmode);
+		*write_pipe = rb_w32_open_osfhandle((intptr_t)hDupOut,
+						    O_WRONLY | mode);
 	}
 	else {
-	    *pipe = rb_w32_open_osfhandle((intptr_t)hDupOut, _O_WRONLY | binmode);
+	    *pipe = rb_w32_open_osfhandle((intptr_t)hDupOut, O_WRONLY | mode);
 	}
 	if (hIn)
 	    CloseHandle(hIn);
 	if (hOut)
 	    CloseHandle(hOut);
-	if (*pipe == -1) {
-	    if (hDupIn)
+	if (reading && writing && *write_pipe == -1) {
+	    if (*pipe != -1)
+		rb_w32_close(*pipe);
+	    else
 		CloseHandle(hDupIn);
-	    if (hDupOut)
+	    CloseHandle(hDupOut);
+	    CloseChildHandle(child);
+	    break;
+	}
+	else if (*pipe == -1) {
+	    if (reading)
+		CloseHandle(hDupIn);
+	    else
 		CloseHandle(hDupOut);
 	    CloseChildHandle(child);
 	    break;
@@ -2272,8 +2282,11 @@ rb_w32_accept(int s, struct sockaddr *addr, int *addrlen)
 	    s = -1;
 	}
 	else {
-	    st_insert(socklist, (st_data_t)r, (st_data_t)0);
 	    s = rb_w32_open_osfhandle(r, O_RDWR|O_BINARY|O_NOINHERIT);
+	    if (s != -1)
+		st_insert(socklist, (st_data_t)r, (st_data_t)0);
+	    else
+		closesocket(r);
 	}
     });
     return s;
@@ -2448,6 +2461,7 @@ overlapped_socket_io(BOOL input, int fd, char *buf, int len, int flags,
 	});
     }
     else {
+	DWORD size;
 	wbuf.len = len;
 	wbuf.buf = buf;
 	memset(&wol, 0, sizeof(wol));
@@ -2456,29 +2470,33 @@ overlapped_socket_io(BOOL input, int fd, char *buf, int len, int flags,
 	    if (input) {
 		flg = flags;
 		if (addr && addrlen)
-		    ret = WSARecvFrom(s, &wbuf, 1, &r, &flg, addr, addrlen, &wol,
-				      NULL);
+		    ret = WSARecvFrom(s, &wbuf, 1, &size, &flg, addr, addrlen,
+				      &wol, NULL);
 		else
-		    ret = WSARecv(s, &wbuf, 1, &r, &flg, &wol, NULL);
+		    ret = WSARecv(s, &wbuf, 1, &size, &flg, &wol, NULL);
 	    }
 	    else {
 		if (addr && addrlen)
-		    ret = WSASendTo(s, &wbuf, 1, &r, flags, addr, *addrlen, &wol,
-				    NULL);
+		    ret = WSASendTo(s, &wbuf, 1, &size, flags, addr, *addrlen,
+				    &wol, NULL);
 		else
-		    ret = WSASend(s, &wbuf, 1, &r, flags, &wol, NULL);
+		    ret = WSASend(s, &wbuf, 1, &size, flags, &wol, NULL);
 	    }
-	    err = WSAGetLastError();
 	});
 
-	if (ret == SOCKET_ERROR && err == WSA_IO_PENDING) {
+	if (ret != SOCKET_ERROR) {
+	    r = size;
+	}
+	else if ((err = WSAGetLastError()) == WSA_IO_PENDING) {
 	    switch (rb_w32_wait_events_blocking(&wol.hEvent, 1, INFINITE)) {
 	      case WAIT_OBJECT_0:
 		RUBY_CRITICAL(
-		    ret = WSAGetOverlappedResult(s, &wol, &r, TRUE, &flg)
+		    ret = WSAGetOverlappedResult(s, &wol, &size, TRUE, &flg)
 		    );
-		if (ret)
+		if (ret) {
+		    r = size;
 		    break;
+		}
 		/* thru */
 	      default:
 		errno = map_errno(err);
@@ -2490,7 +2508,7 @@ overlapped_socket_io(BOOL input, int fd, char *buf, int len, int flags,
 		break;
 	    }
 	}
-	else if (ret == SOCKET_ERROR) {
+	else {
 	    errno = map_errno(err);
 	    r = -1;
 	}
@@ -2624,8 +2642,11 @@ rb_w32_socket(int af, int type, int protocol)
 	    fd = -1;
 	}
 	else {
-	    st_insert(socklist, (st_data_t)s, (st_data_t)0);
 	    fd = rb_w32_open_osfhandle(s, O_RDWR|O_BINARY|O_NOINHERIT);
+	    if (fd != -1)
+		st_insert(socklist, (st_data_t)s, (st_data_t)0);
+	    else
+		closesocket(s);
 	}
     });
     return fd;
@@ -2845,10 +2866,20 @@ rb_w32_socketpair(int af, int type, int protocol, int *sv)
 
     if (socketpair_internal(af, type, protocol, pair) < 0)
 	return -1;
+    sv[0] = rb_w32_open_osfhandle(pair[0], O_RDWR|O_BINARY|O_NOINHERIT);
+    if (sv[0] == -1) {
+	closesocket(pair[0]);
+	closesocket(pair[1]);
+	return -1;
+    }
+    sv[1] = rb_w32_open_osfhandle(pair[1], O_RDWR|O_BINARY|O_NOINHERIT);
+    if (sv[1] == -1) {
+	rb_w32_close(sv[0]);
+	closesocket(pair[1]);
+	return -1;
+    }
     st_insert(socklist, (st_data_t)pair[0], (st_data_t)0);
     st_insert(socklist, (st_data_t)pair[1], (st_data_t)0);
-    sv[0] = rb_w32_open_osfhandle(pair[0], O_RDWR|O_BINARY|O_NOINHERIT);
-    sv[1] = rb_w32_open_osfhandle(pair[1], O_RDWR|O_BINARY|O_NOINHERIT);
 
     return 0;
 }

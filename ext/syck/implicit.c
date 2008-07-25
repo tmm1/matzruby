@@ -20,7 +20,7 @@
 void
 try_tag_implicit( SyckNode *n, int taguri )
 {
-    char *tid = "";
+    const char *tid = "";
     switch ( n->kind )
     {
         case syck_str_kind:
@@ -44,9 +44,10 @@ try_tag_implicit( SyckNode *n, int taguri )
     }
 }
 
-char *syck_match_implicit( char *str, size_t len )
+const char *
+syck_match_implicit( const char *str, size_t len )
 {
-    char *cursor, *limit, *marker;
+    const char *cursor, *limit, *marker = 0;
     cursor = str;
     limit = str + len;
 
@@ -1608,9 +1609,9 @@ syck_tagcmp( const char *tag1, const char *tag2 )
 }
 
 char *
-syck_type_id_to_uri( char *type_id )
+syck_type_id_to_uri( const char *type_id )
 {
-    char *cursor, *limit, *marker;
+    const char *cursor, *limit, *marker = 0;
 
     cursor = type_id;
     limit = type_id + strlen( type_id );
@@ -1619,7 +1620,7 @@ syck_type_id_to_uri( char *type_id )
 #line 1620 "<stdout>"
 {
 	YYCTYPE yych;
-	unsigned int yyaccept;
+	unsigned int yyaccept = 0;
 	goto yy202;
 	++YYCURSOR;
 yy202:
