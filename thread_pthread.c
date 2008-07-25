@@ -194,6 +194,14 @@ native_thread_destroy(rb_thread_t *th)
 
 #define USE_THREAD_CACHE 0
 
+#if STACK_GROW_DIRECTION
+#define STACK_GROW_DIR_DETECTION
+#define STACK_DIR_UPPER(a,b) STACK_UPPER(0, a, b)
+#else
+#define STACK_GROW_DIR_DETECTION VALUE stack_grow_dir_detection
+#define STACK_DIR_UPPER(a,b) STACK_UPPER(&stack_grow_dir_detection, a, b)
+#endif
+
 static int
 get_stack(void **addr, size_t *size)
 {
@@ -212,6 +220,11 @@ get_stack(void **addr, size_t *size)
     CHECK_ERR(pthread_attr_getstackaddr(&attr, addr));
     CHECK_ERR(pthread_attr_getstacksize(&attr, size));
 #   endif
+    if (pthread_attr_getguardsize(&attr, &guard) == 0) {
+	STACK_GROW_DIR_DETECTION;
+	STACK_DIR_UPPER((void)0, *addr = (char *)*addr + guard);
+	*size -= guard;
+    }
 # else
     CHECK_ERR(pthread_attr_init(&attr));
     CHECK_ERR(pthread_attr_get_np(pthread_self(), &attr));
@@ -302,14 +315,6 @@ ruby_init_stack(VALUE *addr
 #endif
 }
 
-#if STACK_GROW_DIRECTION
-#define STACK_GROW_DIR_DETECTION
-#define STACK_DIR_UPPER(a,b) STACK_UPPER(0, a, b)
-#else
-#define STACK_GROW_DIR_DETECTION VALUE stack_grow_dir_detection
-#define STACK_DIR_UPPER(a,b) STACK_UPPER(&stack_grow_dir_detection, a, b)
-#endif
-
 static int
 native_thread_init_stack(rb_thread_t *th)
 {
@@ -357,9 +362,9 @@ thread_start_func_1(void *th_ptr)
 	void *addr;
 	size_t size;
 	if (get_stack(&addr, &size)) return 0;
-	size -= STACK_UPPER(&stack_start,
-			    (char *)&stack_start - (char *)addr,
-			    (char *)addr - (char *)&stack_start);
+	STACK_UPPER(&stack_start,
+		    size -= (char *)&stack_start - (char *)addr,
+		    size = (char *)&stack_start - (char *)addr);
 	th->machine_stack_start = &stack_start;
 	th->machine_stack_maxsize = size;
 #endif
@@ -801,12 +806,11 @@ rb_thread_create_timer_thread(void)
 
 #ifdef HAVE_SIGALTSTACK
 int
-ruby_stack_overflow_p(siginfo_t *info, ucontext_t *ctx)
+ruby_stack_overflowed_p(const rb_thread_t *th, const void *addr)
 {
-    void *base, *addr = info->si_addr;
+    void *base;
     size_t size;
     const size_t water_mark = 64 * 1024;
-    rb_thread_t *th = ruby_thread_from_native();
     STACK_GROW_DIR_DETECTION;
 
     if (th) {

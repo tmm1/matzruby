@@ -1,3 +1,17 @@
+Fri Jul 25 23:24:07 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread_pthread.c (get_stack): subtract guard size.
+
+	* thread_pthread.c (thread_start_func_1): fix for stack size
+	  adjustment.
+
+	* thread_pthread.c (ruby_stack_overflowed_p): take thread and the
+	  address.
+
+	* gc.c (ruby_stack_check): check overflow.
+
+	* signal.c (sigsegv): use ruby_stack_overflowed_p.
+
 Fri Jul 25 16:21:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* include/ruby/io.h (ruby_absolute_path_p): published.

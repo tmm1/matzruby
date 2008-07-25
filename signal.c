@@ -583,17 +583,14 @@ sigbus(int sig)
 #endif
 
 #ifdef SIGSEGV
-# ifdef HAVE_SIGALTSTACK
-int ruby_stack_overflow_p(siginfo_t*, ucontext_t*);
-# endif
-
 static int segv_received = 0;
 static RETSIGTYPE
 sigsegv(int sig SIGINFO_ARG)
 {
 #ifdef HAVE_SIGALTSTACK
-    if (ruby_stack_overflow_p(info, ctx)) {
-	rb_thread_t *th = GET_THREAD();
+    int ruby_stack_overflowed_p(const rb_thread_t *, const void *);
+    rb_thread_t *th = GET_THREAD();
+    if (ruby_stack_overflowed_p(th, info->si_addr)) {
 	th->errinfo = sysstack_error;
 	rb_thread_raised_clear(th);
 	TH_JUMP_TAG(th, TAG_RAISE);
