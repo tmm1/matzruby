@@ -14,9 +14,22 @@ Thu Jul 31 01:25:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_mutex_unlock_all): mutex is no longer a ruby object.
 
+Thu Jul 31 01:25:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (rb_mutex_unlock_all): mutex is no longer a ruby object.
+
+Thu Jul 31 01:18:07 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* parse.y (magic_comment_encoding): remove meaningless null check.
+
 Thu Jul 31 01:11:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (ruby_vm_specific_ptr): fix for reallocation.
+
+Thu Jul 31 01:09:28 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/bigdecimal/bigdecimal.c (VpIsRoundMode): fix tautology
+	  condition.
 
 Thu Jul 31 00:58:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 

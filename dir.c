@@ -1947,7 +1947,7 @@ rb_dir_open(int argc, VALUE *argv, VALUE dir)
 #if USE_OPENAT
     base = dirfd(dp->dir);
 #endif
-    return rb_openat(argc, argv, base, dp->path);
+    return rb_openat(argc, argv, base, RSTRING_PTR(dp->path));
 }
 
 static long
@@ -1984,7 +1984,7 @@ apply2filesat(struct dir_data *dp, int (*func)(int, const char *, void *),
 #endif
 	if (ret < 0) {
 #if USE_OPENAT
-	    preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	    preserving_errno(fullpath = to_fullpath(&path, dp->path));
 #endif
 	    rb_sys_fail(fullpath);
 	}
@@ -2252,7 +2252,7 @@ rb_dir_mkdir(int argc, VALUE *argv, VALUE dir)
     GetDIR(dir, dp);
 #if USE_OPENAT
     if (mkdirat(dirfd(dp->dir), RSTRING_PTR(path), mode) == -1) {
-	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
 #else
@@ -2276,7 +2276,7 @@ rb_dir_unlink(VALUE dir, VALUE path)
     GetDIR(dir, dp);
 #if USE_OPENAT
     if (unlinkat(dirfd(dp->dir), RSTRING_PTR(path), 0) == -1) {
-	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
 #else
@@ -2321,7 +2321,7 @@ rb_dir_rmdir(VALUE dir, VALUE path)
     GetDIR(dir, dp);
 #if USE_OPENAT
     if (unlinkat(dirfd(dp->dir), RSTRING_PTR(path), AT_REMOVEDIR) == -1) {
-	preserving_errno(fullpath = to_fullpath(&path, rb_str_new2(dp->path)));
+	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
 #else

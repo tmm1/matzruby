@@ -212,7 +212,7 @@ gvar: $(LIBRUBY_A)
 	sed -e '/\.$(OBJEXT):$$/{p;d}' \
 	    -e '/.* [B-Db-d] /!d;s///' \
 	    -e '/^rb_intern_id_cache/d' \
-	    -e '/^id/d;/^sym/d;/^s_/d' \
+	    -e '/^vmkey_/d; /^id/d;/^sym/d;/^s_/d' \
 	    -e '/^Onig/d' \
 	    -e 's/\.[0-9][0-9]*$$/ #static#/' \
 	    -e 's/^/  /' \
