@@ -1,3 +1,7 @@
+Thu Jul 31 01:25:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (rb_mutex_unlock_all): mutex is no longer a ruby object.
+
 Thu Jul 31 01:11:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (ruby_vm_specific_ptr): fix for reallocation.
