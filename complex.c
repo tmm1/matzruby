@@ -1073,8 +1073,16 @@ numeric_to_c(VALUE self)
     return rb_complex_new1(self);
 }
 
-static VALUE comp_pat1, comp_pat2, a_slash, a_dot_and_an_e,
-    null_string, underscores_pat, an_underscore;
+static int vmkey_comp_pat1, vmkey_comp_pat2, vmkey_a_slash, vmkey_a_dot_and_an_e,
+    vmkey_null_string, vmkey_underscores_pat, vmkey_an_underscore;
+
+#define comp_pat1 *rb_vm_specific_ptr(vmkey_comp_pat1)
+#define comp_pat2 *rb_vm_specific_ptr(vmkey_comp_pat2)
+#define a_slash *rb_vm_specific_ptr(vmkey_a_slash)
+#define a_dot_and_an_e *rb_vm_specific_ptr(vmkey_a_dot_and_an_e)
+#define null_string *rb_vm_specific_ptr(vmkey_null_string)
+#define underscores_pat *rb_vm_specific_ptr(vmkey_underscores_pat)
+#define an_underscore *rb_vm_specific_ptr(vmkey_an_underscore)
 
 #define DIGITS "(?:\\d(?:_\\d|\\d)*)"
 #define NUMERATOR "(?:" DIGITS "?\\.)?" DIGITS "(?:[eE][-+]?" DIGITS ")?"
@@ -1091,7 +1099,15 @@ make_patterns(void)
     static const char comp_pat2_source[] = PATTERN2;
     static const char underscores_pat_source[] = "_+";
 
-    if (comp_pat1) return;
+    if (vmkey_comp_pat1) return;
+
+    vmkey_comp_pat1 = rb_vm_key_create();
+    vmkey_comp_pat2 = rb_vm_key_create();
+    vmkey_a_slash = rb_vm_key_create();
+    vmkey_a_dot_and_an_e = rb_vm_key_create();
+    vmkey_null_string = rb_vm_key_create();
+    vmkey_underscores_pat = rb_vm_key_create();
+    vmkey_an_underscore = rb_vm_key_create();
 
     comp_pat1 = rb_reg_new(comp_pat1_source, sizeof comp_pat1_source - 1, 0);
     rb_global_variable(&comp_pat1);

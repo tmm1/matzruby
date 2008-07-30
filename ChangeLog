@@ -1,4 +1,8 @@
-Thu Jul 31 01:33:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Thu Jul 31 01:36:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_file_s_join, Init_File): moved separator to VM.
+
+	* complex.c (make_patterns), rational.c (make_patterns): ditto.
 
 	* include/ruby/mvm.h (rb_thread_lock_t): needed for inter-VM lock.
 

@@ -3209,7 +3209,7 @@ rb_file_s_split(VALUE klass, VALUE path)
     return rb_assoc_new(rb_file_s_dirname(Qnil, path), rb_file_s_basename(1,&path));
 }
 
-static VALUE separator;
+static int vmkey_separator;
 
 static VALUE rb_file_join(VALUE ary, VALUE sep);
 
@@ -3292,7 +3292,7 @@ rb_file_join(VALUE ary, VALUE sep)
 static VALUE
 rb_file_s_join(VALUE klass, VALUE args)
 {
-    return rb_file_join(args, separator);
+    return rb_file_join(args, *rb_vm_specific_ptr(vmkey_separator));
 }
 
 /*
@@ -4663,6 +4663,8 @@ define_filetest_function(const char *name, VALUE (*func)(ANYARGS), int argc)
 void
 Init_File(void)
 {
+    VALUE separator;
+
     rb_mFileTest = rb_define_module("FileTest");
     rb_cFile = rb_define_class("File", rb_cIO);
 
@@ -4727,6 +4729,8 @@ Init_File(void)
     rb_define_singleton_method(rb_cFile, "path", rb_file_s_path, 1);
 
     separator = rb_obj_freeze(rb_usascii_str_new2("/"));
+    vmkey_separator = rb_vm_key_create();
+    *rb_vm_specific_ptr(vmkey_separator) = separator;
     rb_define_const(rb_cFile, "Separator", separator);
     rb_define_const(rb_cFile, "SEPARATOR", separator);
     rb_define_singleton_method(rb_cFile, "split",  rb_file_s_split, 1);

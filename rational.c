@@ -1228,7 +1228,14 @@ float_to_r(VALUE self)
 		 f_expt(INT2FIX(FLT_RADIX), RARRAY_PTR(a)[1]));
 }
 
-static VALUE rat_pat, an_e_pat, a_dot_pat, underscores_pat, an_underscore;
+static int vmkey_rat_pat, vmkey_an_e_pat, vmkey_a_dot_pat,
+    vmkey_underscores_pat, vmkey_an_underscore;
+
+#define rat_pat *rb_vm_specific_ptr(vmkey_rat_pat)
+#define an_e_pat *rb_vm_specific_ptr(vmkey_an_e_pat)
+#define a_dot_pat *rb_vm_specific_ptr(vmkey_a_dot_pat)
+#define underscores_pat *rb_vm_specific_ptr(vmkey_underscores_pat)
+#define an_underscore *rb_vm_specific_ptr(vmkey_an_underscore)
 
 #define DIGITS "(?:\\d(?:_\\d|\\d)*)"
 #define NUMERATOR "(?:" DIGITS "?\\.)?" DIGITS "(?:[eE][-+]?" DIGITS ")?"
@@ -1243,7 +1250,13 @@ make_patterns(void)
     static const char a_dot_pat_source[] = "\\.";
     static const char underscores_pat_source[] = "_+";
 
-    if (rat_pat) return;
+    if (vmkey_rat_pat) return;
+
+    vmkey_rat_pat = rb_vm_key_create();
+    vmkey_an_e_pat = rb_vm_key_create();
+    vmkey_a_dot_pat = rb_vm_key_create();
+    vmkey_underscores_pat = rb_vm_key_create();
+    vmkey_an_underscore = rb_vm_key_create();
 
     rat_pat = rb_reg_new(rat_pat_source, sizeof rat_pat_source - 1, 0);
     rb_global_variable(&rat_pat);
