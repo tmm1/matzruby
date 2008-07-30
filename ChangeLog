@@ -1,3 +1,246 @@
+Thu Jul 31 00:58:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* pack.c (pack_unpack): reduced static variables.
+
+Thu Jul 31 00:10:20 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* proc.c (rb_proc_call_with_block): prevent null reference.
+
+Wed Jul 30 22:19:13 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* parse.y (vtable_free): remove meaningless null check.
+
+Wed Jul 30 22:08:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* dir.c (struct dir_data): change path field char * to VALUE.
+	  (mark_dir): new function for mark path field.
+	  (free_dir): follow the path field change.
+	  (dir_s_alloc): ditto.
+	  (dir_initialize): ditto.
+	  (dir_s_open): ditto.
+	  (dir_inspect): ditto.
+	  (dir_path): return (duplicate of) the path field to preserve
+	  encoding.  [ruby-dev:35685]
+
+Wed Jul 30 22:06:56 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* string.c (sym_inspect): remove dead code.
+
+Wed Jul 30 21:32:52 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ChangeLog: fix wrong method name and add reference.
+
+Wed Jul 30 21:30:08 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* regparse.c (name_add): fix memory leak.
+
+Wed Jul 30 21:08:06 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* regparse.c (parse_exp): fix memory leak at Regexp.new("x{1,1}").
+
+Wed Jul 30 17:48:15 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_select): recalc the rest of timeout for each
+	  iterations.  [ruby-core:18015]
+
+Tue Jul 29 23:37:37 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* io.c (io_ungetc): raise NotImplementedError when ungetc is called
+	  against dummy encoding IO.  [ruby-dev:35686]
+
+	* io.c (rb_io_getline_1): ditto when gets with delimiter is called.
+
+	* io.c (io_getc): ditto when getc is called.
+
+	* test/ruby/test_io_m17n.rb (test_terminator_stateful_conversion,
+	  test_getc_stateful_conversion, test_ungetc_stateful_conversion):
+	  these tests should raise NotImplementedError.
+
+Tue Jul 29 22:55:34 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_io.rb (pipe): run reader thread and writer thread.
+
+Tue Jul 29 21:38:08 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/bigdecimal/bigdecimal.c (Init_bigdecimal): fix typo.
+
+Tue Jul 29 21:35:59 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/etc/test_etc.rb (test_passwd): age field may be string under
+	  some environments.
+
+Tue Jul 29 17:54:35 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* dir.c (char_casecmp): fix: return 0 if either of characters is NUL.
+
+Tue Jul 29 13:17:03 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/etc/test_etc.rb (test_getpwuid): fix for users whose uid is
+	  shared. 
+
+Tue Jul 29 05:37:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_find_file_ext, rb_find_file): explicit relative path
+	  which starts with "./" or "../" should be searched from cwd
+	  instead of load path.  [ruby-dev:35673]
+
+Tue Jul 29 02:39:46 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* math.c (math_atanh): raise EDOM on FreeBSD when atanh(1).
+
+	* math.c (math_log): ditto.
+
+	* math.c (math_log2): ditto.
+
+	* math.c (math_log10): ditto.
+
+	* test/ruby/test_math.rb: test for above.
+
+Tue Jul 29 01:41:15 2008  Tanaka Akira  <akr@fsij.org>
+
+	* dir.c (struct dir_data): intenc field removed.
+	  (dir_s_alloc): intenc initialization removed.
+	  (dir_initialize): :internal_encoding option removed.  dirname code
+	  conversion removed.
+	  (dir_enc_str): code conversion removed.
+	  [ruby-dev:35661]
+
+Mon Jul 28 21:32:17 2008  Kouhei Sutou  <kou@cozmixng.org>
+
+	* test/rss/: use PNG instead of zlib as binary data.
+
+Mon Jul 28 21:24:33 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* thread_win32.[ch] (cond_every_entry, rb_thread_cond_struct): reverted
+	  r18239 because r18245 made the changes unnecessary.
+
+	* thread.c (rb_mutex_struct): define after including thread_{pthread,
+	  win32}.c.
+
+Mon Jul 28 21:00:10 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_require.rb (test_require_too_long_filename):
+	  Kernel#require does not use dln_find_file_r (at r18242).
+
+Mon Jul 28 20:17:03 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* vm_core.h: move the definition of struct rb_mutex_struct.
+
+	* thread.c: ditto.
+
+Mon Jul 28 18:58:46 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* thread.c (mutex_unlock): fix typo.
+
+Mon Jul 28 18:15:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_find_file_ext, rb_find_file): not to split load path with
+	  path separator.  [ruby-Bugs-21356]
+
+Mon Jul 28 18:14:03 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* win32/win32.c (overlapped_socket_io, fcntl, rb_w32_close): must not
+	  pass a pointer to int which is smaller than st_data_t on mswin64.
+
+Mon Jul 28 16:49:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* win32/win32.c (CreateChild, overlapped_socket_io): suppress
+	  warnings.
+
+Mon Jul 28 16:06:36 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (MAXPATHLEN): define before use.
+
+Mon Jul 28 16:01:12 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* thread_win32.[ch] (cond_every_entry, rb_thread_cond_struct): moved
+	  the definitions from .c to .h because rb_thread_cond_struct is used
+	  in vm_core.h.
+
+Mon Jul 28 14:29:54 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dln.c (load_lib): use dln_find_file_r instead of dln_find_file.
+
+Mon Jul 28 00:18:47 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* vm_core.h, thread.c: It is now prohibited to use Data_Get_Struct in
+	  *_free against an object that is going to be free'ed.  So, change type
+	  of thread_t#keeping_mutexes from VALUE to mutex_t.
+
+	* vm.c: remove mark to keeping_mutexes.
+
+Sun Jul 27 23:32:42 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/openssl/test_ssl.rb (server_loop): rescue Errno::EINVAL and
+	  Errno::ECONNABORTED.
+
+Sun Jul 27 22:11:57 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* bootstraptests/method.rb: increase RLIMIT_STACK size to 4M+8Kbytes
+	  because FreeBSD fails this less than that.
+
+Sun Jul 27 21:45:59 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* gc.c (gc_mark_children, obj_free): T_DEFERRED should not be appear.
+
+	* gc.c (gc_sweep, finalize_list): fix to decrement heap_slot#limit
+	  after executing finalizer.
+
+Sun Jul 27 14:48:37 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* include/ruby/ruby.h: add a type T_DEFERRED.
+
+	* gc.c: fix deferred finalizer system.  finalize processes of
+	  T_DATA and T_FILE are executed after gc process.
+	  And fix to use BUILTIN_TYPE() instead of seeing flag.
+
+	* thread.c, vm_core.h: add RUBY_VM_SET_FINALIZER_INTERRUPT()
+	  and check intterupt_flag at rb_thread_execute_interrupts().
+
+	* thread.c (mutex_mark): fix to mark next_mutex.
+
+	* vm.c (rb_thread_mark): fix to mark keeping_mutexes.
+
+Sun Jul 27 09:15:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dln.h (dln_find_exe, dln_find_file): deprecated, use reentrant
+	  versions instead.
+
+Sun Jul 27 09:02:32 2008  Masatoshi SEKI  <m_seki@mva.biglobe.ne.jp>
+
+	* lib/rinda/tuplespace.rb: merged from 1.8.
+
+	* test/rinda/test_rinda.rb: merged from 1.8.
+
+Sat Jul 26 22:45:18 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* sample/exyacc.rb: fixed NoMethodError(Kernel#sub!).
+	  replaced use of special variables with explicit IO 
+	  operations.
+
+Sat Jul 26 21:17:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (Init_win32ole): add
+	  WIN32OLE_EVENT#handler=, WIN32OLE_EVENT#handler
+
+	* test/win32ole/test_win32ole_event.rb: ditto.
+
+Sat Jul 26 07:44:14 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (add_event_call_back): remove unused 
+	  variable.
+
+Fri Jul 25 23:48:10 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (gc_sweep, obj_free, run_final): defer finalizers of IO and
+	  Data.  [ruby-dev:35578]
+
+Fri Jul 25 23:35:18 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/webrick/httputils.rb (WEBrick::HTTPUtils#split_header_value):
+	  reduce backtrack.  based on a fix by Christian Neukirchen
+	  <chneukirchen AT gmail.com>.
+
 Fri Jul 25 23:24:07 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread_pthread.c (get_stack): subtract guard size.
@@ -12,6 +255,35 @@ Fri Jul 25 23:24:07 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* signal.c (sigsegv): use ruby_stack_overflowed_p.
 
+Fri Jul 25 21:55:38 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/enc/test_koi8.rb: move from test/ruby/test_koi8.rb.
+
+Fri Jul 25 21:09:32 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (ole_invoke, add_event_callback,
+	  rescue_callback): refactoring.
+
+Fri Jul 25 20:52:44 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/err_in_callback.rb : add test of raising
+	  exception in WIN32OLE_EVENT callback.
+
+	* test/win32ole/test_err_in_callback.rb : ditto.
+
+Fri Jul 25 20:43:57 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (Init_win32ole): add
+	  WIN32OLE_EVENT#off_event.
+
+	* test/win32ole/test_win32ole_event.rb: ditto.
+
+	* test/win32ole/test_win32ole_event.rb: some refactoring.
+
+Fri Jul 25 19:50:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* regint.c (xmalloc, xrealloc, xfree): not to use ruby managed memory.
+
 Fri Jul 25 16:21:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* include/ruby/io.h (ruby_absolute_path_p): published.
@@ -21,6 +293,11 @@ Fri Jul 25 16:21:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* thread.c (ruby_thread_getcwd): fix for non-openat platforms.
 
 	* util.c (ruby_sys_getcwd): renamed and reverted.
+
+Fri Jul 25 15:52:40 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* vm.c (vm_invoke_proc): skip setting safe_level if
+	  it from bmethod.  This change makes test/ruby/test_proc.rb pass.
 
 Fri Jul 25 10:00:00 2008  Martin Duerst  <duerst@it.aoyama.ac.jp>
 
@@ -1852,8 +2129,8 @@ Fri Jun 20 03:26:00 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 
 Fri Jun 20 03:19:39 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 
-	* test/testunit/collector/test_dir.rb: r15825 made it unnecessary to change
-	  String to Symbol.
+	* test/testunit/collector/test_dir.rb: r15825 made it unnecessary to
+	  change String to Symbol.
 
 	* test/testunit/collector/test_objectspace.rb: ditto.
 

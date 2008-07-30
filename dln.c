@@ -348,14 +348,14 @@ sym_hash(struct exec *hdrp, struct nlist *syms)
 static int
 dln_init(const char *prog)
 {
-    char *file;
+    char *file, fbuf[MAXPATHLEN];
     int fd;
     struct exec hdr;
     struct nlist *syms;
 
     if (dln_init_p == 1) return 0;
 
-    file = dln_find_exe(prog, NULL);
+    file = dln_find_exe_r(prog, NULL, fbuf, sizeof(fbuf));
     if (file == NULL || (fd = open(file, O_RDONLY)) < 0) {
 	dln_errno = errno;
 	return -1;
@@ -911,7 +911,7 @@ char *dln_librrb_ary_path = DLN_DEFAULT_LIB_PATH;
 static int
 load_lib(const char *lib)
 {
-    char *path, *file;
+    char *path, *file, fbuf[MAXPATHLEN];
     char armagic[SARMAG];
     int fd, size;
     struct ar_hdr ahdr;
@@ -942,7 +942,7 @@ load_lib(const char *lib)
     path = getenv("DLN_LIBRARY_PATH");
     if (path == NULL) path = dln_librrb_ary_path;
 
-    file = dln_find_file(lib, path);
+    file = dln_find_file_r(lib, path, fbuf, sizeof(fbuf));
     fd = open(file, O_RDONLY);
     if (fd == -1) goto syserr;
     size = read(fd, armagic, SARMAG);

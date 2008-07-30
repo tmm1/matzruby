@@ -59,7 +59,6 @@ static double timeofday(void);
 struct timeval rb_time_interval(VALUE);
 static int rb_thread_dead(rb_thread_t *th);
 
-static void rb_mutex_unlock_all(VALUE);
 static void rb_check_deadlock(rb_vm_t *vm);
 
 void rb_signal_exec(rb_thread_t *th, int sig);
@@ -272,6 +271,17 @@ terminate_i(st_data_t key, st_data_t val, rb_thread_t *main_thread)
     return ST_CONTINUE;
 }
 
+typedef struct rb_mutex_struct
+{
+    rb_thread_lock_t lock;
+    rb_thread_cond_t cond;
+    struct rb_thread_struct volatile *th;
+    volatile int cond_waiting, cond_notified;
+    struct rb_mutex_struct *next_mutex;
+} mutex_t;
+
+static void rb_mutex_unlock_all(mutex_t *mutex);
+
 void
 rb_thread_terminate_all(void)
 {
@@ -413,7 +423,7 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 	/* unlock all locking mutexes */
 	if (th->keeping_mutexes) {
 	    rb_mutex_unlock_all(th->keeping_mutexes);
-	    th->keeping_mutexes = Qfalse;
+	    th->keeping_mutexes = NULL;
 	}
 
 	/* delete self from living_threads */
@@ -950,8 +960,12 @@ void
 rb_thread_execute_interrupts(rb_thread_t *th)
 {
     if (th->raised_flag) return;
+
     while (th->interrupt_flag) {
 	enum rb_thread_status status = th->status;
+	int timer_interrupt = th->interrupt_flag & 0x01;
+	int finalizer_interrupt = th->interrupt_flag & 0x04;
+
 	th->status = THREAD_RUNNABLE;
 	th->interrupt_flag = 0;
 
@@ -981,10 +995,15 @@ rb_thread_execute_interrupts(rb_thread_t *th)
 	}
 	th->status = status;
 
-	/* thread pass */
-	rb_thread_schedule();
+	if (finalizer_interrupt) {
+	    rb_gc_finalize_deferred();
+	}
+
+	if (timer_interrupt) {
+	    EXEC_EVENT_HOOK(th, RUBY_EVENT_SWITCH, th->cfp->self, 0, 0);
+	    rb_thread_schedule();
+	}
     }
-    EXEC_EVENT_HOOK(th, RUBY_EVENT_SWITCH, th->cfp->self, 0, 0);
 }
 
 
@@ -1956,7 +1975,7 @@ cmp_tv(const struct timeval *a, const struct timeval *b)
 }
 
 static int
-subst(struct timeval *rest, const struct timeval *wait)
+subtract_tv(struct timeval *rest, const struct timeval *wait)
 {
     while (rest->tv_usec < wait->tv_usec) {
 	if (rest->tv_sec <= wait->tv_sec) {
@@ -1981,10 +2000,18 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 #ifndef linux
     double limit = 0;
     struct timeval wait_rest;
+# if defined(__CYGWIN__) || defined(_WIN32)
+    struct timeval start_time;
+# endif
 
     if (timeout) {
-	limit = timeofday() +
-	  (double)timeout->tv_sec+(double)timeout->tv_usec*1e-6;
+# if defined(__CYGWIN__) || defined(_WIN32)
+	gettimeofday(&start_time, NULL);
+	limit = (double)start_time.tv_sec + (double)start_time.tv_usec*1e-6;
+# else
+	limit = timeofday();
+# endif
+	limit += (double)timeout->tv_sec+(double)timeout->tv_usec*1e-6;
 	wait_rest = *timeout;
 	timeout = &wait_rest;
     }
@@ -1999,6 +2026,7 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 
 #if defined(__CYGWIN__) || defined(_WIN32)
     {
+	int finish = 0;
 	/* polling duration: 100ms */
 	struct timeval wait_100ms, *wait;
 	wait_100ms.tv_sec = 0;
@@ -2016,9 +2044,19 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 		    if (write) *write = orig_write;
 		    if (except) *except = orig_except;
 		    wait = &wait_100ms;
-		} while (__th->interrupt_flag == 0 && (timeout == 0 || subst(timeout, &wait_100ms)));
+		    if (timeout) {
+			struct timeval elapsed;
+			gettimeofday(&elapsed, NULL);
+			subtract_tv(&elapsed, &start_time);
+			if (!subtract_tv(timeout, &elapsed)) {
+			    finish = 1;
+			    break;
+			}
+			if (cmp_tv(&wait_100ms, timeout) < 0) wait = timeout;
+		    }
+		} while (__th->interrupt_flag == 0);
 	    }, 0, 0);
-	} while (result == 0 && (timeout == 0 || subst(timeout, &wait_100ms)));
+	} while (result == 0 && !finish);
     }
 #else
     BLOCKING_REGION({
@@ -2493,29 +2531,10 @@ thgroup_add(VALUE group, VALUE thread)
  *
  */
 
-typedef struct mutex_struct {
-    rb_thread_lock_t lock;
-    rb_thread_cond_t cond;
-    rb_thread_t volatile *th;
-    volatile int cond_waiting, cond_notified;
-    VALUE next_mutex;
-} mutex_t;
-
 #define GetMutexPtr(obj, tobj) \
   Data_Get_Struct(obj, mutex_t, tobj)
 
 static const char *mutex_unlock(mutex_t *mutex);
-
-static void
-mutex_mark(void *ptr)
-{
-    if (ptr) {
-	mutex_t *mutex = ptr;
-	if (mutex->th) {
-	    rb_gc_mark(mutex->th->self);
-	}
-    }
-}
 
 static void
 mutex_free(void *ptr)
@@ -2542,7 +2561,7 @@ mutex_alloc(VALUE klass)
     VALUE volatile obj;
     mutex_t *mutex;
 
-    obj = Data_Make_Struct(klass, mutex_t, mutex_mark, mutex_free, mutex);
+    obj = Data_Make_Struct(klass, mutex_t, NULL, mutex_free, mutex);
     native_mutex_initialize(&mutex->lock);
     native_cond_initialize(&mutex->cond);
     return obj;
@@ -2583,12 +2602,13 @@ rb_mutex_locked_p(VALUE self)
 static void
 mutex_locked(rb_thread_t *th, VALUE self)
 {
+    mutex_t *mutex;
+    GetMutexPtr(self, mutex);
+
     if (th->keeping_mutexes) {
-	mutex_t *mutex;
-	GetMutexPtr(self, mutex);
 	mutex->next_mutex = th->keeping_mutexes;
     }
-    th->keeping_mutexes = self;
+    th->keeping_mutexes = mutex;
 }
 
 /*
@@ -2754,14 +2774,14 @@ mutex_unlock(mutex_t *mutex)
     native_mutex_unlock(&mutex->lock);
 
     if (!err) {
-	GetMutexPtr(th->keeping_mutexes, th_mutex);
+	th_mutex = th->keeping_mutexes;
 	if (th_mutex == mutex) {
 	    th->keeping_mutexes = mutex->next_mutex;
 	}
 	else {
 	    while (1) {
 		mutex_t *tmp_mutex;
-		GetMutexPtr(th_mutex->next_mutex, tmp_mutex);
+		tmp_mutex = th_mutex->next_mutex;
 		if (tmp_mutex == mutex) {
 		    th_mutex->next_mutex = tmp_mutex->next_mutex;
 		    break;
@@ -2769,7 +2789,7 @@ mutex_unlock(mutex_t *mutex)
 		th_mutex = tmp_mutex;
 	    }
 	}
-	mutex->next_mutex = Qfalse;
+	mutex->next_mutex = NULL;
     }
 
     return err;
@@ -2796,13 +2816,13 @@ rb_mutex_unlock(VALUE self)
 }
 
 static void
-rb_mutex_unlock_all(VALUE mutexes)
+rb_mutex_unlock_all(mutex_t *mutexes)
 {
     const char *err;
     mutex_t *mutex;
 
     while (mutexes) {
-	GetMutexPtr(mutexes, mutex);
+	mutex = mutexes;
 	rb_warn("mutex #<%s:%p> remains to be locked by terminated thread",
 		rb_obj_classname(mutexes), (void*)mutexes);
 	mutexes = mutex->next_mutex;

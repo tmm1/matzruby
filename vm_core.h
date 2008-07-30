@@ -419,6 +419,8 @@ struct rb_unblock_callback {
     void *arg;
 };
 
+struct rb_mutex_struct;
+
 struct rb_thread_struct
 {
     VALUE self;
@@ -466,7 +468,7 @@ struct rb_thread_struct
     rb_thread_lock_t interrupt_lock;
     struct rb_unblock_callback unblock;
     VALUE locking_mutex;
-    VALUE keeping_mutexes;
+    struct rb_mutex_struct *keeping_mutexes;
     int transition_for_lock;
 
     struct rb_vm_tag *tag;
@@ -726,12 +728,13 @@ int ruby_thread_set_native(rb_thread_t *th);
 
 #define RUBY_VM_SET_INTERRUPT(th) ((th)->interrupt_flag |= 0x02)
 #define RUBY_VM_SET_TIMER_INTERRUPT(th) ((th)->interrupt_flag |= 0x01)
+#define RUBY_VM_SET_FINALIZER_INTERRUPT(th) ((th)->interrupt_flag |= 0x04)
 #define RUBY_VM_INTERRUPTED(th) ((th)->interrupt_flag & 0x02)
 
 void rb_thread_execute_interrupts(rb_thread_t *);
 
 #define RUBY_VM_CHECK_INTS_TH(th) do { \
-  if(th->interrupt_flag){ \
+  if (th->interrupt_flag) { \
     /* TODO: trap something event */ \
     rb_thread_execute_interrupts(th); \
   } \

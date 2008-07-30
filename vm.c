@@ -508,7 +508,9 @@ vm_invoke_proc(rb_thread_t *th, rb_proc_t *proc, VALUE self,
 
     TH_PUSH_TAG(th);
     if ((state = EXEC_TAG()) == 0) {
-	th->safe_level = proc->safe_level;
+	if (!proc->is_from_method) {
+	    th->safe_level = proc->safe_level;
+	}
 	val = invoke_block_from_c(th, &proc->block, self, argc, argv, blockptr, 0);
     }
     TH_POP_TAG();
@@ -1474,7 +1476,7 @@ thread_free(void *ptr)
 	if (th->locking_mutex != Qfalse) {
 	    rb_bug("thread_free: locking_mutex must be NULL (%p:%ld)", th, th->locking_mutex);
 	}
-	if (th->keeping_mutexes != Qfalse) {
+	if (th->keeping_mutexes != NULL) {
 	    rb_bug("thread_free: keeping_mutexes must be NULL (%p:%ld)", th, th->locking_mutex);
 	}
 

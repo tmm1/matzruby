@@ -916,6 +916,12 @@ rb_w32_aspawn(int mode, const char *prog, char *const *argv)
     return rb_w32_spawn(mode, rb_w32_join_argv(cmd, argv), prog);
 }
 
+#ifdef HAVE_SYS_PARAM_H
+# include <sys/param.h>
+#else
+# define MAXPATHLEN 512
+#endif
+
 static struct ChildRecord *
 CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
 	    HANDLE hInput, HANDLE hOutput, HANDLE hError)
@@ -928,6 +934,7 @@ CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
     const char *shell;
     struct ChildRecord *child;
     char *p = NULL;
+    char fbuf[MAXPATHLEN];
 
     if (!cmd && !prog) {
 	errno = EFAULT;
@@ -975,7 +982,7 @@ CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
     dwCreationFlags = (NORMAL_PRIORITY_CLASS);
 
     if (prog) {
-	if (!(p = dln_find_exe(prog, NULL))) {
+	if (!(p = dln_find_exe_r(prog, NULL, fbuf, sizeof(fbuf)))) {
 	    shell = prog;
 	}
     }
@@ -1014,7 +1021,7 @@ CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
 	    prog = cmd;
 	    for (;;) {
 		if (!*prog) {
-		    p = dln_find_exe(cmd, NULL);
+		    p = dln_find_exe_r(cmd, NULL, fbuf, sizeof(fbuf));
 		    break;
 		}
 		if (strchr(".:*?\"/\\", *prog)) {
@@ -1031,7 +1038,7 @@ CreateChild(const char *cmd, const char *prog, SECURITY_ATTRIBUTES *psa,
 		    p = ALLOCA_N(char, len + 1);
 		    memcpy(p, cmd, len);
 		    p[len] = 0;
-		    p = dln_find_exe(p, NULL);
+		    p = dln_find_exe_r(p, NULL, fbuf, sizeof(fbuf));
 		    break;
 		}
 		prog++;
@@ -1105,12 +1112,6 @@ insert(const char *path, VALUE vinfo, void *enc)
 
     return 0;
 }
-
-#ifdef HAVE_SYS_PARAM_H
-# include <sys/param.h>
-#else
-# define MAXPATHLEN 512
-#endif
 
 
 static NtCmdLineElement **
@@ -2142,7 +2143,7 @@ do_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 }
 
 static inline int
-subst(struct timeval *rest, const struct timeval *wait)
+subtract(struct timeval *rest, const struct timeval *wait)
 {
     while (rest->tv_usec < wait->tv_usec) {
 	if (rest->tv_sec <= wait->tv_sec) {
@@ -2173,7 +2174,7 @@ compare(const struct timeval *t1, const struct timeval *t2)
 #undef Sleep
 int WSAAPI
 rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
-	       struct timeval *timeout)
+	      struct timeval *timeout)
 {
     int r;
     fd_set pipe_rd;
@@ -2182,11 +2183,29 @@ rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
     fd_set else_wr;
     fd_set except;
     int nonsock = 0;
+    struct timeval limit;
 
     if (nfds < 0 || (timeout && (timeout->tv_sec < 0 || timeout->tv_usec < 0))) {
 	errno = EINVAL;
 	return -1;
     }
+
+    if (timeout) {
+	if (timeout->tv_sec < 0 ||
+	    timeout->tv_usec < 0 ||
+	    timeout->tv_usec >= 1000000) {
+	    errno = EINVAL;
+	    return -1;
+	}
+	gettimeofday(&limit, NULL);
+	limit.tv_sec += timeout->tv_sec;
+	limit.tv_usec += timeout->tv_usec;
+	if (limit.tv_usec >= 1000000) {
+	    limit.tv_usec -= 1000000;
+	    limit.tv_sec++;
+	}
+    }
+
     if (!NtSocketsInitialized) {
 	StartSockets();
     }
@@ -2222,10 +2241,9 @@ rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 	struct timeval rest;
 	struct timeval wait;
 	struct timeval zero;
-	if (timeout) rest = *timeout;
 	wait.tv_sec = 0; wait.tv_usec = 10 * 1000; // 10ms
 	zero.tv_sec = 0; zero.tv_usec = 0;         //  0ms
-	do {
+	for (;;) {
 	    if (nonsock) {
 		// modifying {else,pipe,cons}_rd is safe because
 		// if they are modified, function returns immediately.
@@ -2241,8 +2259,7 @@ rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 		break;
 	    }
 	    else {
-		struct timeval *dowait =
-		    compare(&rest, &wait) < 0 ? &rest : &wait;
+		struct timeval *dowait = &wait;
 
 		fd_set orig_rd;
 		fd_set orig_wr;
@@ -2256,10 +2273,16 @@ rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 		if (wr) *wr = orig_wr;
 		if (ex) *ex = orig_ex;
 
-		// XXX: should check the time select spent
+		if (timeout) {
+		    struct timeval now;
+		    gettimeofday(&now, NULL);
+		    rest = limit;
+		    if (!subtract(&rest, &now)) break;
+		    if (compare(&rest, &wait) < 0) dowait = &rest;
+		}
 		Sleep(dowait->tv_sec * 1000 + dowait->tv_usec / 1000);
 	    }
-	} while (!timeout || subst(&rest, &wait));
+	}
     }
 
     return r;
@@ -2431,7 +2454,8 @@ overlapped_socket_io(BOOL input, int fd, char *buf, int len, int flags,
     int r;
     int ret;
     int mode;
-    int flg;
+    st_data_t data;
+    DWORD flg;
     WSAOVERLAPPED wol;
     WSABUF wbuf;
     int err;
@@ -2441,7 +2465,8 @@ overlapped_socket_io(BOOL input, int fd, char *buf, int len, int flags,
 	StartSockets();
 
     s = TO_SOCKET(fd);
-    st_lookup(socklist, (st_data_t)s, (st_data_t *)&mode);
+    st_lookup(socklist, (st_data_t)s, &data);
+    mode = (int)data;
     if (!cancel_io || (mode & O_NONBLOCK)) {
 	RUBY_CRITICAL({
 	    if (input) {
@@ -2919,6 +2944,7 @@ fcntl(int fd, int cmd, ...)
     int arg;
     int ret;
     int flag = 0;
+    st_data_t data;
     u_long ioctlArg;
 
     if (!is_socket(sock)) {
@@ -2933,7 +2959,8 @@ fcntl(int fd, int cmd, ...)
     va_start(va, cmd);
     arg = va_arg(va, int);
     va_end(va);
-    st_lookup(socklist, (st_data_t)sock, (st_data_t*)&flag);
+    st_lookup(socklist, (st_data_t)sock, &data);
+    flag = (int)data;
     if (arg & O_NONBLOCK) {
 	flag |= O_NONBLOCK;
 	ioctlArg = 1;
@@ -3583,7 +3610,7 @@ truncate(const char *path, off_t length)
     HANDLE h;
     int ret;
     if (IsWin95()) {
-	int fd = open(path, O_WRONLY), e;
+	int fd = open(path, O_WRONLY), e = 0;
 	if (fd == -1) return -1;
 	ret = chsize(fd, (unsigned long)length);
 	if (ret == -1) e = errno;
@@ -3985,13 +4012,16 @@ rb_w32_close(int fd)
 {
     SOCKET sock = TO_SOCKET(fd);
     int save_errno = errno;
+    st_data_t key;
 
     if (!is_socket(sock)) {
 	UnlockFile((HANDLE)sock, 0, 0, LK_LEN, LK_LEN);
 	return _close(fd);
     }
     _set_osfhnd(fd, (SOCKET)INVALID_HANDLE_VALUE);
-    st_delete(socklist, (st_data_t *)&sock, NULL);
+    key = (st_data_t)sock;
+    st_delete(socklist, &key, NULL);
+    sock = (SOCKET)key;
     _close(fd);
     errno = save_errno;
     if (closesocket(sock) == SOCKET_ERROR) {

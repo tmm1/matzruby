@@ -18,7 +18,7 @@ class TestEtc < Test::Unit::TestCase
       assert_instance_of(String, s.shell)
       assert_kind_of(Integer, s.change) if s.respond_to?(:change)
       assert_kind_of(Integer, s.quota) if s.respond_to?(:quota)
-      assert_kind_of(Integer, s.age) if s.respond_to?(:age)
+      assert(s.age.is_a?(Integer) || s.age.is_a?(String)) if s.respond_to?(:age)
       assert_instance_of(String, s.uclass) if s.respond_to?(:uclass)
       assert_instance_of(String, s.comment) if s.respond_to?(:comment)
       assert_kind_of(Integer, s.expire) if s.respond_to?(:expire)
@@ -28,9 +28,9 @@ class TestEtc < Test::Unit::TestCase
   end
 
   def test_getpwuid
-    passwd = []
-    Etc.passwd {|s| passwd << s }
-    passwd.each do |s|
+    passwd = {}
+    Etc.passwd {|s| passwd[s.uid] = s unless passwd[s.uid] }
+    passwd.values.each do |s|
       assert_equal(s, Etc.getpwuid(s.uid))
       assert_equal(s, Etc.getpwuid) if Etc.getlogin == s.name
     end
