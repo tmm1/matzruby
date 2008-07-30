@@ -3700,7 +3700,7 @@ static struct {
     int last;
 } specific_key = {
     RB_THREAD_LOCK_INITIALIZER,
-    ruby_builtin_object_count + 8,
+    (ruby_builtin_object_count + 8) & ~7,
 };
 
 int
@@ -3723,13 +3723,16 @@ VALUE *
 ruby_vm_specific_ptr(rb_vm_t *vm, int key)
 {
     VALUE *ptr;
+    long len;
 
     ptr = vm->specific_storage.ptr;
-    if (!ptr || vm->specific_storage.len <= key) {
-	ptr = realloc(vm->specific_storage.ptr, sizeof(VALUE) * (key + 1));
+    len = vm->specific_storage.len;
+    if (!ptr || len <= key) {
+	long newlen = (key + 8) & ~7;
+	ptr = realloc(ptr, sizeof(VALUE) * newlen);
 	vm->specific_storage.ptr = ptr;
-	MEMZERO(ptr, VALUE, key + 1 - vm->specific_storage.len);
-	vm->specific_storage.len = key + 1;
+	vm->specific_storage.len = newlen;
+	MEMZERO(ptr + len, VALUE, newlen - len);
     }
     return &ptr[key];
 }
