@@ -1149,6 +1149,18 @@ infected_str_new(const char *ptr, long len, VALUE str)
     return s;
 }
 
+static int
+b64_xtable_once(volatile signed char *init, rb_thread_lock_t *lock)
+{
+    signed char t;
+    while ((t = *init) < 0 && (ruby_native_thread_yield(), 1));
+    if (t > 0) return 0;
+    ruby_native_thread_lock(lock);
+    if (*init <= 0) return 1;
+    ruby_native_thread_unlock(lock);
+    return 0;
+}
+
 /*
  *  call-seq:
  *     str.unpack(format)   => anArray
@@ -1788,8 +1800,9 @@ pack_unpack(VALUE str, VALUE fmt)
 		char *ptr = RSTRING_PTR(buf);
 		int a = -1,b = -1,c = 0,d;
 		static signed char b64_xtable[256];
+		static rb_thread_lock_t b64_xtable_lock = RB_THREAD_LOCK_INITIALIZER;
 
-		if (b64_xtable['/'] <= 0) {
+		if (b64_xtable_once(&b64_xtable['/'], &b64_xtable_lock)) {
 		    int i;
 
 		    for (i = 0; i < 256; i++) {
@@ -1798,6 +1811,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    for (i = 0; i < 64; i++) {
 			b64_xtable[(unsigned char)b64_table[i]] = i;
 		    }
+		    ruby_native_thread_unlock(&b64_xtable_lock);
 		}
 		while (s < send) {
 		    a = b = c = d = -1;

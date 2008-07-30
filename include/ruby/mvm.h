@@ -14,6 +14,25 @@
 
 #define HAVE_MVM 1
 
+#if defined(_WIN32)
+/* Win32 thread */
+typedef CRITICAL_SECTION rb_thread_lock_t;
+#define RB_THREAD_LOCK_INITIALIZER {}
+int ruby_native_thread_lock(rb_thread_lock_t*);
+int ruby_native_thread_unlock(rb_thread_lock_t*);
+int ruby_native_thread_yield(void);
+
+#elif defined(HAVE_PTHREAD_H)
+/* pthread */
+#include <pthread.h>
+typedef pthread_mutex_t rb_thread_lock_t;
+#define RB_THREAD_LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#define ruby_native_thread_lock(lock) pthread_mutex_lock(lock)
+#define ruby_native_thread_unlock(lock) pthread_mutex_unlock(lock)
+#define ruby_native_thread_yield() sched_yield()
+
+#endif
+
 typedef struct rb_vm_struct rb_vm_t;
 typedef struct rb_thread_struct rb_thread_t;
 

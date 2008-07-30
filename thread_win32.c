@@ -44,6 +44,13 @@ ruby_thread_set_native(rb_thread_t *th)
     return TlsSetValue(ruby_native_thread_key, th);
 }
 
+int
+ruby_native_thread_yield(void)
+{
+    native_thread_yield();
+    return 0;
+}
+
 static void
 Init_native_thread(void)
 {

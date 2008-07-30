@@ -1,3 +1,11 @@
+Thu Jul 31 01:33:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/mvm.h (rb_thread_lock_t): needed for inter-VM lock.
+
+	* io.c (max_file_descriptor_lock): should be initialized.
+
+	* pack.c (pack_unpack): lock for MVM.
+
 Thu Jul 31 01:25:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_mutex_unlock_all): mutex is no longer a ruby object.

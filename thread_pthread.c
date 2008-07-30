@@ -128,7 +128,7 @@ native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 
 #define native_cleanup_push pthread_cleanup_push
 #define native_cleanup_pop  pthread_cleanup_pop
-#define native_thread_yield() sched_yield()
+#define native_thread_yield() ruby_native_thread_yield()
 
 #ifndef __CYGWIN__
 static void add_signal_thread_list(rb_thread_t *th);

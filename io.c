@@ -137,7 +137,7 @@ struct argf {
 };
 
 static int max_file_descriptor = NOFILE;
-static rb_thread_lock_t max_file_descriptor_lock;
+static rb_thread_lock_t max_file_descriptor_lock = RB_THREAD_LOCK_INITIALIZER;
 #define UPDATE_MAXFD(fd) \
     do { \
 	ruby_native_thread_lock(&max_file_descriptor_lock); \
