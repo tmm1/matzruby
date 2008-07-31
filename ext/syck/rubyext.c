@@ -104,7 +104,7 @@ rb_syck_compile(VALUE self, VALUE port)
     char *ret;
     VALUE bc;
     bytestring_t *sav = NULL;
-    void *data;
+    void *data = NULL;
 
     SyckParser *parser = syck_new_parser();
     taint = syck_parser_assign_io(parser, &port);
@@ -113,7 +113,10 @@ rb_syck_compile(VALUE self, VALUE port)
     syck_parser_implicit_typing( parser, 0 );
     syck_parser_taguri_expansion( parser, 0 );
     oid = syck_parse( parser );
-    if (syck_lookup_sym( parser, oid, &data )) sav = data;
+    if (!syck_lookup_sym( parser, oid, &data )) {
+	rb_raise(rb_eSyntaxError, "root node <%lx> not found", oid);
+    }
+    sav = data;
 
     ret = S_ALLOCA_N( char, strlen( sav->buffer ) + 3 );
     ret[0] = '\0';
@@ -643,7 +646,7 @@ rb_syck_err_handler(SyckParser *p, const char *msg)
         endl++;
 
     endl[0] = '\0';
-    rb_raise(rb_eArgError, "%s on line %d, col %d: `%s'",
+    rb_raise(rb_eArgError, "%s on line %d, col %"PRIdPTRDIFF": `%s'",
            msg,
            p->linect,
            p->cursor - p->lineptr, 

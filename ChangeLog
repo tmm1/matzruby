@@ -1,3 +1,26 @@
+Thu Jul 31 11:31:29 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/syck/syck.h (ASSERT): fix typo at r18176.
+
+	* ext/syck/rubyext.c (rb_syck_compile): expression in ASSERT() has no
+	  effect unless debug mode.
+
+Thu Jul 31 10:51:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* iseq.c (ruby_iseq_disasm_insn): suppress warnings on platforms which
+	  int size differs from pointer size.
+
+	* ext/openssl/ossl_asn1.c (ossl_asn1_get_asn1type): ditto
+
+	* ext/syck/rubyext.c (rb_syck_err_handler),
+	  (syck_default_error_handler): ditto.
+
+Thu Jul 31 02:21:39 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/syck/rubyext.c (rb_syck_compile): remove meaningless branch
+	  that misleads into thinking that the variable sav may be
+	  uninitialized.
+
 Thu Jul 31 01:36:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* file.c (rb_file_s_join, Init_File): moved separator to VM.

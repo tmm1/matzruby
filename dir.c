@@ -1966,7 +1966,7 @@ apply2filesat(struct dir_data *dp, int (*func)(int, const char *, void *),
 #if USE_OPENAT
     base = dirfd(dp->dir);
 #else
-    basepath = rb_str_new2(dp->path);
+    basepath = dp->path;
 #ifdef AT_FDCWD
     base = AT_FDCWD;
 #else
@@ -2256,7 +2256,7 @@ rb_dir_mkdir(int argc, VALUE *argv, VALUE dir)
 	rb_sys_fail(fullpath);
     }
 #else
-    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    fullpath = to_fullpath(&path, dp->path);
     if (mkdir(fullpath, mode) == -1) {
 	rb_sys_fail(fullpath);
     }
@@ -2280,7 +2280,7 @@ rb_dir_unlink(VALUE dir, VALUE path)
 	rb_sys_fail(fullpath);
     }
 #else
-    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    fullpath = to_fullpath(&path, dp->path);
     if (unlink(fullpath) == -1) {
 	rb_sys_fail(fullpath);
     }
@@ -2303,7 +2303,7 @@ rb_dir_chdir(int argc, VALUE *argv, VALUE dir)
 #if USE_OPENAT
     if (fchdir(dirfd(dp->dir))) rb_sys_fail(0);
 #else
-    path = rb_file_expand_path(path, rb_str_new2(dp->path));
+    path = rb_file_expand_path(path, dp->path);
 #endif
     if (chdir(RSTRING_PTR(path))) rb_sys_fail(0);
 
@@ -2325,7 +2325,7 @@ rb_dir_rmdir(VALUE dir, VALUE path)
 	rb_sys_fail(fullpath);
     }
 #else
-    fullpath = to_fullpath(&path, rb_str_new2(dp->path));
+    fullpath = to_fullpath(&path, dp->path);
     if (rmdir(fullpath) == -1) {
 	rb_sys_fail(fullpath);
     }
