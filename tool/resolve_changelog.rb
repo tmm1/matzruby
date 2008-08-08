@@ -1,13 +1,13 @@
 #! /usr/bin/ruby
 
-ChangeLog ||= "ChangeLog"
+defined?(ChangeLog) or ChangeLog = "ChangeLog"
 class << ChangeLog
   require 'date'
 
   module Reader
-    CONFLICT_BEGIN = "\n<<<<<<<".frozen
-    CONFLICT_SEP = "\n=======".frozen
-    CONFLICT_END = "\n>>>>>>>".frozen
+    CONFLICT_BEGIN = "\n<<<<<<<".freeze
+    CONFLICT_SEP = "\n=======".freeze
+    CONFLICT_END = "\n>>>>>>>".freeze
     LOGENTRY_PAT = /([A-Z][a-z]{2} [A-Z][a-z]{2} [ 1-9]\d \d\d:\d\d:\d\d \d{4})  .*>(?:\n(?:\t.*)?)+\n\n/
 
     def split_entry(ents)

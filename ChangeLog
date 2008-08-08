@@ -1,3 +1,7 @@
+Fri Aug  8 13:04:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/resolve_changelog.rb (ChangeLog.Reader): fixed typo.
+
 Thu Jul 31 14:11:00 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/resolve_changelog.rb: extracted from tool/merge_from_trunk.rb.
