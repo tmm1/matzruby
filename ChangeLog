@@ -1,3 +1,8 @@
+Sat Aug 16 18:38:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/resolve_changelog.rb (ChangeLog.Reader#split_entry): strips
+	  trailing spaces.
+
 Fri Aug  8 13:04:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/resolve_changelog.rb (ChangeLog.Reader): fixed typo.

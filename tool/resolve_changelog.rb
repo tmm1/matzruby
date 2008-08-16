@@ -11,6 +11,7 @@ class << ChangeLog
     LOGENTRY_PAT = /([A-Z][a-z]{2} [A-Z][a-z]{2} [ 1-9]\d \d\d:\d\d:\d\d \d{4})  .*>(?:\n(?:\t.*)?)+\n\n/
 
     def split_entry(ents)
+      ents.gsub!(/[ \t]+$/, '')
       results = []
       unless ents.empty?
         ents.scan(/\G(#{LOGENTRY_PAT}|[.\n]+\z)/o) do |ent, time|
