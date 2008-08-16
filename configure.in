@@ -228,7 +228,7 @@ cygwin*|mingw*)
 	AC_TRY_LINK([#include <stdio.h>],
 		    [FILE* volatile f = stdin; return 0;],
 		    [rb_cv_msvcrt=`$OBJDUMP -p conftest$ac_exeext |
-		     		   tr A-Z a-z |
+				   tr A-Z a-z |
 				   sed -n '/^[[ 	]]*dll name: \(msvc.*\)\.dll$/{s//\1/p;q;}'`],
 		    [rb_cv_msvcrt=msvcrt])
 	test "$rb_cv_msvcrt" = "" && rb_cv_msvcrt=msvcrt])
@@ -448,6 +448,23 @@ RUBY_FUNC_ATTRIBUTE(stdcall)
 RUBY_FUNC_ATTRIBUTE(cdecl)
 RUBY_FUNC_ATTRIBUTE(fastcall)
 
+if test "$GCC" = yes; then
+    AC_CACHE_CHECK([for function alias], [rb_cv_gcc_function_alias],
+	[rb_cv_gcc_function_alias=no
+	for a in alias weak,alias; do
+	    AC_TRY_LINK([void foo(void) {}
+		void bar(void) __attribute__(($a("foo")));], [bar()],
+		[rb_cv_gcc_function_alias=$a; break])
+	done])
+    if test "$rb_cv_gcc_function_alias" = no; then
+	AC_DEFINE([RUBY_ALIAS_FUNCTION(old_prot, new_name, args)],
+		  [VALUE old_prot {return new_name args;}])
+    else
+	AC_DEFINE_UNQUOTED([RUBY_ALIAS_FUNCTION(old_prot, new_name, args)],
+			   [VALUE old_prot __attribute__(($rb_cv_gcc_function_alias(@%:@new_name)));])
+    fi
+fi
+
 AC_CACHE_CHECK([for RUBY_EXTERN], rb_cv_ruby_extern,
 [rb_cv_ruby_extern=no
 for mac in "__attribute__((dllimport))" "__declspec(dllimport)"; do
@@ -515,7 +532,15 @@ hpux*)		LIBS="-lm $LIBS"
 human*)		ac_cv_func_getpgrp_void=yes
 		ac_cv_func_setitimer=no
 		;;
-beos*)		ac_cv_func_link=no;;
+beos*|haiku*)	ac_cv_func_link=no
+		ac_cv_func_sched_yield=no
+		ac_cv_func_pthread_attr_setinheritsched=no
+		case "$target_os" in
+		beos*) ac_cv_header_net_socket_h=yes;;
+		haiku*) ac_cv_func_shutdown=no;;
+		esac
+		LIBS="$LIBS" # m lib is include in root under BeOS/Haiku
+		;;
 cygwin*)	;;
 mingw*)		LIBS="-lshell32 -lws2_32 $LIBS"
 		ac_cv_header_a_out_h=no
@@ -527,6 +552,7 @@ mingw*)		LIBS="-lshell32 -lws2_32 $LIBS"
 		ac_cv_header_sys_select_h=no
 		ac_cv_header_sys_time_h=no
 		ac_cv_header_sys_times_h=no
+		ac_cv_header_sys_socket_h=no
 		ac_cv_func_times=yes
 		ac_cv_func_waitpid=yes
 		ac_cv_func_fsync=yes
@@ -558,6 +584,7 @@ msdosdjgpp*)	LIBS="-lm $LIBS"
 		ac_cv_sizeof_rlim_t=4
 		ac_cv_func_fork=no
 		ac_cv_func_setrlimit=no
+		ac_cv_header_sys_socket_h=no
 		;;
 bsdi*)          LIBS="-lm $LIBS"
 		AC_DEFINE(BROKEN_SETREUID, 1)
@@ -601,6 +628,13 @@ alpha*)		case "$target_os"::"$GCC" in
 		esac ;;
 esac
 
+ac_cv_header_net_socket_h=${ac_cv_header_net_socket_h=no}
+if test "$ac_cv_header_net_socket_h" = yes; then
+    ac_cv_header_sys_socket_h=${ac_cv_header_sys_socket_h=no}
+else
+    ac_cv_header_sys_socket_h=${ac_cv_header_sys_socket_h=yes}
+fi
+
 dnl Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
@@ -609,7 +643,8 @@ AC_CHECK_HEADERS(stdlib.h string.h unistd.h limits.h sys/file.h sys/ioctl.h sys/
 		 fcntl.h sys/fcntl.h sys/select.h sys/time.h sys/times.h sys/param.h\
 		 syscall.h pwd.h grp.h a.out.h utime.h memory.h direct.h sys/resource.h \
 		 sys/mkdev.h sys/utime.h xti.h netinet/in_systm.h float.h ieeefp.h pthread.h \
-		 ucontext.h intrinsics.h langinfo.h locale.h sys/sendfile.h time.h)
+		 ucontext.h intrinsics.h langinfo.h locale.h sys/sendfile.h time.h \
+		 net/socket.h sys/socket.h)
 
 dnl Check additional types.
 AC_CHECK_SIZEOF(rlim_t, 0, [
@@ -717,7 +752,7 @@ AC_FUNC_MEMCMP
 # http://sources.redhat.com/ml/libc-hacker/2005-08/msg00008.html
 # Debian GNU/Linux Etch's libc6.1 2.3.6.ds1-13etch5 has this problem.
 # Debian GNU/Linux Lenny's libc6.1 2.7-10 has no problem.
-AC_CACHE_CHECK(for broken erfc of glibc-2.3.6 on IA64, rb_broken_glibc_ia64_erfc,
+AC_CACHE_CHECK(for broken erfc of glibc-2.3.6 on IA64, rb_cv_broken_glibc_ia64_erfc,
   [AC_TRY_RUN([
 #include <math.h>
 int
@@ -727,10 +762,10 @@ main()
    return 0;
 }
 ],
-	rb_broken_glibc_ia64_erfc=no,
-	rb_broken_glibc_ia64_erfc=yes,
-	rb_broken_glibc_ia64_erfc=no)])
-case $rb_broken_glibc_ia64_erfc in
+	rb_cv_broken_glibc_ia64_erfc=no,
+	rb_cv_broken_glibc_ia64_erfc=yes,
+	rb_cv_broken_glibc_ia64_erfc=no)])
+case $rb_cv_broken_glibc_ia64_erfc in
   yes) ac_cv_func_erf=no;;
 esac
 
@@ -749,7 +784,7 @@ AC_CHECK_FUNCS(fmod killpg wait4 waitpid fork spawnv syscall chroot fsync getcwd
 	      setsid telldir seekdir fchmod cosh sinh tanh log2 round signbit\
 	      setuid setgid daemon select_large_fdset setenv unsetenv\
               mktime timegm clock_gettime gettimeofday\
-              pread sendfile)
+              pread sendfile shutdown)
 
 AC_CACHE_CHECK(for __builtin_setjmp, ac_cv_func___builtin_setjmp,
 [AC_TRY_LINK([@%:@include <setjmp.h>
@@ -819,7 +854,7 @@ fi
 AC_CACHE_CHECK(for external int daylight, rb_cv_have_daylight,
   [AC_TRY_LINK([#include <time.h>
   int i;],
-  	[i = daylight;],
+	[i = daylight;],
 	rb_cv_have_daylight=yes,
 	rb_cv_have_daylight=no)])
 if test "$rb_cv_have_daylight" = yes; then
@@ -964,18 +999,9 @@ if test x"$target_cpu" = xia64; then
 fi
 
 AC_CACHE_CHECK(whether right shift preserve sign bit, rb_cv_rshift_sign,
-    [AC_TRY_RUN([
-int
-main()
-{
-  if (-1==(-1>>1))
-    return 0;
-  return 1;
-}
-],
+    [AC_COMPILE_IFELSE(AC_LANG_BOOL_COMPILE_TRY([], [(-1==(-1>>1))]),
 	rb_cv_rshift_sign=yes,
-	rb_cv_rshift_sign=no,
-	rb_cv_rshift_sign=yes)])
+	rb_cv_rshift_sign=no)])
 if test "$rb_cv_rshift_sign" = yes; then
   AC_DEFINE(RSHIFT(x,y), ((x)>>(int)y))
 else
@@ -1034,9 +1060,9 @@ else
     ; do
         AC_TRY_COMPILE([#include <stdio.h>
     ],
-  	[FILE *f = stdin; char buf[256]; f->$frend = buf;],
-  	rb_cv_frend="$frend"; break,
-  	rb_cv_frend="not found")
+	[FILE *f = stdin; char buf[256]; f->$frend = buf;],
+	rb_cv_frend="$frend"; break,
+	rb_cv_frend="not found")
     done])
     if test "$rb_cv_frend" = "not found"; then
       AC_MSG_RESULT([not found])
@@ -1101,8 +1127,8 @@ int main()
 AC_DEFINE_UNQUOTED(STACK_GROW_DIRECTION, $rb_cv_stack_grow_dir)
 
 if test x"$enable_pthread" = xyes; then
-    for pthread_lib in thr pthread pthreads c c_r; do
- 	AC_CHECK_LIB($pthread_lib, pthread_kill,
+    for pthread_lib in thr pthread pthreads c c_r root; do
+	AC_CHECK_LIB($pthread_lib, pthread_kill,
 		     rb_with_pthread=yes, rb_with_pthread=no)
 	if test "$rb_with_pthread" = "yes"; then break; fi
     done
@@ -1113,17 +1139,19 @@ if test x"$enable_pthread" = xyes; then
 	case $pthread_lib in
 	c)
 	    ;;
+	root)
+		;;
 	c_r)
 	    MAINLIBS="-pthread $MAINLIBS"
 	    ;;
 	*)
-      	    LIBS="-l$pthread_lib $LIBS"
+	    LIBS="-l$pthread_lib $LIBS"
 	    ;;
 	esac
     else
 	AC_MSG_WARN("Don't know how to find pthread library on your system -- thread support disabled")
     fi
-    AC_CHECK_FUNCS(nanosleep)
+    AC_CHECK_FUNCS(nanosleep sched_yield pthread_attr_setinheritsched)
     AC_CHECK_FUNCS(sigaltstack)
     AC_CHECK_FUNCS(pthread_getattr_np pthread_attr_getstack)
     AC_CHECK_FUNCS(pthread_attr_get_np)
@@ -1234,26 +1262,16 @@ AC_ARG_WITH(dln-a-out,
 	esac], [with_dln_a_out=no])
 
 AC_CACHE_CHECK(whether ELF binaries are produced, rb_cv_binary_elf,
-[AC_TRY_RUN([
-/* Test for whether ELF binaries are produced */
-#include <fcntl.h>
-#include <stdlib.h>
-main() {
-	char buffer[4];
-	int i=open("conftest",O_RDONLY);
-	if(i==-1)
-		exit(1); /* fail */
-	if(read(i,&buffer[0],4)<4)
-		exit(1); /* fail */
-	if(buffer[0] != 127 || buffer[1] != 'E' ||
-           buffer[2] != 'L' || buffer[3] != 'F')
-		exit(1); /* fail */
-	exit(0); /* succeed (yes, it's ELF) */
-}
-],
-rb_cv_binary_elf=yes,
-rb_cv_binary_elf=no,
-rb_cv_binary_elf=yes)])
+[AC_TRY_LINK([],[], [
+case "`head -1 conftest$EXEEXT | cat -e`" in
+dnl (
+'^?ELF'*)
+    rb_cv_binary_elf=yes;;
+dnl (
+*)
+    rb_cv_binary_elf=no;;
+esac],
+rb_cv_binary_elf=no)])
 
 if test "$rb_cv_binary_elf" = yes; then
   AC_DEFINE(USE_ELF)
@@ -1293,7 +1311,7 @@ if test "$with_dln_a_out" != yes; then
     openstep*)	CCDLFLAGS="$CCDLFLAGS -fno-common";;
     rhapsody*)	CCDLFLAGS="$CCDLFLAGS -fno-common";;
     darwin*)	CCDLFLAGS="$CCDLFLAGS -fno-common";;
-    human*|bsdi*|beos*|cygwin*|mingw*|aix*|interix*) ;;
+    human*|bsdi*|beos*|haiku*|cygwin*|mingw*|aix*|interix*) ;;
     *) CCDLFLAGS="$CCDLFLAGS -fPIC";;
     esac
   else
@@ -1327,7 +1345,7 @@ if test "$with_dln_a_out" != yes; then
 	solaris*) 	if test "$GCC" = yes; then
                           : ${LDSHARED='$(CC) -shared'}
 			   if test "$rb_cv_prog_gnu_ld" = yes; then
-	 		       LDFLAGS="$LDFLAGS -Wl,-E"
+			       LDFLAGS="$LDFLAGS -Wl,-E"
 			   fi
 			else
 			   : ${LDSHARED='ld -G'}
@@ -1404,6 +1422,18 @@ if test "$with_dln_a_out" != yes; then
 			: ${LINK_SO='ar cru $@ $(OBJS)'}
 			rb_cv_dlopen=yes ;;
 	beos*) 		case "$target_cpu" in
+			  powerpc*)
+			    : ${LDSHARED="ld -xms"}
+			    DLDFLAGS="$DLDFLAGS "'-export Init_$(TARGET) -lbe -lroot glue-noinit.a init_term_dyn.o start_dyn.o'
+                            ;;
+			  i586*)
+			    : ${LDSHARED="ld -shared"}
+			    DLDFLAGS="$DLDFLAGS -L/boot/develop/lib/x86 -lbe -lroot"
+			    ;;
+			esac
+			: ${LIBPATHENV=LIBRARY_PATH}
+			rb_cv_dlopen=yes ;;
+	haiku*) 		case "$target_cpu" in
 			  powerpc*)
 			    : ${LDSHARED="ld -xms"}
 			    DLDFLAGS="$DLDFLAGS "'-export Init_$(TARGET) -lbe -lroot glue-noinit.a init_term_dyn.o start_dyn.o'
@@ -1543,11 +1573,12 @@ case "$target_os" in
 changequote(<<, >>)dnl
 <<
 #include <stdio.h>
-main ()
+int
+main()
 {
    char buf[256];
-   sprintf (buf, "%g", 1e+300);
-   exit (strcmp (buf, "1e+300") ? 0 : 1);
+   sprintf(buf, "%g", 1e+300);
+   return (strcmp (buf, "1e+300") ? 0 : 1);
 }
 >>,
 changequote([, ])dnl
@@ -1562,11 +1593,12 @@ changequote(<<, >>)dnl
 <<
 #include <stdio.h>
 #include <math.h>
-main ()
+int
+main()
 {
   char buf[256];
-  sprintf (buf, "%f", log(exp(1.0)));
-  exit (strcmp (buf, "1.000000") ? 0 : 1);
+  sprintf(buf, "%f", log(exp(1.0)));
+  return (strcmp (buf, "1.000000") ? 0 : 1);
 }
 >>,
 changequote([, ])dnl
@@ -1627,7 +1659,7 @@ LIBRUBYARG='$(LIBRUBYARG_STATIC)'
 SOLIBS=
 
 case "$target_os" in
-  cygwin*|mingw*|beos*|openstep*|nextstep*|rhapsody*|darwin*|os2-emx*)
+  cygwin*|mingw*|beos*|haiku*|openstep*|nextstep*|rhapsody*|darwin*|os2-emx*)
     : ${DLDLIBS=""}
     ;;
   *)
@@ -1679,7 +1711,7 @@ if test "$enable_shared" = 'yes'; then
 	else	# a.out platforms
 	   LIBRUBY_ALIASES=""
 	fi
- 	;;
+	;;
     openbsd*)
 	SOLIBS='$(LIBS)'
 	LIBRUBY_SO='lib$(RUBY_INSTALL_NAME).so.$(MAJOR).'`expr ${MINOR} \* 10 + ${TEENY}`
@@ -1692,7 +1724,7 @@ if test "$enable_shared" = 'yes'; then
 	    LIBRUBY_DLDFLAGS="$DLDFLAGS "'-Wl,-h,$(@F)'
 	fi
 	XLDFLAGS="$XLDFLAGS "'-R${libdir}'
- 	;;
+	;;
     hpux*)
 	XLDFLAGS="$XLDFLAGS "'-Wl,+s,+b,$(libdir)'
 	LIBRUBY_SO='lib$(RUBY_SO_NAME).sl.$(MAJOR).$(MINOR).$(TEENY)'
@@ -1748,7 +1780,7 @@ case "$target_os" in
     linux*)
 	;;
     netbsd*)
-    	CFLAGS="$CFLAGS -pipe"
+	CFLAGS="$CFLAGS -pipe"
 	;;
     nextstep*|openstep*)
 	# The -fno-common is needed if we wish to embed the Ruby interpreter
@@ -1758,18 +1790,18 @@ case "$target_os" in
 	# fails to consult /usr/local/include by default.  This causes
 	# mkmf.rb's have_header() to fail if the desired resource happens to be
 	# installed in the /usr/local tree.
-    	CFLAGS="$CFLAGS -pipe -fno-common"
+	CFLAGS="$CFLAGS -pipe -fno-common"
 	CPPFLAGS="$CPPFLAGS -I/usr/local/include"
 	;;
     rhapsody*)
-    	CFLAGS="$CFLAGS -pipe -no-precomp -fno-common"
+	CFLAGS="$CFLAGS -pipe -no-precomp -fno-common"
 	;;
     darwin*)
-    	CFLAGS="$CFLAGS -pipe -fno-common"
+	CFLAGS="$CFLAGS -pipe -fno-common"
         MINIDLNOBJ=dmydln.o
 	;;
     os2-emx)
-    	CFLAGS="$CFLAGS -DOS2 -Zmts"
+	CFLAGS="$CFLAGS -DOS2 -Zmts"
 	LIBRUBY_A=`echo $LIBRUBY_A | sed 's/^lib//'`
 	LIBRUBY_SO=`echo $LIBRUBY_SO | sed 's/^lib//'`
 	LIBRUBY_ALIASES=`for i in $LIBRUBY_ALIASES; do echo "$i"; done | sed 's/^lib//'`
@@ -1839,13 +1871,39 @@ case "$target_os" in
 	esac
         MINIDLNOBJ=dmydln.o
 	;;
+    *msdosdjgpp*)
+	FIRSTMAKEFILE=GNUmakefile:djgpp/GNUmakefile.in
+	;;
     *)
 	;;
 esac
 MINIOBJS="$MINIDLNOBJ"
 
-case "$build_os" in
-  *msdosdjgpp*) FIRSTMAKEFILE=GNUmakefile:djgpp/GNUmakefile.in;;
+case "$FIRSTMAKEFILE" in
+dnl (
+*GNUmakefile:*)
+    gnumake=yes
+    ;;
+dnl (
+*)
+    AC_MSG_CHECKING([for if ${MAKE-make} is GNU make])
+    mkdir conftest.dir
+    echo "all:; @echo yes" > conftest.dir/GNUmakefile
+    echo "all:; @echo no" > conftest.dir/Makefile
+    gnumake=`(cd conftest.dir; ${MAKE-make})`
+    rm -fr conftest.dir
+    case "$gnumake" in
+    dnl (
+    *yes*)
+	echo "include Makefile" > GNUmakefile
+	echo "include uncommon.mk" >> GNUmakefile
+	gnumake=yes;;
+    dnl (
+    *)
+	gnumake=no;;
+    esac
+    AC_MSG_RESULT($gnumake)
+    ;;
 esac
 
 CPPFLAGS="$CPPFLAGS "'$(DEFS)'
@@ -2059,7 +2117,10 @@ AC_CONFIG_FILES(Makefile, [{
 	sed '/^MISSING/s/\$U\././g' Makefile
 	echo; test x"$EXEEXT" = x || echo 'miniruby: miniruby$(EXEEXT)'
 	test "$RUBY_INSTALL_NAME$EXEEXT" = ruby || echo 'ruby: $(PROGRAM);'
-	sed ['s/{\$([^(){}]*)[^{}]*}//g'] ${srcdir}/common.mk
+	if test "$gnumake" != yes; then
+	    echo ['$(MKFILES): $(srcdir)/common.mk']
+	    sed ['s/{\$([^(){}]*)[^{}]*}//g'] ${srcdir}/common.mk
+	fi
       } >> confmk$$.tmp && mv -f confmk$$.tmp Makefile],
-[RUBY_INSTALL_NAME=$RUBY_INSTALL_NAME EXEEXT=$EXEEXT])
+[RUBY_INSTALL_NAME=$RUBY_INSTALL_NAME EXEEXT=$EXEEXT gnumake=$gnumake])
 AC_OUTPUT

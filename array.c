@@ -52,7 +52,7 @@ static inline void
 rb_ary_modify_check(VALUE ary)
 {
     if (OBJ_FROZEN(ary)) rb_error_frozen("array");
-    if (!OBJ_TAINTED(ary) && rb_safe_level() >= 4)
+    if (!OBJ_UNTRUSTED(ary) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify array");
 }
 
@@ -170,6 +170,12 @@ rb_ary_new4(long n, const VALUE *elts)
     }
 
     return ary;
+}
+
+VALUE
+rb_ary_tmp_new(long len)
+{
+    return ary_new(0, len);
 }
 
 void
@@ -1255,10 +1261,12 @@ rb_ary_join(VALUE ary, VALUE sep)
 {
     long len = 1, i;
     int taint = Qfalse;
+    int untrust = Qfalse;
     VALUE result, tmp;
 
     if (RARRAY_LEN(ary) == 0) return rb_str_new(0, 0);
     if (OBJ_TAINTED(ary) || OBJ_TAINTED(sep)) taint = Qtrue;
+    if (OBJ_UNTRUSTED(ary) || OBJ_UNTRUSTED(sep)) untrust = Qtrue;
 
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	tmp = rb_check_string_type(RARRAY_PTR(ary)[i]);
@@ -1290,9 +1298,11 @@ rb_ary_join(VALUE ary, VALUE sep)
 	    rb_str_buf_append(result, sep);
 	rb_str_buf_append(result, tmp);
 	if (OBJ_TAINTED(tmp)) taint = Qtrue;
+	if (OBJ_UNTRUSTED(tmp)) untrust = Qtrue;
     }
 
     if (taint) OBJ_TAINT(result);
+    if (untrust) OBJ_UNTRUST(result);
     return result;
 }
 
@@ -1322,6 +1332,7 @@ static VALUE
 inspect_ary(VALUE ary, VALUE dummy, int recur)
 {
     int tainted = OBJ_TAINTED(ary);
+    int untrust = OBJ_UNTRUSTED(ary);
     long i;
     VALUE s, str;
 
@@ -1330,11 +1341,13 @@ inspect_ary(VALUE ary, VALUE dummy, int recur)
     for (i=0; i<RARRAY_LEN(ary); i++) {
 	s = rb_inspect(RARRAY_PTR(ary)[i]);
 	if (OBJ_TAINTED(s)) tainted = Qtrue;
+	if (OBJ_UNTRUSTED(s)) untrust = Qtrue;
 	if (i > 0) rb_str_buf_cat2(str, ", ");
 	rb_str_buf_append(str, s);
     }
     rb_str_buf_cat2(str, "]");
     if (tainted) OBJ_TAINT(str);
+    if (untrust) OBJ_UNTRUST(str);
     return str;
 }
 
@@ -1444,10 +1457,32 @@ rb_ary_reverse_m(VALUE ary)
     return rb_ary_reverse(rb_ary_dup(ary));
 }
 
+struct ary_sort_data {
+    VALUE ary;
+    int opt_methods;
+    int opt_inited;
+};
+
+enum {
+    sort_opt_Fixnum,
+    sort_opt_String,
+    sort_optimizable_count
+};
+
+#define STRING_P(s) (TYPE(s) == T_STRING && CLASS_OF(s) == rb_cString)
+
+#define SORT_OPTIMIZABLE_BIT(type) (1U << TOKEN_PASTE(sort_opt_,type))
+#define SORT_OPTIMIZABLE(data, type) \
+    ((data->opt_inited & SORT_OPTIMIZABLE_BIT(type)) ? \
+     (data->opt_methods & SORT_OPTIMIZABLE_BIT(type)) : \
+     ((data->opt_inited |= SORT_OPTIMIZABLE_BIT(type)), \
+      rb_method_basic_definition_p(TOKEN_PASTE(rb_c,type), id_cmp) && \
+      (data->opt_methods |= SORT_OPTIMIZABLE_BIT(type))))
+
 static VALUE
-sort_reentered(VALUE *klass)
+sort_reentered(VALUE ary)
 {
-    if (*klass) {
+    if (RBASIC(ary)->klass) {
 	rb_raise(rb_eRuntimeError, "sort reentered");
     }
     return Qnil;
@@ -1456,35 +1491,37 @@ sort_reentered(VALUE *klass)
 static int
 sort_1(const void *ap, const void *bp, void *dummy)
 {
-    VALUE retval = sort_reentered(dummy);
+    struct ary_sort_data *data = dummy;
+    VALUE retval = sort_reentered(data->ary);
     VALUE a = *(const VALUE *)ap, b = *(const VALUE *)bp;
     int n;
 
     retval = rb_yield_values(2, a, b);
     n = rb_cmpint(retval, a, b);
-    sort_reentered(dummy);
+    sort_reentered(data->ary);
     return n;
 }
 
 static int
 sort_2(const void *ap, const void *bp, void *dummy)
 {
-    VALUE retval = sort_reentered(dummy);
+    struct ary_sort_data *data = dummy;
+    VALUE retval = sort_reentered(data->ary);
     VALUE a = *(const VALUE *)ap, b = *(const VALUE *)bp;
     int n;
 
-    if (FIXNUM_P(a) && FIXNUM_P(b)) {
+    if (FIXNUM_P(a) && FIXNUM_P(b) && SORT_OPTIMIZABLE(data, Fixnum)) {
 	if ((long)a > (long)b) return 1;
 	if ((long)a < (long)b) return -1;
 	return 0;
     }
-    if (TYPE(a) == T_STRING) {
-	if (TYPE(b) == T_STRING) return rb_str_cmp(a, b);
+    if (STRING_P(a) && STRING_P(b) && SORT_OPTIMIZABLE(data, String)) {
+	return rb_str_cmp(a, b);
     }
 
     retval = rb_funcall(a, id_cmp, 1, b);
     n = rb_cmpint(retval, a, b);
-    sort_reentered(dummy);
+    sort_reentered(data->ary);
 
     return n;
 }
@@ -1511,10 +1548,14 @@ rb_ary_sort_bang(VALUE ary)
     rb_ary_modify(ary);
     if (RARRAY_LEN(ary) > 1) {
 	VALUE tmp = ary_make_shared(ary);
+	struct ary_sort_data data;
 
 	RBASIC(tmp)->klass = 0;
+	data.ary = tmp;
+	data.opt_methods = 0;
+	data.opt_inited = 0;
 	ruby_qsort(RARRAY_PTR(tmp), RARRAY_LEN(tmp), sizeof(VALUE),
-		   rb_block_given_p()?sort_1:sort_2, &RBASIC(tmp)->klass);
+		   rb_block_given_p()?sort_1:sort_2, &data);
 	if (RARRAY(ary)->ptr != RARRAY(tmp)->ptr) {
 	    if (!ARY_SHARED_P(ary)) xfree(RARRAY(ary)->ptr);
 	    RARRAY(ary)->ptr = RARRAY(tmp)->ptr;
@@ -1526,7 +1567,7 @@ rb_ary_sort_bang(VALUE ary)
 	RARRAY(tmp)->ptr = 0;
 	RARRAY(tmp)->len = 0;
 	RARRAY(tmp)->aux.capa = 0;
-	RBASIC(tmp)->klass = RBASIC(ary)->klass;
+	RBASIC(tmp)->klass = rb_cArray;
     }
     return ary;
 }
@@ -1711,12 +1752,16 @@ rb_ary_select(VALUE ary)
 VALUE
 rb_ary_delete(VALUE ary, VALUE item)
 {
+    VALUE v = item;
     long i1, i2;
 
     for (i1 = i2 = 0; i1 < RARRAY_LEN(ary); i1++) {
 	VALUE e = RARRAY_PTR(ary)[i1];
 
-	if (rb_equal(e, item)) continue;
+	if (rb_equal(e, item)) {
+	    v = e;
+	    continue;
+	}
 	if (i1 != i2) {
 	    rb_ary_store(ary, i2, e);
 	}
@@ -1738,7 +1783,7 @@ rb_ary_delete(VALUE ary, VALUE item)
 	}
     }
 
-    return item;
+    return v;
 }
 
 VALUE
@@ -2912,7 +2957,7 @@ rb_ary_flatten(int argc, VALUE *argv, VALUE ary)
     if (level == 0) return ary;
 
     result = flatten(ary, level, &mod);
-    if (OBJ_TAINTED(ary)) OBJ_TAINT(result);
+    OBJ_INFECT(result, ary);
 
     return result;
 }
@@ -2962,21 +3007,48 @@ rb_ary_shuffle(VALUE ary)
 
 /*
  *  call-seq:
- *     array.choice        -> obj
+ *     array.sample        -> obj
+ *     array.sample(n)     -> an_array
  *  
- *  Choose a random element from an array.
+ *  Choose a random element, or the random +n+ elements, fron the array.
+ *  If the array is empty, the first form returns <code>nil</code>, and the
+ *  second form returns an empty array.
+ *  
  */
 
 
 static VALUE
-rb_ary_choice(VALUE ary)
+rb_ary_sample(int argc, VALUE *argv, VALUE ary)
 {
-    long i, j;
+    VALUE nv, result;
+    int n, len, i, j;
 
-    i = RARRAY_LEN(ary);
-    if (i == 0) return Qnil;
-    j = rb_genrand_real()*i;
-    return RARRAY_PTR(ary)[j];
+    len = RARRAY_LEN(ary); 
+    if (argc == 0) {
+	if (len == 0) return Qnil;
+	i = rb_genrand_real()*len;
+	return RARRAY_PTR(ary)[i];
+    }
+    rb_scan_args(argc, argv, "1", &nv);
+    if (len == 0) return rb_ary_new2(0);
+    n = NUM2INT(nv);
+    result = rb_ary_new2(n);
+    for (i=0; i<n; i++) {
+      retry:
+	j = rb_genrand_real()*len;
+	nv = LONG2NUM(j);
+	for (j=0; j<i; j++) {
+	    if (RARRAY_PTR(result)[j] == nv)
+		goto retry;
+	}
+	RARRAY_PTR(result)[i] = nv;
+	ARY_SET_LEN(result, i+1);
+    }
+    for (i=0; i<n; i++) {
+	nv = RARRAY_PTR(result)[i];
+	RARRAY_PTR(result)[i] = RARRAY_PTR(ary)[NUM2LONG(nv)];
+    }
+    return result;
 }
 
 
@@ -3402,6 +3474,7 @@ void
 Init_Array(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     rb_cArray  = rb_define_class("Array", rb_cObject);
     rb_include_module(rb_cArray, rb_mEnumerable);
@@ -3490,7 +3563,7 @@ Init_Array(void)
     rb_define_method(rb_cArray, "count", rb_ary_count, -1);
     rb_define_method(rb_cArray, "shuffle!", rb_ary_shuffle_bang, 0);
     rb_define_method(rb_cArray, "shuffle", rb_ary_shuffle, 0);
-    rb_define_method(rb_cArray, "choice", rb_ary_choice, 0);
+    rb_define_method(rb_cArray, "sample", rb_ary_sample, -1);
     rb_define_method(rb_cArray, "cycle", rb_ary_cycle, -1);
     rb_define_method(rb_cArray, "permutation", rb_ary_permutation, -1);
     rb_define_method(rb_cArray, "combination", rb_ary_combination, 1);

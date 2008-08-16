@@ -2,10 +2,14 @@ bin: $(PROGRAM) $(WPROGRAM)
 lib: $(LIBRUBY)
 dll: $(LIBRUBY_SO)
 
-.SUFFIXES: .inc
+.SUFFIXES: .inc .h .c .y
 
 RUBYLIB       = -
 RUBYOPT       = -
+
+SPEC_GIT_BASE = git://github.com/rubyspec
+MSPEC_GIT_URL = $(SPEC_GIT_BASE)/mspec.git
+RUBYSPEC_GIT_URL = $(SPEC_GIT_BASE)/rubyspec.git
 
 STATIC_RUBY   = static-ruby
 
@@ -75,7 +79,6 @@ COMMONOBJS    = array.$(OBJEXT) \
 		vm_dump.$(OBJEXT) \
 		thread.$(OBJEXT) \
 		cont.$(OBJEXT) \
-		id.$(OBJEXT) \
 		$(BUILTIN_ENCOBJS) \
 		$(MISSING)
 
@@ -325,8 +328,7 @@ clean-local::
 	@$(RM) $(OBJS) $(MINIOBJS) $(MAINOBJ) $(LIBRUBY_A) $(LIBRUBY_SO) $(LIBRUBY) $(LIBRUBY_ALIASES)
 	@$(RM) $(PROGRAM) $(WPROGRAM) miniruby$(EXEEXT) dmyext.$(OBJEXT) $(ARCHFILE) .*.time
 	@$(RM) *.inc $(GOLFOBJS) y.tab.c y.output encdb.h transdb.h
-clean-ext: $(PREP)
-	@-$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS) clean
+clean-ext::
 clean-enc:
 	@-$(MAKE) -f enc.mk $(MFLAGS) clean
 
@@ -335,18 +337,14 @@ distclean-local:: clean-local
 	@$(RM) $(MKFILES) $(arch_hdrdir)/ruby/config.h rbconfig.rb yasmdata.rb encdb.h
 	@$(RM) config.cache config.log config.status config.status.lineno $(PRELUDES)
 	@$(RM) *~ *.bak *.stackdump core *.core gmon.out $(PREP)
-distclean-ext: $(PREP)
-	@-$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS) distclean
-#	-$(RM) $(INSTALLED_LIST) $(arch_hdrdir)/ruby/config.h
-#	-rmdir -p $(arch_hdrdir)/ruby
+distclean-ext::
 distclean-enc: clean-enc
 	@-$(MAKE) -f enc.mk $(MFLAGS) distclean
 
 realclean:: realclean-ext realclean-local realclean-enc
 realclean-local:: distclean-local
-	@$(RM) parse.c lex.c revision.h
-realclean-ext:: $(PREP)
-	@-$(MINIRUBY) $(srcdir)/ext/extmk.rb --make="$(MAKE)" $(EXTMK_ARGS) realclean
+	@$(RM) parse.c parse.h lex.c revision.h
+realclean-ext::
 realclean-enc:: distclean-enc
 
 check: test test-all
@@ -369,7 +367,7 @@ test-all:
 	$(RUNRUBY) "$(srcdir)/test/runner.rb" --basedir="$(TESTSDIR)" --runner=$(TESTUI) $(TESTS)
 
 extconf: $(PREP)
-	$(MINIRUBY) -run -e mkdir -- -p "$(EXTCONFDIR)"
+	$(MAKEDIRS) "$(EXTCONFDIR)"
 	$(RUNRUBY) -C "$(EXTCONFDIR)" $(EXTCONF) $(EXTCONFARGS)
 
 $(RBCONFIG): $(srcdir)/mkconfig.rb config.status $(PREP)
@@ -377,13 +375,12 @@ $(RBCONFIG): $(srcdir)/mkconfig.rb config.status $(PREP)
 		-install_name=$(RUBY_INSTALL_NAME) \
 		-so_name=$(RUBY_SO_NAME) rbconfig.rb
 
-encs: enc.mk $(LIBRUBY) $(PREP)
-	$(MINIRUBY) -run -e mkdir -- -p "$(EXTOUT)/$(arch)/enc/trans" enc/trans
-	$(MAKE) -f enc.mk RUBY="$(MINIRUBY)" $(MFLAGS)
+encs: enc.mk $(LIBRUBY) $(PREP) transdb.h
+	$(MAKE) -f enc.mk MINIRUBY="$(MINIRUBY)" $(MFLAGS)
 
 enc.mk: $(srcdir)/enc/make_encmake.rb $(srcdir)/enc/Makefile.in $(srcdir)/enc/depend \
-	$(srcdir)/lib/mkmf.rb $(PREP)
-	$(MINIRUBY) $(srcdir)/enc/make_encmake.rb --builtin-encs="$(BUILTIN_ENCOBJS)" $@
+	$(srcdir)/lib/mkmf.rb $(RBCONFIG)
+	$(MINIRUBY) $(srcdir)/enc/make_encmake.rb --builtin-encs="$(BUILTIN_ENCOBJS)" $@ $(ENCS)
 
 .PRECIOUS: $(MKFILES)
 
@@ -392,12 +389,15 @@ enc.mk: $(srcdir)/enc/make_encmake.rb $(srcdir)/enc/Makefile.in $(srcdir)/enc/de
 PHONY:
 
 {$(VPATH)}parse.c: {$(VPATH)}parse.y $(srcdir)/tool/ytab.sed
+parse.h {$(VPATH)}parse.h: {$(VPATH)}parse.c
 
 {$(srcdir)}.y.c:
-	$(YACC) $(YFLAGS) -o y.tab.c $<
+	$(YACC) -d $(YFLAGS) -o y.tab.c $(<:\\=/)
 	sed -f $(srcdir)/tool/ytab.sed -e "/^#/s!y\.tab\.c!$@!" y.tab.c > $@.new
-	@$(RM) $@ y.tab.c
 	@$(MV) $@.new $@
+	sed -e "/^#/s!y\.tab\.h!$(@:.c=.h)!" y.tab.h > $(@:.c=.h).new
+	@$(IFCHANGE) $(@:.c=.h) $(@:.c=.h).new
+	@$(RM) y.tab.c y.tab.h
 
 acosh.$(OBJEXT): {$(VPATH)}acosh.c
 alloca.$(OBJEXT): {$(VPATH)}alloca.c {$(VPATH)}config.h
@@ -432,6 +432,7 @@ win32.$(OBJEXT): {$(VPATH)}win32.c
 RUBY_H_INCLUDES = {$(VPATH)}ruby.h {$(VPATH)}config.h {$(VPATH)}defines.h \
 		  {$(VPATH)}intern.h {$(VPATH)}missing.h \
 		  {$(VPATH)}public_object.h
+ID_H_INCLUDES = {$(VPATH)}id.h {$(VPATH)}parse.h
 
 VM_CORE_H_INCLUDES = {$(VPATH)}vm_core.h {$(VPATH)}private_object.h
 
@@ -440,7 +441,10 @@ array.$(OBJEXT): {$(VPATH)}array.c $(RUBY_H_INCLUDES) \
 bignum.$(OBJEXT): {$(VPATH)}bignum.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}private_object.h
 class.$(OBJEXT): {$(VPATH)}class.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h
+  {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h \
+  {$(VPATH)}vm_core.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  {$(VPATH)}id.h {$(VPATH)}parse.c \
+  {$(VPATH)}thread_$(THREAD_MODEL).h
 compar.$(OBJEXT): {$(VPATH)}compar.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 complex.$(OBJEXT): {$(VPATH)}complex.c $(RUBY_H_INCLUDES) \
@@ -455,26 +459,26 @@ dmyencoding.$(OBJEXT): {$(VPATH)}dmyencoding.c \
   {$(VPATH)}encoding.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h {$(VPATH)}regenc.h \
   {$(VPATH)}private_object.h
-encoding.$(OBJEXT): dmyencoding.$(OBJEXT)
+encoding.$(OBJEXT): dmyencoding.$(OBJEXT) {$(VPATH)}util.h
 enum.$(OBJEXT): {$(VPATH)}enum.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}util.h
 enumerator.$(OBJEXT): {$(VPATH)}enumerator.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}debug.h {$(VPATH)}node.h
 error.$(OBJEXT): {$(VPATH)}error.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h {$(VPATH)}node.h \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 eval.$(OBJEXT): {$(VPATH)}eval.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
   {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h \
   {$(VPATH)}eval_error.c {$(VPATH)}eval_safe.c \
   {$(VPATH)}eval_jump.c
 load.$(OBJEXT): {$(VPATH)}load.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
   {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h
 file.$(OBJEXT): {$(VPATH)}file.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}io.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h \
@@ -483,15 +487,20 @@ gc.$(OBJEXT): {$(VPATH)}gc.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h {$(VPATH)}re.h \
   {$(VPATH)}regex.h {$(VPATH)}oniguruma.h {$(VPATH)}io.h \
   {$(VPATH)}encoding.h $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h \
-  {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}thread_$(THREAD_MODEL).h \
+  {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
+  {$(VPATH)}thread_$(THREAD_MODEL).h \
   {$(VPATH)}gc.h {$(VPATH)}eval_intern.h
 hash.$(OBJEXT): {$(VPATH)}hash.c $(RUBY_H_INCLUDES) \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}util.h {$(VPATH)}signal.h
 inits.$(OBJEXT): {$(VPATH)}inits.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 io.$(OBJEXT): {$(VPATH)}io.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}io.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h \
-  {$(VPATH)}signal.h {$(VPATH)}util.h
+  {$(VPATH)}signal.h {$(VPATH)}util.h \
+  {$(VPATH)}vm_core.h {$(VPATH)}debug.h \
+  {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}parse.c \
+  {$(VPATH)}thread_$(THREAD_MODEL).h
 main.$(OBJEXT): {$(VPATH)}main.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
 marshal.$(OBJEXT): {$(VPATH)}marshal.c $(RUBY_H_INCLUDES) \
@@ -506,18 +515,19 @@ object.$(OBJEXT): {$(VPATH)}object.c $(RUBY_H_INCLUDES) \
 pack.$(OBJEXT): {$(VPATH)}pack.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 parse.$(OBJEXT): {$(VPATH)}parse.c {$(VPATH)}parse.y $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
-  {$(VPATH)}oniguruma.h {$(VPATH)}id.h {$(VPATH)}regenc.h \
-  {$(VPATH)}regex.h {$(VPATH)}util.h {$(VPATH)}lex.c {$(VPATH)}keywords \
-  {$(VPATH)}debug.h
+  {$(VPATH)}oniguruma.h $(ID_H_INCLUDES) \
+  {$(VPATH)}regenc.h {$(VPATH)}regex.h {$(VPATH)}util.h \
+  {$(VPATH)}lex.c {$(VPATH)}keywords {$(VPATH)}debug.h
 prec.$(OBJEXT): {$(VPATH)}prec.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 proc.$(OBJEXT): {$(VPATH)}proc.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
   {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}gc.h
 process.$(OBJEXT): {$(VPATH)}process.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) {$(VPATH)}util.h \
-  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 random.$(OBJEXT): {$(VPATH)}random.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h
@@ -551,11 +561,11 @@ ruby.$(OBJEXT): {$(VPATH)}ruby.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}eval_intern.h {$(VPATH)}util.h \
   {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h \
-  {$(VPATH)}vm_opts.h {$(VPATH)}id.h {$(VPATH)}thread_$(THREAD_MODEL).h \
-  {$(VPATH)}dln.h
+  {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
+  {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h
 signal.$(OBJEXT): {$(VPATH)}signal.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}signal.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 sprintf.$(OBJEXT): {$(VPATH)}sprintf.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}re.h {$(VPATH)}regex.h {$(VPATH)}oniguruma.h \
@@ -570,14 +580,14 @@ struct.$(OBJEXT): {$(VPATH)}struct.c $(RUBY_H_INCLUDES) \
 thread.$(OBJEXT): {$(VPATH)}thread.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}st.h {$(VPATH)}node.h \
   {$(VPATH)}util.h {$(VPATH)}signal.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}gc.h {$(VPATH)}thread_$(THREAD_MODEL).c
 transcode.$(OBJEXT): {$(VPATH)}transcode.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h {$(VPATH)}transcode_data.h
 cont.$(OBJEXT): {$(VPATH)}cont.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h {$(VPATH)}node.h \
-  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}debug.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}gc.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}dln.h
 time.$(OBJEXT): {$(VPATH)}time.c $(RUBY_H_INCLUDES) \
@@ -591,49 +601,57 @@ version.$(OBJEXT): {$(VPATH)}version.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
 
 compile.$(OBJEXT): {$(VPATH)}compile.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}compile.h \
   {$(VPATH)}insns.inc {$(VPATH)}insns_info.inc {$(VPATH)}optinsn.inc
 iseq.$(OBJEXT): {$(VPATH)}iseq.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}gc.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}insns.inc \
   {$(VPATH)}insns_info.inc {$(VPATH)}node_name.inc
 vm.$(OBJEXT): {$(VPATH)}vm.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
   {$(VPATH)}oniguruma.h {$(VPATH)}gc.h {$(VPATH)}insnhelper.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}signal.h \
-  $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}dln.h {$(VPATH)}vm.h \
   {$(VPATH)}vm_insnhelper.c {$(VPATH)}insns.inc {$(VPATH)}vm_evalbody.c \
   {$(VPATH)}vmtc.inc {$(VPATH)}vm.inc {$(VPATH)}insns.def \
   {$(VPATH)}vm_method.c {$(VPATH)}vm_eval.c
 vm_dump.$(OBJEXT): {$(VPATH)}vm_dump.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}vm.h
 debug.$(OBJEXT): {$(VPATH)}debug.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h \
   {$(VPATH)}debug.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}signal.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}signal.h {$(VPATH)}vm_opts.h $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 blockinlining.$(OBJEXT): {$(VPATH)}blockinlining.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}node.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}signal.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 id.$(OBJEXT): {$(VPATH)}id.c $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}id.h
+  {$(VPATH)}st.h $(ID_H_INCLUDES)
 miniprelude.$(OBJEXT): {$(VPATH)}miniprelude.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
-  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 prelude.$(OBJEXT): {$(VPATH)}prelude.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
-  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 golf_prelude.$(OBJEXT): {$(VPATH)}golf_prelude.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h $(VM_CORE_H_INCLUDES) {$(VPATH)}signal.h \
-  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h {$(VPATH)}id.h \
+  {$(VPATH)}node.h {$(VPATH)}debug.h {$(VPATH)}vm_opts.h \
+  $(ID_H_INCLUDES) \
   {$(VPATH)}thread_$(THREAD_MODEL).h
 goruby.$(OBJEXT): {$(VPATH)}goruby.c {$(VPATH)}main.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 
@@ -653,7 +671,7 @@ INSNS	= opt_sc.inc optinsn.inc optunifs.inc insns.inc insns_info.inc \
 INSNS2VMOPT = --srcdir="$(srcdir)"
 
 $(INSNS): $(srcdir)/insns.def {$(VPATH)}vm_opts.h
-	$(RM) $(PROGRAM)
+	@$(RM) $(PROGRAM)
 	$(BASERUBY) -Ks $(srcdir)/tool/insns2vm.rb $(INSNS2VMOPT) $@
 
 minsns.inc: $(srcdir)/template/minsns.inc.tmpl
@@ -672,7 +690,10 @@ vmtc.inc: $(srcdir)/template/vmtc.inc.tmpl
 
 vm.inc: $(srcdir)/template/vm.inc.tmpl
 
-srcs: {$(VPATH)}parse.c {$(VPATH)}lex.c $(srcdir)/ext/ripper/ripper.c
+srcs: {$(VPATH)}parse.c {$(VPATH)}lex.c $(srcdir)/ext/ripper/ripper.c srcs-enc
+
+srcs-enc: enc.mk
+	$(MAKE) -f enc.mk RUBY="$(MINIRUBY)" MINIRUBY="$(MINIRUBY)" $(MFLAGS) srcs
 
 incs: $(INSNS) {$(VPATH)}node_name.inc {$(VPATH)}encdb.h {$(VPATH)}transdb.h $(srcdir)/revision.h
 
@@ -682,20 +703,20 @@ node_name.inc: {$(VPATH)}node.h
 	$(BASERUBY) -n $(srcdir)/tool/node_name.rb $? > $@
 
 encdb.h: $(PREP)
-	$(MINIRUBY) $(srcdir)/enc/make_encdb.rb $(srcdir)/enc $@.new
+	$(MINIRUBY) $(srcdir)/enc/make_encdb.rb $@.new $(srcdir)/enc enc
 	$(IFCHANGE) "$@" "$@.new"
 
-transdb.h: $(PREP)
-	$(MINIRUBY) $(srcdir)/enc/trans/make_transdb.rb $(srcdir)/enc/trans $@.new
+transdb.h: $(PREP) srcs-enc
+	$(MINIRUBY) $(srcdir)/enc/trans/make_transdb.rb $@.new $(srcdir)/enc/trans enc/trans
 	$(IFCHANGE) "$@" "$@.new"
 
 miniprelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb
 	$(BASERUBY) -I$(srcdir) $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $@
 
-prelude.c: $(srcdir)/tool/compile_prelude.rb $(PRELUDE_SCRIPTS) $(PREP)
+prelude.c: $(srcdir)/tool/compile_prelude.rb $(RBCONFIG) $(PRELUDE_SCRIPTS) $(PREP)
 	$(COMPILE_PRELUDE) $(PRELUDE_SCRIPTS) $@
 
-golf_prelude.c: $(srcdir)/tool/compile_prelude.rb $(srcdir)/prelude.rb $(srcdir)/golf_prelude.rb $(PREP)
+golf_prelude.c: $(srcdir)/tool/compile_prelude.rb $(RBCONFIG) $(srcdir)/prelude.rb $(srcdir)/golf_prelude.rb $(PREP)
 	$(COMPILE_PRELUDE) $(srcdir)/golf_prelude.rb $@
 
 prereq: incs srcs preludes

@@ -1,5 +1,19 @@
-/* readline.c -- GNU Readline module
-   Copyright (C) 1997-2001  Shugo Maeda */
+/************************************************
+
+  readline.c - GNU Readline module
+
+  $Author$
+  created at: Wed Jan 20 13:59:32 JST 1999
+
+  Copyright (C) 1997-2008  Shugo Maeda
+  Copyright (C) 2008       TAKAO Kouji
+
+  $Id$
+
+  Contact:
+   - TAKAO Kouji <kouji at takao7 dot net> (current maintainer)
+
+************************************************/
 
 #ifdef RUBY_EXTCONF_H
 #include RUBY_EXTCONF_H
@@ -29,6 +43,8 @@
 
 static VALUE mReadline;
 
+#define EDIT_LINE_LIBRARY_VERSION "EditLine wrapper"
+
 #define COMPLETION_PROC "completion_proc"
 #define COMPLETION_CASE_FOLD "completion_case_fold"
 static ID completion_proc, completion_case_fold;
@@ -43,11 +59,48 @@ static ID completion_proc, completion_case_fold;
 # define rl_completion_matches completion_matches
 #endif
 
+static int (*history_get_offset_func)(int);
+
 static char **readline_attempted_completion_function(const char *text,
                                                      int start, int end);
 
 #ifdef HAVE_RL_EVENT_HOOK
 #define BUSY_WAIT 0
+
+/*
+ * Document-class: Readline
+ *
+ * The Readline module provides interface for GNU Readline.
+ * This module defines a number of methods to facilitate completion
+ * and accesses input history from the Ruby interpreter.
+ * This module supported Edit Line(libedit) too.
+ * libedit is compatible with GNU Readline.
+ *
+ * GNU Readline:: http://www.gnu.org/directory/readline.html
+ * libedit::      http://www.thrysoee.dk/editline/
+ *
+ * Reads one inputted line with line edit by Readline.readline method. 
+ * At this time, the facilitatation completion and the key
+ * bind like Emacs can be operated like GNU Readline.
+ *
+ *   require "readline"
+ *   while buf = Readline.readline("> ", true)
+ *     p buf
+ *   end
+ *
+ * The content that the user input can be recorded to the history.
+ * The history can be accessed by Readline::HISTORY constant.
+ *
+ *   require "readline"
+ *   while buf = Readline.readline("> ", true)
+ *     p Readline::HISTORY.to_a
+ *     print("-> ", buf, "\n")
+ *   end
+ *
+ * Most of methods raise SecurityError exception if $SAFE is 4.
+ *
+ * Documented by TAKAO Kouji <kouji at takao7 dot net>.
+ */
 
 static int readline_event(void);
 static int
@@ -66,6 +119,92 @@ readline_event(void)
 }
 #endif
 
+/*
+ * call-seq:
+ *   Readline.readline(prompt = "", add_hist = false) -> string or nil
+ *
+ * Shows the +prompt+ and reads the inputted line with line editing.
+ * The inputted line is added to the history if +add_hist+ is true.
+ *
+ * Returns nil when the inputted line is empty and user inputs EOF
+ * (Presses ^D on UNIX).
+ *
+ * Raises IOError exception if below conditions are satisfied.
+ * 1. stdin is not tty.
+ * 2. stdin was closed. (errno is EBADF after called isatty(2).)
+ *
+ * This method supports thread. Switchs the thread context when waits
+ * inputting line.
+ *
+ * Supports line edit when inputs line. Provides VI and Emacs editing mode.
+ * Default is Emacs editing mode.
+ *
+ * NOTE: Terminates ruby interpreter and does not return the terminal
+ * status after user pressed '^C' when wait inputting line.
+ * Give 3 examples that avoid it.
+ *
+ * * Catches the Interrupt exception by pressed ^C after returns
+ *   terminal status:
+ * 
+ *     require "readline"
+ *     
+ *     stty_save = `stty -g`.chomp
+ *     begin
+ *       while buf = Readline.readline
+ *           p buf
+ *           end
+ *         rescue Interrupt
+ *           system("stty", stty_save)
+ *           exit
+ *         end
+ *       end
+ *     end
+ * 
+ * * Catches the INT signal by pressed ^C after returns terminal
+ *   status:
+ * 
+ *     require "readline"
+ *     
+ *     stty_save = `stty -g`.chomp
+ *     trap("INT") { system "stty", stty_save; exit }
+ *   
+ *     while buf = Readline.readline
+ *       p buf
+ *     end
+ *
+ * * Ignores pressing ^C:
+ * 
+ *     require "readline"
+ *     
+ *     trap("INT", "SIG_IGN")
+ *     
+ *     while buf = Readline.readline
+ *       p buf
+ *     end
+ *
+ * Can make as follows with Readline::HISTORY constant.
+ * It does not record to the history if the inputted line is empty or
+ * the same it as last one.
+ *
+ *   require "readline"
+ *     
+ *   while buf = Readline.readline("> ", true)
+ *     # p Readline::HISTORY.to_a
+ *     Readline::HISTORY.pop if /^\s*$/ =~ buf
+ *  
+ *     begin
+ *       if Readline::HISTORY[Readline::HISTORY.length-2] == buf
+ *         Readline::HISTORY.pop 
+ *       end
+ *     rescue IndexError
+ *     end
+ *  
+ *     # p Readline::HISTORY.to_a
+ *     print "-> ", buf, "\n"
+ *   end
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_readline(int argc, VALUE *argv, VALUE self)
 {
@@ -112,6 +251,15 @@ readline_readline(int argc, VALUE *argv, VALUE self)
     return result;
 }
 
+/*
+ * call-seq:
+ *   Readline.input = input
+ *
+ * Specifies a File object +input+ that is input stream for
+ * Readline.readline method.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_input(VALUE self, VALUE input)
 {
@@ -124,6 +272,15 @@ readline_s_set_input(VALUE self, VALUE input)
     return input;
 }
 
+/*
+ * call-seq:
+ *   Readline.output = output
+ *
+ * Specifies a File object +output+ that is output stream for
+ * Readline.readline method.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_output(VALUE self, VALUE output)
 {
@@ -136,6 +293,18 @@ readline_s_set_output(VALUE self, VALUE output)
     return output;
 }
 
+/*
+ * call-seq:
+ *   Readline.completion_proc = proc
+ *
+ * Specifies a Proc object +proc+ to determine completion behavior. It
+ * should take input-string, and return an array of completion
+ * candidates.
+ *
+ * Raises ArgumentError exception if +proc+ does not respond to call method.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_completion_proc(VALUE self, VALUE proc)
 {
@@ -145,6 +314,14 @@ readline_s_set_completion_proc(VALUE self, VALUE proc)
     return rb_ivar_set(mReadline, completion_proc, proc);
 }
 
+/*
+ * call-seq:
+ *   Readline.completion_proc -> proc
+ *
+ * Returns the completion Proc object.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_completion_proc(VALUE self)
 {
@@ -152,6 +329,14 @@ readline_s_get_completion_proc(VALUE self)
     return rb_attr_get(mReadline, completion_proc);
 }
 
+/*
+ * call-seq:
+ *   Readline.completion_case_fold = bool
+ *
+ * Sets whether or not to ignore case on completion.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_completion_case_fold(VALUE self, VALUE val)
 {
@@ -159,6 +344,22 @@ readline_s_set_completion_case_fold(VALUE self, VALUE val)
     return rb_ivar_set(mReadline, completion_case_fold, val);
 }
 
+/*
+ * call-seq:
+ *   Readline.completion_case_fold -> bool
+ *
+ * Returns true if completion ignores case. If no, returns false.
+ *
+ * NOTE: Returns the same object that is specified by
+ * Readline.completion_case_fold= method.
+ *
+ *   require "readline"
+ *   
+ *   Readline.completion_case_fold = "This is a String."
+ *   p Readline.completion_case_fold # => "This is a String."
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_completion_case_fold(VALUE self)
 {
@@ -230,6 +431,17 @@ readline_attempted_completion_function(const char *text, int start, int end)
     return result;
 }
 
+/*
+ * call-seq:
+ *   Readline.vi_editing_mode -> nil
+ *
+ * Specifies VI editing mode. See the manual of GNU Readline for
+ * details of VI editing mode.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_vi_editing_mode(VALUE self)
 {
@@ -243,6 +455,39 @@ readline_s_vi_editing_mode(VALUE self)
 #endif /* HAVE_RL_VI_EDITING_MODE */
 }
 
+/*
+ * call-seq:
+ *   Readline.vi_editing_mode? -> bool
+ *
+ * Returns true if vi mode is active. Returns false if not.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
+static VALUE
+readline_s_vi_editing_mode_p(VALUE self)
+{
+#ifdef HAVE_RL_EDITING_MODE
+    rb_secure(4);
+    return rl_editing_mode == 0 ? Qtrue : Qfalse;
+#else
+    rb_notimplement();
+    return Qnil; /* not reached */
+#endif /* HAVE_RL_EDITING_MODE */
+}
+
+/*
+ * call-seq:
+ *   Readline.emacs_editing_mode -> nil
+ *
+ * Specifies Emacs editing mode. The default is this mode. See the
+ * manual of GNU Readline for details of Emacs editing mode.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_emacs_editing_mode(VALUE self)
 {
@@ -256,6 +501,66 @@ readline_s_emacs_editing_mode(VALUE self)
 #endif /* HAVE_RL_EMACS_EDITING_MODE */
 }
 
+/*
+ * call-seq:
+ *   Readline.emacs_editing_mode? -> bool
+ *
+ * Returns true if emacs mode is active. Returns false if not.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
+static VALUE
+readline_s_emacs_editing_mode_p(VALUE self)
+{
+#ifdef  HAVE_RL_EDITING_MODE
+    rb_secure(4);
+    return rl_editing_mode == 1 ? Qtrue : Qfalse;
+#else
+    rb_notimplement();
+    return Qnil; /* not reached */
+#endif /* HAVE_RL_EDITING_MODE */
+}
+
+/*
+ * call-seq:
+ *   Readline.completion_append_character = char
+ *
+ * Specifies a character to be appended on completion.
+ * Nothing will be appended if an empty string ("") or nil is
+ * specified.
+ *
+ * For example:
+ *   require "readline"
+ *   
+ *   Readline.readline("> ", true)
+ *   Readline.completion_append_character = " "
+ *
+ * Result:
+ *   >
+ *   Input "/var/li".
+ *   
+ *   > /var/li
+ *   Press TAB key.
+ *   
+ *   > /var/lib
+ *   Completes "b" and appends " ". So, you can continuously input "/usr".
+ *   
+ *   > /var/lib /usr
+ *
+ * NOTE: Only one character can be specified. When "string" is
+ * specified, sets only "s" that is the first.
+ *
+ *   require "readline"
+ *
+ *   Readline.completion_append_character = "string"
+ *   p Readline.completion_append_character # => "s"
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_completion_append_character(VALUE self, VALUE str)
 {
@@ -279,6 +584,17 @@ readline_s_set_completion_append_character(VALUE self, VALUE str)
 #endif /* HAVE_RL_COMPLETION_APPEND_CHARACTER */
 }
 
+/*
+ * call-seq:
+ *   Readline.completion_append_character -> char
+ *
+ * Returns a string containing a character to be appended on
+ * completion. The default is a space (" ").
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_completion_append_character(VALUE self)
 {
@@ -298,6 +614,18 @@ readline_s_get_completion_append_character(VALUE self)
 #endif /* HAVE_RL_COMPLETION_APPEND_CHARACTER */
 }
 
+/*
+ * call-seq:
+ *   Readline.basic_word_break_characters = string
+ *
+ * Sets the basic list of characters that signal a break between words
+ * for the completer routine. The default is the characters which
+ * break words for completion in Bash: "\t\n\"\\'`@$><=;|&{(".
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_basic_word_break_characters(VALUE self, VALUE str)
 {
@@ -324,6 +652,17 @@ readline_s_set_basic_word_break_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_BASIC_WORD_BREAK_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.basic_word_break_characters -> string
+ *
+ * Gets the basic list of characters that signal a break between words
+ * for the completer routine.
+ * 
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_basic_word_break_characters(VALUE self, VALUE str)
 {
@@ -338,6 +677,18 @@ readline_s_get_basic_word_break_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_BASIC_WORD_BREAK_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.completer_word_break_characters = string
+ *
+ * Sets the basic list of characters that signal a break between words
+ * for rl_complete_internal(). The default is the value of
+ * Readline.basic_word_break_characters.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_completer_word_break_characters(VALUE self, VALUE str)
 {
@@ -364,6 +715,17 @@ readline_s_set_completer_word_break_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_COMPLETER_WORD_BREAK_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.completer_word_break_characters -> string
+ *
+ * Gets the basic list of characters that signal a break between words
+ * for rl_complete_internal().
+ * 
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_completer_word_break_characters(VALUE self, VALUE str)
 {
@@ -378,6 +740,16 @@ readline_s_get_completer_word_break_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_COMPLETER_WORD_BREAK_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.basic_quote_characters = string
+ *
+ * Sets a list of quote characters which can cause a word break.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_basic_quote_characters(VALUE self, VALUE str)
 {
@@ -405,6 +777,16 @@ readline_s_set_basic_quote_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_BASIC_QUOTE_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.basic_quote_characters -> string
+ *
+ * Gets a list of quote characters which can cause a word break.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_basic_quote_characters(VALUE self, VALUE str)
 {
@@ -419,6 +801,19 @@ readline_s_get_basic_quote_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_BASIC_QUOTE_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.completer_quote_characters = string
+ *
+ * Sets a list of characters which can be used to quote a substring of
+ * the line. Completion occurs on the entire substring, and within
+ * the substring Readline.completer_word_break_characters are treated
+ * as any other character, unless they also appear within this list.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_completer_quote_characters(VALUE self, VALUE str)
 {
@@ -445,6 +840,17 @@ readline_s_set_completer_quote_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_COMPLETER_QUOTE_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.completer_quote_characters -> string
+ *
+ * Gets a list of characters which can be used to quote a substring of
+ * the line.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_completer_quote_characters(VALUE self, VALUE str)
 {
@@ -459,6 +865,17 @@ readline_s_get_completer_quote_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_COMPLETER_QUOTE_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.filename_quote_characters = string
+ *
+ * Sets a list of characters that cause a filename to be quoted by the completer
+ * when they appear in a completed filename. The default is nil.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_set_filename_quote_characters(VALUE self, VALUE str)
 {
@@ -485,6 +902,17 @@ readline_s_set_filename_quote_characters(VALUE self, VALUE str)
 #endif /* HAVE_RL_FILENAME_QUOTE_CHARACTERS */
 }
 
+/*
+ * call-seq:
+ *   Readline.filename_quote_characters -> string
+ *
+ * Gets a list of characters that cause a filename to be quoted by the completer
+ * when they appear in a completed filename.
+ *
+ * Raises NotImplementedError if the using readline library does not support.
+ *
+ * Raises SecurityError exception if $SAFE is 4.
+ */
 static VALUE
 readline_s_get_filename_quote_characters(VALUE self, VALUE str)
 {
@@ -505,10 +933,22 @@ hist_to_s(VALUE self)
     return rb_str_new2("HISTORY");
 }
 
+static int
+history_get_offset_history_base(int offset)
+{
+    return history_base + offset;
+}
+
+static int
+history_get_offset_0(int offset)
+{
+    return offset;
+}
+
 static VALUE
 hist_get(VALUE self, VALUE index)
 {
-    HIST_ENTRY *entry;
+    HIST_ENTRY *entry = NULL;
     int i;
 
     rb_secure(4);
@@ -516,7 +956,9 @@ hist_get(VALUE self, VALUE index)
     if (i < 0) {
         i += history_length;
     }
-    entry = history_get(history_base + i);
+    if (i >= 0) {
+	entry = history_get(history_get_offset_func(i));
+    }
     if (entry == NULL) {
 	rb_raise(rb_eIndexError, "invalid index");
     }
@@ -527,7 +969,7 @@ static VALUE
 hist_set(VALUE self, VALUE index, VALUE str)
 {
 #ifdef HAVE_REPLACE_HISTORY_ENTRY
-    HIST_ENTRY *entry;
+    HIST_ENTRY *entry = NULL;
     int i;
 
     rb_secure(4);
@@ -536,7 +978,9 @@ hist_set(VALUE self, VALUE index, VALUE str)
     if (i < 0) {
         i += history_length;
     }
-    entry = replace_history_entry(i, RSTRING_PTR(str), NULL);
+    if (i >= 0) {
+	entry = replace_history_entry(i, RSTRING_PTR(str), NULL);
+    }
     if (entry == NULL) {
 	rb_raise(rb_eIndexError, "invalid index");
     }
@@ -581,7 +1025,7 @@ rb_remove_history(int index)
     entry = remove_history(index);
     if (entry) {
         val = rb_tainted_str_new2(entry->line);
-        free(entry->line);
+        free((void *) entry->line);
         free(entry);
         return val;
     }
@@ -624,7 +1068,7 @@ hist_each(VALUE self)
 
     rb_secure(4);
     for (i = 0; i < history_length; i++) {
-        entry = history_get(history_base + i);
+        entry = history_get(history_get_offset_func(i));
         if (entry == NULL)
             break;
 	rb_yield(rb_tainted_str_new2(entry->line));
@@ -659,6 +1103,19 @@ hist_delete_at(VALUE self, VALUE index)
 	rb_raise(rb_eIndexError, "invalid index");
     }
     return rb_remove_history(i);
+}
+
+static VALUE
+hist_clear(VALUE self)
+{
+#ifdef HAVE_CLEAR_HISTORY
+    rb_secure(4);
+    clear_history();
+    return self;
+#else
+    rb_notimplement();
+    return Qnil; /* not reached */
+#endif
 }
 
 static VALUE
@@ -714,7 +1171,7 @@ username_completion_proc_call(VALUE self, VALUE str)
 void
 Init_readline()
 {
-    VALUE history, fcomp, ucomp;
+    VALUE history, fcomp, ucomp, version;
 
     /* Allow conditional parsing of the ~/.inputrc file. */
     rl_readline_name = "Ruby";
@@ -741,8 +1198,12 @@ Init_readline()
 			       readline_s_get_completion_case_fold, 0);
     rb_define_singleton_method(mReadline, "vi_editing_mode",
 			       readline_s_vi_editing_mode, 0);
+    rb_define_singleton_method(mReadline, "vi_editing_mode?",
+			       readline_s_vi_editing_mode_p, 0);
     rb_define_singleton_method(mReadline, "emacs_editing_mode",
 			       readline_s_emacs_editing_mode, 0);
+    rb_define_singleton_method(mReadline, "emacs_editing_mode?",
+			       readline_s_emacs_editing_mode_p, 0);
     rb_define_singleton_method(mReadline, "completion_append_character=",
 			       readline_s_set_completion_append_character, 1);
     rb_define_singleton_method(mReadline, "completion_append_character",
@@ -782,22 +1243,51 @@ Init_readline()
     rb_define_singleton_method(history,"size", hist_length, 0);
     rb_define_singleton_method(history,"empty?", hist_empty_p, 0);
     rb_define_singleton_method(history,"delete_at", hist_delete_at, 1);
+    rb_define_singleton_method(history,"clear", hist_clear, 0);
+
+    /*
+     * The history buffer. It extends Enumerable module, so it behaves
+     * just like an array.
+     * For example, gets the fifth content that the user input by
+     * HISTORY[4].
+     */
     rb_define_const(mReadline, "HISTORY", history);
 
     fcomp = rb_obj_alloc(rb_cObject);
     rb_define_singleton_method(fcomp, "call",
 			       filename_completion_proc_call, 1);
+    /*
+     * The Object with the call method that is a completion for filename.
+     * This is sets by Readline.completion_proc= method.
+     */
     rb_define_const(mReadline, "FILENAME_COMPLETION_PROC", fcomp);
 
     ucomp = rb_obj_alloc(rb_cObject);
     rb_define_singleton_method(ucomp, "call",
 			       username_completion_proc_call, 1);
+    /*
+     * The Object with the call method that is a completion for usernames.
+     * This is sets by Readline.completion_proc= method.
+     */
     rb_define_const(mReadline, "USERNAME_COMPLETION_PROC", ucomp);
+    history_get_offset_func = history_get_offset_history_base;
 #if defined HAVE_RL_LIBRARY_VERSION
-    rb_define_const(mReadline, "VERSION", rb_str_new2(rl_library_version));
-#else
-    rb_define_const(mReadline, "VERSION", rb_str_new2("2.0 or prior version"));
+    version = rb_str_new2(rl_library_version);
+#if defined HAVE_CLEAR_HISTORY
+    if (strncmp(rl_library_version, EDIT_LINE_LIBRARY_VERSION, 
+		strlen(EDIT_LINE_LIBRARY_VERSION)) == 0) {
+	add_history("1");
+	if (history_get(history_get_offset_func(0)) == NULL) {
+	    history_get_offset_func = history_get_offset_0;
+	}
+	clear_history();
+    }
 #endif
+#else
+    version = rb_str_new2("2.0 or prior version");
+#endif
+    /* Version string of GNU Readline or libedit. */
+    rb_define_const(mReadline, "VERSION", version);
 
     rl_attempted_completion_function = readline_attempted_completion_function;
 #ifdef HAVE_RL_EVENT_HOOK

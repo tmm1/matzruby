@@ -126,7 +126,7 @@ class TestThread < Test::Unit::TestCase
     sleep 0.5
     t1.kill
     t2.kill
-    assert(c1 > c2 * 2, "[ruby-dev:33124]")
+    assert(c1 > c2 * 1.5, "[ruby-dev:33124]")
   end
 
   def test_new
@@ -225,6 +225,7 @@ class TestThread < Test::Unit::TestCase
   def test_list
     assert_in_out_err([], <<-INPUT) do |r, e|
       t1 = Thread.new { sleep }
+      Thread.pass
       t2 = Thread.new { loop { } }
       t3 = Thread.new { }.join
       p [Thread.current, t1, t2].sort_by {|t| t.object_id }

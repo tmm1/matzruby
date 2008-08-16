@@ -1631,65 +1631,119 @@ rb_thread_alloc(VALUE klass)
     return self;
 }
 
-static VALUE
-m_core_set_method_alias(VALUE self, VALUE cbase, VALUE sym1, VALUE sym2)
+static void
+vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
+		 rb_num_t is_singleton, NODE *cref)
 {
-    rb_alias(cbase, SYM2ID(sym1), SYM2ID(sym2));
-    return Qnil;
-}
+    NODE *newbody;
+    VALUE klass = cref->nd_clss;
+    int noex = cref->nd_visi;
+    rb_iseq_t *miseq;
+    GetISeqPtr(iseqval, miseq);
 
-static VALUE
-m_core_set_variable_alias(VALUE self, VALUE sym1, VALUE sym2)
-{
-    rb_alias_variable(SYM2ID(sym1), SYM2ID(sym2));
-    return Qnil;
-}
+    if (NIL_P(klass)) {
+	rb_raise(rb_eTypeError, "no class/module to add method");
+    }
 
-static VALUE
-m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
-{
-    rb_undef(cbase, SYM2ID(sym));
+    if (is_singleton) {
+	if (FIXNUM_P(obj) || SYMBOL_P(obj)) {
+	    rb_raise(rb_eTypeError,
+		     "can't define singleton method \"%s\" for %s",
+		     rb_id2name(id), rb_obj_classname(obj));
+	}
+
+	if (OBJ_FROZEN(obj)) {
+	    rb_error_frozen("object");
+	}
+
+	klass = rb_singleton_class(obj);
+	noex = NOEX_PUBLIC;
+    }
+
+    /* dup */
+    COPY_CREF(miseq->cref_stack, cref);
+    miseq->klass = klass;
+    miseq->defined_method_id = id;
+    newbody = NEW_NODE(RUBY_VM_METHOD_NODE, 0, miseq->self, 0);
+    rb_add_method(klass, id, newbody, noex);
+
+    if (!is_singleton && noex == NOEX_MODFUNC) {
+	rb_add_method(rb_singleton_class(klass), id, newbody, NOEX_PUBLIC);
+    }
     INC_VM_STATE_VERSION();
-    return Qnil;
 }
+
+#define REWIND_CFP(expr) do { \
+    rb_thread_t *th__ = GET_THREAD(); \
+    th__->cfp++; expr; th__->cfp--; \
+} while (0)
 
 static VALUE
 m_core_define_method(VALUE self, VALUE cbase, VALUE sym, VALUE iseqval)
 {
-    rb_iseq_t *iseq;
-    GetISeqPtr(iseqval, iseq);
-    vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseq, 0, vm_cref());
+    REWIND_CFP({
+	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, 0, vm_cref());
+    });
     return Qnil;
 }
 
 static VALUE
 m_core_define_singleton_method(VALUE self, VALUE cbase, VALUE sym, VALUE iseqval)
 {
-    rb_iseq_t *iseq;
-    GetISeqPtr(iseqval, iseq);
-    vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseq, 1, vm_cref());
+    REWIND_CFP({
+	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, 1, vm_cref());
+    });
+    return Qnil;
+}
+
+static VALUE
+m_core_set_method_alias(VALUE self, VALUE cbase, VALUE sym1, VALUE sym2)
+{
+    REWIND_CFP({
+	rb_alias(cbase, SYM2ID(sym1), SYM2ID(sym2));
+    });
+    return Qnil;
+}
+
+static VALUE
+m_core_set_variable_alias(VALUE self, VALUE sym1, VALUE sym2)
+{
+    REWIND_CFP({
+	rb_alias_variable(SYM2ID(sym1), SYM2ID(sym2));
+    });
+    return Qnil;
+}
+
+static VALUE
+m_core_undef_method(VALUE self, VALUE cbase, VALUE sym)
+{
+    REWIND_CFP({
+	rb_undef(cbase, SYM2ID(sym));
+	INC_VM_STATE_VERSION();
+    });
     return Qnil;
 }
 
 static VALUE
 m_core_set_postexe(VALUE self, VALUE iseqval)
 {
-    rb_iseq_t *blockiseq;
-    rb_block_t *blockptr;
-    rb_thread_t *th = GET_THREAD();
-    rb_control_frame_t *cfp = vm_get_ruby_level_next_cfp(th, th->cfp);
-    VALUE proc;
-    extern void rb_call_end_proc(VALUE data);
+    REWIND_CFP({
+	rb_iseq_t *blockiseq;
+	rb_block_t *blockptr;
+	rb_thread_t *th = GET_THREAD();
+	rb_control_frame_t *cfp = vm_get_ruby_level_next_cfp(th, th->cfp);
+	VALUE proc;
+	extern void rb_call_end_proc(VALUE data);
 
-    GetISeqPtr(iseqval, blockiseq);
+	GetISeqPtr(iseqval, blockiseq);
 
-    blockptr = RUBY_VM_GET_BLOCK_PTR_IN_CFP(cfp);
-    blockptr->iseq = blockiseq;
-    blockptr->proc = 0;
+	blockptr = RUBY_VM_GET_BLOCK_PTR_IN_CFP(cfp);
+	blockptr->iseq = blockiseq;
+	blockptr->proc = 0;
 
-    proc = vm_make_proc(th, cfp, blockptr);
-    rb_set_end_proc(rb_call_end_proc, proc);
-
+	proc = vm_make_proc(th, cfp, blockptr);
+	rb_set_end_proc(rb_call_end_proc, proc);
+    });
     return Qnil;
 }
 
@@ -1732,21 +1786,25 @@ void
 Init_VM(void)
 {
     VALUE opts;
-    VALUE core;
+    VALUE klass;
+    VALUE fcore;
 
     /* ::VM */
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_undef_alloc_func(rb_cRubyVM);
 
     /* ::VM::FrozenCore */
-    rb_mRubyVMFrozenCore = core = rb_define_module_under(rb_cRubyVM, "FrozenCore");
-    rb_define_singleton_method(core, "core_set_method_alias", m_core_set_method_alias, 3);
-    rb_define_singleton_method(core, "core_set_variable_alias", m_core_set_variable_alias, 2);
-    rb_define_singleton_method(core, "core_undef_method", m_core_undef_method, 2);
-    rb_define_singleton_method(core, "core_define_method", m_core_define_method, 3);
-    rb_define_singleton_method(core, "core_define_singleton_method", m_core_define_singleton_method, 3);
-    rb_define_singleton_method(core, "core_set_postexe", m_core_set_postexe, 1);
-    rb_obj_freeze(core);
+    fcore = rb_class_new(rb_cBasicObject);
+    RBASIC(fcore)->flags = T_ICLASS;
+    klass = rb_singleton_class(fcore);
+    rb_define_method_id(klass, id_core_set_method_alias, m_core_set_method_alias, 3);
+    rb_define_method_id(klass, id_core_set_variable_alias, m_core_set_variable_alias, 2);
+    rb_define_method_id(klass, id_core_undef_method, m_core_undef_method, 2);
+    rb_define_method_id(klass, id_core_define_method, m_core_define_method, 3);
+    rb_define_method_id(klass, id_core_define_singleton_method, m_core_define_singleton_method, 3);
+    rb_define_method_id(klass, id_core_set_postexe, m_core_set_postexe, 1);
+    rb_obj_freeze(fcore);
+    rb_mRubyVMFrozenCore = fcore;
 
     /* ::VM::Env */
     rb_cEnv = rb_define_class_under(rb_cRubyVM, "Env", rb_cObject);
@@ -1849,6 +1907,10 @@ Init_BareVM(void)
     /* VM bootstrap: phase 1 */
     rb_vm_t * vm = malloc(sizeof(*vm));
     rb_thread_t * th = malloc(sizeof(*th));
+    if (!vm || !th) {
+	fprintf(stderr, "[FATAL] failed to allocate memory\n");
+	exit(EXIT_FAILURE);
+    }
     MEMZERO(th, rb_thread_t, 1);
 
     rb_thread_set_current_raw(th);

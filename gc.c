@@ -92,6 +92,158 @@ int ruby_gc_debug_indent = 0;
 
 #undef GC_DEBUG
 
+/* for GC profile */
+#define GC_PROFILE_MORE_DETAIL 0
+typedef struct gc_profile_record {
+    double gc_time;
+    double gc_mark_time;
+    double gc_sweep_time;
+    double gc_invoke_time;
+    size_t heap_use_slots;
+    size_t heap_live_objects;
+    size_t heap_free_objects;
+    size_t heap_total_objects;
+    size_t heap_use_size;
+    size_t heap_total_size;
+    int have_finalize;
+    size_t allocate_increase;
+    size_t allocate_limit;
+} gc_profile_record;
+
+static double
+getrusage_time(void)
+{
+#ifdef RUSAGE_SELF
+    struct rusage usage;
+    struct timeval time;
+    getrusage(RUSAGE_SELF, &usage);
+    time = usage.ru_utime;
+    return time.tv_sec + time.tv_usec * 1e-6;
+#elif defined _WIN32
+    FILETIME creation_time, exit_time, kernel_time, user_time;
+    ULARGE_INTEGER ui;
+    LONG_LONG q;
+    double t;
+    
+    if (GetProcessTimes(GetCurrentProcess(),
+			&creation_time, &exit_time, &kernel_time, &user_time) == 0)
+    {
+	return 0.0;
+    }
+    memcpy(&ui, &user_time, sizeof(FILETIME));
+    q = ui.QuadPart / 10L;
+    t = (DWORD)(q % 1000000L) * 1e-6;
+    q /= 1000000L;
+#ifdef __GNUC__
+    t += q;
+#else
+    t += (double)(DWORD)(q >> 16) * (1 << 16);
+    t += (DWORD)q & ~(~0 << 16);
+#endif
+    return t;
+#else
+    return 0.0;
+#endif
+}
+
+#define GC_PROF_TIMER_START do {\
+	if (objspace->profile.run) {\
+	    if (!objspace->profile.record) {\
+		objspace->profile.size = 1000;\
+		objspace->profile.record = malloc(sizeof(gc_profile_record) * objspace->profile.size);\
+	    }\
+	    if (count >= objspace->profile.size) {\
+		objspace->profile.size += 1000;\
+		objspace->profile.record = realloc(objspace->profile.record, sizeof(gc_profile_record) * objspace->profile.size);\
+	    }\
+	    if (!objspace->profile.record) {\
+		rb_bug("gc_profile malloc or realloc miss");\
+	    }\
+	    MEMZERO(&objspace->profile.record[count], gc_profile_record, 1);\
+	    gc_time = getrusage_time();\
+	    objspace->profile.record[count].gc_invoke_time = gc_time - objspace->profile.invoke_time;\
+	}\
+    } while(0)
+
+#define GC_PROF_TIMER_STOP do {\
+	if (objspace->profile.run) {\
+	    gc_time = getrusage_time() - gc_time;\
+	    if (gc_time < 0) gc_time = 0;\
+	    objspace->profile.record[count].gc_time = gc_time;\
+	    objspace->profile.count++;\
+	}\
+    } while(0)
+
+#if GC_PROFILE_MORE_DETAIL
+#define INIT_GC_PROF_PARAMS double gc_time = 0, mark_time = 0, sweep_time = 0;\
+    size_t count = objspace->profile.count
+
+#define GC_PROF_MARK_TIMER_START do {\
+	if (objspace->profile.run) {\
+	    mark_time = getrusage_time();\
+	}\
+    } while(0)
+
+#define GC_PROF_MARK_TIMER_STOP do {\
+	if (objspace->profile.run) {\
+	    mark_time = getrusage_time() - mark_time;\
+	    if (mark_time < 0) mark_time = 0;\
+	    objspace->profile.record[count].gc_mark_time = mark_time;\
+	}\
+    } while(0)
+
+#define GC_PROF_SWEEP_TIMER_START do {\
+	if (objspace->profile.run) {\
+	    sweep_time = getrusage_time();\
+	}\
+    } while(0)
+
+#define GC_PROF_SWEEP_TIMER_STOP do {\
+	if (objspace->profile.run) {\
+	    sweep_time = getrusage_time() - sweep_time;\
+	    if (sweep_time < 0) sweep_time = 0;\
+	    objspace->profile.record[count].gc_sweep_time = sweep_time;\
+	}\
+    } while(0)
+#define GC_PROF_SET_MALLOC_INFO do {\
+	if (objspace->profile.run) {\
+	    size_t count = objspace->profile.count;\
+	    objspace->profile.record[count].allocate_increase = malloc_increase;\
+	    objspace->profile.record[count].allocate_limit = malloc_limit; \
+	}\
+    } while(0)
+#define GC_PROF_SET_HEAP_INFO do {\
+	if (objspace->profile.run) {\
+	    size_t count = objspace->profile.count;\
+	    objspace->profile.record[count].heap_use_slots = heaps_used;\
+	    objspace->profile.record[count].heap_live_objects = live;\
+	    objspace->profile.record[count].heap_free_objects = freed;\
+	    objspace->profile.record[count].heap_total_objects = heaps_used * HEAP_OBJ_LIMIT;\
+	    objspace->profile.record[count].have_finalize = final_list ? Qtrue : Qfalse;\
+	    objspace->profile.record[count].heap_use_size = live * sizeof(RVALUE);\
+	    objspace->profile.record[count].heap_total_size = heaps_used * (HEAP_OBJ_LIMIT * sizeof(RVALUE));\
+	}\
+    } while(0)
+
+#else
+#define INIT_GC_PROF_PARAMS double gc_time = 0;\
+    size_t count = objspace->profile.count
+#define GC_PROF_MARK_TIMER_START
+#define GC_PROF_MARK_TIMER_STOP
+#define GC_PROF_SWEEP_TIMER_START
+#define GC_PROF_SWEEP_TIMER_STOP
+#define GC_PROF_SET_MALLOC_INFO
+#define GC_PROF_SET_HEAP_INFO do {\
+	if (objspace->profile.run) {\
+	    size_t count = objspace->profile.count;\
+	    objspace->profile.record[count].heap_total_objects = heaps_used * HEAP_OBJ_LIMIT;\
+	    objspace->profile.record[count].heap_use_size = live * sizeof(RVALUE);\
+	    objspace->profile.record[count].heap_total_size = heaps_used * HEAP_SIZE;\
+	}\
+    } while(0)
+#endif
+
+
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__)
 #pragma pack(push, 1) /* magic for reducing sizeof(RVALUE): 24 -> 20 */
 #endif
@@ -176,6 +328,13 @@ typedef struct rb_objspace {
 	VALUE *ptr;
 	int overflow;
     } markstack;
+    struct {
+	int run;
+	gc_profile_record *record;
+	size_t count;
+	size_t size;
+	double invoke_time;
+    } profile;
     struct gc_list *global_list;
     unsigned int count;
     int gc_stress;
@@ -305,6 +464,73 @@ gc_stress_set(VALUE self, VALUE bool)
     rb_secure(2);
     ruby_gc_stress = RTEST(bool);
     return bool;
+}
+
+/*
+ *  call-seq:
+ *    GC::Profiler.enable?                 => true or false
+ *
+ *  returns current status of GC profile mode.
+ */
+
+static VALUE
+gc_profile_enable_get(VALUE self)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    return objspace->profile.run;
+}
+
+/*
+ *  call-seq:
+ *    GC::Profiler.enable          => nil
+ *
+ *  updates GC profile mode.
+ *  start profiler for GC.
+ *
+ */
+
+static VALUE
+gc_profile_enable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    objspace->profile.run = Qtrue;
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *    GC::Profiler.disable          => nil
+ *
+ *  updates GC profile mode.
+ *  stop profiler for GC.
+ *
+ */
+
+static VALUE
+gc_profile_disable(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+
+    objspace->profile.run = Qfalse;
+    return Qnil;
+}
+
+/*
+ *  call-seq:
+ *    GC::Profiler.clear          => nil
+ *
+ *  clear before profile data.
+ *
+ */
+
+static VALUE
+gc_profile_clear(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    MEMZERO(objspace->profile.record, gc_profile_record, objspace->profile.size);
+    objspace->profile.count = 0;
+    return Qnil;
 }
 
 static void *
@@ -551,7 +777,10 @@ allocate_heaps(rb_objspace_t *objspace, size_t next_heaps_length)
 		      p = heaps = (struct heaps_slot *)malloc(size);
 		  }
 		  );
-    if (p == 0) rb_memerror();
+    if (p == 0) {
+	during_gc = 0;
+	rb_memerror();
+    }
     heaps_length = next_heaps_length;
 }
 
@@ -564,8 +793,10 @@ assign_heap_slot(rb_objspace_t *objspace)
 	
     objs = HEAP_OBJ_LIMIT;
     RUBY_CRITICAL(p = (RVALUE*)malloc(HEAP_SIZE));
-    if (p == 0)
+    if (p == 0) {
+	during_gc = 0;
 	rb_memerror();
+    }
 
     membase = p;
     if ((VALUE)p % sizeof(RVALUE) != 0) {
@@ -625,6 +856,7 @@ init_heap(rb_objspace_t *objspace)
     	assign_heap_slot(objspace);
     }
     heaps_inc = 0;
+    objspace->profile.invoke_time = getrusage_time();
 }
 
 
@@ -659,6 +891,7 @@ rb_newobj_from_heap(rb_objspace_t *objspace)
 	
     if ((ruby_gc_stress && !ruby_disable_gc_stress) || !freelist) {
     	if (!heaps_increment(objspace) && !garbage_collect(objspace)) {
+	    during_gc = 0;
 	    rb_memerror();
 	}
     }
@@ -805,7 +1038,7 @@ ruby_get_stack_grow_direction(VALUE *addr)
 
 #define GC_WATER_MARK 512
 
-int
+size_t
 ruby_stack_length(VALUE **p)
 {
     rb_thread_t *th = GET_THREAD();
@@ -1401,7 +1634,7 @@ gc_sweep(rb_objspace_t *objspace)
     final_list = deferred_final_list;
     deferred_final_list = 0;
     for (i = 0; i < heaps_used; i++) {
-	int n = 0;
+	int free_num = 0, final_num = 0;
 	RVALUE *free = freelist;
 	RVALUE *final = final_list;
 	int deferred;
@@ -1419,11 +1652,12 @@ gc_sweep(rb_objspace_t *objspace)
 		    p->as.free.flags |= FL_MARK;
 		    p->as.free.next = final_list;
 		    final_list = p;
+		    final_num++;
 		}
 		else {
 		    add_freelist(objspace, p);
+		    free_num++;
 		}
-		n++;
 	    }
 	    else if (BUILTIN_TYPE(p) == T_DEFERRED) {
 		/* objects to be finalized */
@@ -1435,23 +1669,22 @@ gc_sweep(rb_objspace_t *objspace)
 	    }
 	    p++;
 	}
-	if (n == heaps[i].limit && freed > do_heap_free) {
+	if (final_num + free_num == heaps[i].limit && freed > do_heap_free) {
 	    RVALUE *pp;
-	    int f_count = 0;
 
 	    for (pp = final_list; pp != final; pp = pp->as.free.next) {
-		f_count++;
 		RDATA(pp)->dmark = (void *)&heaps[i];
 		pp->as.free.flags |= FL_SINGLETON; /* freeing page mark */
 	    }
-	    heaps[i].limit = f_count;
+	    heaps[i].limit = final_num;
 
 	    freelist = free;	/* cancel this page from freelist */
 	}
 	else {
-	    freed += n;
+	    freed += free_num;
 	}
     }
+    GC_PROF_SET_MALLOC_INFO;
     if (malloc_increase > malloc_limit) {
 	malloc_limit += (malloc_increase - malloc_limit) * (double)live / (live + freed);
 	if (malloc_limit < GC_MALLOC_LIMIT) malloc_limit = GC_MALLOC_LIMIT;
@@ -1465,11 +1698,13 @@ gc_sweep(rb_objspace_t *objspace)
 
     /* clear finalization list */
     if (final_list) {
+	GC_PROF_SET_HEAP_INFO;
 	deferred_final_list = final_list;
 	RUBY_VM_SET_FINALIZER_INTERRUPT(GET_THREAD());
     }
     else{
 	free_unused_heaps(objspace);
+	GC_PROF_SET_HEAP_INFO;
     }
 }
 
@@ -1478,6 +1713,12 @@ rb_gc_force_recycle(VALUE p)
 {
     rb_objspace_t *objspace = &rb_objspace;
     add_freelist(objspace, (RVALUE *)p);
+}
+
+static inline void
+make_deferred(RVALUE *p)
+{
+    p->as.basic.flags = (p->as.basic.flags & ~T_MASK) | T_DEFERRED;
 }
 
 static int
@@ -1494,6 +1735,7 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 
     if (FL_TEST(obj, FL_EXIVAR)) {
 	rb_free_generic_ivar((VALUE)obj);
+	FL_UNSET(obj, FL_EXIVAR);
     }
 
     switch (BUILTIN_TYPE(obj)) {
@@ -1537,14 +1779,8 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
 		xfree(DATA_PTR(obj));
 	    }
 	    else if (RANY(obj)->as.data.dfree) {
-		if (1) {
-		    RANY(obj)->as.basic.flags &= ~T_MASK;
-		    RANY(obj)->as.basic.flags |= T_DEFERRED;
-		    return 1;
-		}
-		else {
-		    (*RANY(obj)->as.data.dfree)(DATA_PTR(obj));
-		}
+		make_deferred(RANY(obj));
+		return 1;
 	    }
 	}
 	break;
@@ -1553,23 +1789,17 @@ obj_free(rb_objspace_t *objspace, VALUE obj)
             struct rmatch *rm = RANY(obj)->as.match.rmatch;
 	    onig_region_free(&rm->regs, 0);
             if (rm->char_offset)
-	      xfree(rm->char_offset);
+		xfree(rm->char_offset);
 	    xfree(rm);
 	}
 	break;
       case T_FILE:
 	if (RANY(obj)->as.file.fptr) {
 	    rb_io_t *fptr = RANY(obj)->as.file.fptr;
-	    if (1) {
-		RANY(obj)->as.basic.flags &= ~T_MASK;
-		RANY(obj)->as.basic.flags |= T_DEFERRED;
-		RDATA(obj)->dfree = (void (*)(void*))rb_io_fptr_finalize;
-		RDATA(obj)->data = fptr;
-		return 1;
-	    }
-	    else {
-		rb_io_fptr_finalize(fptr);
-	    }
+	    make_deferred(RANY(obj));
+	    RDATA(obj)->dfree = (void (*)(void*))rb_io_fptr_finalize;
+	    RDATA(obj)->data = fptr;
+	    return 1;
 	}
 	break;
       case T_RATIONAL:
@@ -1702,6 +1932,7 @@ garbage_collect(rb_objspace_t *objspace)
 {
     struct gc_list *list;
     rb_thread_t *th = GET_THREAD();
+    INIT_GC_PROF_PARAMS;
 
     if (GC_NOTIFY) printf("start garbage_collect()\n");
 
@@ -1721,6 +1952,8 @@ garbage_collect(rb_objspace_t *objspace)
     during_gc++;
     objspace->count++;
 
+    GC_PROF_TIMER_START;
+    GC_PROF_MARK_TIMER_START;
     SET_STACK_END;
 
     init_mark_stack(objspace);
@@ -1758,9 +1991,13 @@ garbage_collect(rb_objspace_t *objspace)
 	    gc_mark_rest(objspace);
 	}
     }
+    GC_PROF_MARK_TIMER_STOP;
 
+    GC_PROF_SWEEP_TIMER_START;
     gc_sweep(objspace);
+    GC_PROF_SWEEP_TIMER_STOP;
 
+    GC_PROF_TIMER_STOP;
     if (GC_NOTIFY) printf("end garbage_collect()\n");
     return Qtrue;
 }
@@ -2036,6 +2273,7 @@ run_final(rb_objspace_t *objspace, VALUE obj)
     VALUE args[3], table, objid;
 
     objid = rb_obj_id(obj);	/* make obj into id */
+    RBASIC(obj)->klass = 0;
 
     if (RDATA(obj)->dfree) {
 	(*RDATA(obj)->dfree)(DATA_PTR(obj));
@@ -2086,8 +2324,11 @@ chain_finalized_object(st_data_t key, st_data_t val, st_data_t arg)
 	}
 	p->as.free.next = *final_list;
 	*final_list = p;
+	return ST_CONTINUE;
     }
-    return ST_CONTINUE;
+    else {
+	return ST_DELETE;
+    }
 }
 
 void
@@ -2098,14 +2339,22 @@ rb_gc_call_finalizer_at_exit(void)
     size_t i;
 
     /* run finalizers */
-    if (need_call_final) {
-	do {
-	    p = deferred_final_list;
-	    deferred_final_list = 0;
-	    finalize_list(objspace, p);
+    if (finalizer_table) {
+	p = deferred_final_list;
+	deferred_final_list = 0;
+	finalize_list(objspace, p);
+	while (finalizer_table->num_entries > 0) {
+	    RVALUE *final_list = 0;
 	    st_foreach(finalizer_table, chain_finalized_object,
-		       (st_data_t)&deferred_final_list);
-	} while (deferred_final_list);
+		       (st_data_t)&final_list);
+	    if (!(p = final_list)) break;
+	    do {
+		final_list = p->as.free.next;
+		run_final(objspace, (VALUE)p);
+	    } while ((p = final_list) != 0);
+	}
+	st_free_table(finalizer_table);
+	finalizer_table = 0;
     }
     /* finalizers are part of garbage collection */
     during_gc++;
@@ -2335,6 +2584,7 @@ count_objects(int argc, VALUE *argv, VALUE os)
     }
     rb_hash_aset(hash, ID2SYM(rb_intern("TOTAL")), SIZET2NUM(total));
     rb_hash_aset(hash, ID2SYM(rb_intern("FREE")), SIZET2NUM(freed));
+
     for (i = 0; i <= T_MASK; i++) {
         VALUE type;
         switch (i) {
@@ -2422,6 +2672,121 @@ gc_malloc_allocations(VALUE self)
 }
 #endif
 
+VALUE
+gc_profile_record_get(void)
+{
+    VALUE prof;
+    VALUE gc_profile = rb_ary_new();
+    size_t i;
+    rb_objspace_t *objspace = (&rb_objspace);
+    
+    if (!objspace->profile.run) {
+	return Qnil;
+    }
+
+    for (i =0; i < objspace->profile.count; i++) {
+	prof = rb_hash_new();
+        rb_hash_aset(prof, ID2SYM(rb_intern("GC_TIME")), DOUBLE2NUM(objspace->profile.record[i].gc_time));
+        rb_hash_aset(prof, ID2SYM(rb_intern("GC_INVOKE_TIME")), DOUBLE2NUM(objspace->profile.record[i].gc_invoke_time));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_USE_SIZE")), rb_uint2inum(objspace->profile.record[i].heap_use_size));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_TOTAL_SIZE")), rb_uint2inum(objspace->profile.record[i].heap_total_size));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_TOTAL_OBJECTS")), rb_uint2inum(objspace->profile.record[i].heap_total_objects));
+#if GC_PROFILE_MORE_DETAIL
+        rb_hash_aset(prof, ID2SYM(rb_intern("GC_MARK_TIME")), DOUBLE2NUM(objspace->profile.record[i].gc_mark_time));
+        rb_hash_aset(prof, ID2SYM(rb_intern("GC_SWEEP_TIME")), DOUBLE2NUM(objspace->profile.record[i].gc_sweep_time));
+        rb_hash_aset(prof, ID2SYM(rb_intern("ALLOCATE_INCREASE")), rb_uint2inum(objspace->profile.record[i].allocate_increase));
+        rb_hash_aset(prof, ID2SYM(rb_intern("ALLOCATE_LIMIT")), rb_uint2inum(objspace->profile.record[i].allocate_limit));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_USE_SLOTS")), rb_uint2inum(objspace->profile.record[i].heap_use_slots));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_LIVE_OBJECTS")), rb_uint2inum(objspace->profile.record[i].heap_live_objects));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HEAP_FREE_OBJECTS")), rb_uint2inum(objspace->profile.record[i].heap_free_objects));
+        rb_hash_aset(prof, ID2SYM(rb_intern("HAVE_FINALIZE")), objspace->profile.record[i].have_finalize);
+#endif
+	rb_ary_push(gc_profile, prof);
+    }
+
+    return gc_profile;
+}
+
+/*
+ *  call-seq:
+ *     GC::Profiler.result -> string
+ *
+ *  Report profile data to string.
+ *  
+ *  It returns a string as:
+ *   GC 1 invokes.
+ *   Index    Invoke Time(sec)       Use Size(byte)     Total Size(byte)         Total Object                    GC time(ms)
+ *       1               0.012               159240               212940                10647         0.00000000000001530000
+ */
+
+VALUE
+gc_profile_result(void)
+{
+    rb_objspace_t *objspace = &rb_objspace;
+    VALUE record = gc_profile_record_get();
+    VALUE result;
+    int i;
+    
+    if (objspace->profile.run && objspace->profile.count) {
+	result = rb_sprintf("GC %d invokes.\n", NUM2INT(gc_count(0)));
+	rb_str_cat2(result, "Index    Invoke Time(sec)       Use Size(byte)     Total Size(byte)         Total Object                    GC Time(ms)\n");
+	for (i = 0; i < (int)RARRAY_LEN(record); i++) {
+	    VALUE r = RARRAY_PTR(record)[i];
+	    rb_str_catf(result, "%5d %19.3f %20d %20d %20d %30.20f\n",
+			i+1, NUM2DBL(rb_hash_aref(r, ID2SYM(rb_intern("GC_INVOKE_TIME")))),
+			NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("HEAP_USE_SIZE")))),
+			NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("HEAP_TOTAL_SIZE")))),
+			NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("HEAP_TOTAL_OBJECTS")))),
+			NUM2DBL(rb_hash_aref(r, ID2SYM(rb_intern("GC_TIME"))))*100);
+	}
+#if GC_PROFILE_MORE_DETAIL
+	rb_str_cat2(result, "\n\n");
+	rb_str_cat2(result, "More detail.\n");
+	rb_str_cat2(result, "Index Allocate Increase    Allocate Limit  Use Slot  Have Finalize             Mark Time(ms)            Sweep Time(ms)\n");
+	for (i = 0; i < (int)RARRAY_LEN(record); i++) {
+	    VALUE r = RARRAY_PTR(record)[i];
+	    rb_str_catf(result, "%5d %17d %17d %9d %14s %25.20f %25.20f\n",
+			i+1, NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("ALLOCATE_INCREASE")))),
+			NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("ALLOCATE_LIMIT")))),
+			NUM2INT(rb_hash_aref(r, ID2SYM(rb_intern("HEAP_USE_SLOTS")))),
+			rb_hash_aref(r, ID2SYM(rb_intern("HAVE_FINALIZE")))? "true" : "false",
+			NUM2DBL(rb_hash_aref(r, ID2SYM(rb_intern("GC_MARK_TIME"))))*100,
+			NUM2DBL(rb_hash_aref(r, ID2SYM(rb_intern("GC_SWEEP_TIME"))))*100);
+	}
+#endif
+    }
+    else {
+	result = rb_str_new2("");
+    }
+    return result;
+}
+
+
+/*
+ *  call-seq:
+ *     GC::Profiler.report
+ *
+ *  GC::Profiler.result display
+ *  
+ */
+
+VALUE
+gc_profile_report(int argc, VALUE *argv, VALUE self)
+{
+    VALUE out;
+
+    if (argc == 0) {
+	out = rb_stdout;
+    }
+    else {
+	rb_scan_args(argc, argv, "01", &out);
+    }
+    rb_io_write(out, gc_profile_result());
+
+    return Qnil;
+}
+
+
 /*
  *  The <code>GC</code> module provides an interface to Ruby's mark and
  *  sweep garbage collection mechanism. Some of the underlying methods
@@ -2432,6 +2797,7 @@ void
 Init_GC(void)
 {
     VALUE rb_mObSpace;
+    VALUE rb_mProfiler;
 
     rb_mGC = rb_define_module("GC");
     rb_define_singleton_method(rb_mGC, "start", rb_gc_start, 0);
@@ -2441,6 +2807,14 @@ Init_GC(void)
     rb_define_singleton_method(rb_mGC, "stress=", gc_stress_set, 1);
     rb_define_singleton_method(rb_mGC, "count", gc_count, 0);
     rb_define_method(rb_mGC, "garbage_collect", rb_gc_start, 0);
+
+    rb_mProfiler = rb_define_module_under(rb_mGC, "Profiler");
+    rb_define_singleton_method(rb_mProfiler, "enabled?", gc_profile_enable_get, 0);
+    rb_define_singleton_method(rb_mProfiler, "enable", gc_profile_enable, 0);
+    rb_define_singleton_method(rb_mProfiler, "disable", gc_profile_disable, 0);
+    rb_define_singleton_method(rb_mProfiler, "clear", gc_profile_clear, 0);
+    rb_define_singleton_method(rb_mProfiler, "result", gc_profile_result, 0);
+    rb_define_singleton_method(rb_mProfiler, "report", gc_profile_report, -1);
 
     rb_mObSpace = rb_define_module("ObjectSpace");
     rb_define_module_function(rb_mObSpace, "each_object", os_each_obj, -1);

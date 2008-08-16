@@ -221,7 +221,7 @@ caller_setup_args(const rb_thread_t *th, rb_control_frame_t *cfp, VALUE flag,
 	    if (proc != Qnil) {
 		if (!rb_obj_is_proc(proc)) {
 		    VALUE b = rb_check_convert_type(proc, T_DATA, "Proc", "to_proc");
-		    if (NIL_P(b)) {
+		    if (NIL_P(b) || !rb_obj_is_proc(b)) {
 			rb_raise(rb_eTypeError,
 				 "wrong argument type %s (expected Proc)",
 				 rb_obj_classname(proc));
@@ -1061,46 +1061,6 @@ vm_get_cvar_base(NODE *cref)
     return klass;
 }
 
-static inline void
-vm_define_method(rb_thread_t *th, VALUE obj, ID id, rb_iseq_t *miseq,
-		 rb_num_t is_singleton, NODE *cref)
-{
-    NODE *newbody;
-    VALUE klass = cref->nd_clss;
-    int noex = cref->nd_visi;
-
-    if (NIL_P(klass)) {
-	rb_raise(rb_eTypeError, "no class/module to add method");
-    }
-
-    if (is_singleton) {
-	if (FIXNUM_P(obj) || SYMBOL_P(obj)) {
-	    rb_raise(rb_eTypeError,
-		     "can't define singleton method \"%s\" for %s",
-		     rb_id2name(id), rb_obj_classname(obj));
-	}
-
-	if (OBJ_FROZEN(obj)) {
-	    rb_error_frozen("object");
-	}
-
-	klass = rb_singleton_class(obj);
-	noex = NOEX_PUBLIC;
-    }
-
-    /* dup */
-    COPY_CREF(miseq->cref_stack, cref);
-    miseq->klass = klass;
-    miseq->defined_method_id = id;
-    newbody = NEW_NODE(RUBY_VM_METHOD_NODE, 0, miseq->self, 0);
-    rb_add_method(klass, id, newbody, noex);
-
-    if (!is_singleton && noex == NOEX_MODFUNC) {
-	rb_add_method(rb_singleton_class(klass), id, newbody, NOEX_PUBLIC);
-    }
-    INC_VM_STATE_VERSION();
-}
-
 static inline NODE *
 vm_method_search(VALUE id, VALUE klass, IC ic)
 {
@@ -1412,7 +1372,11 @@ check_cfunc(const NODE *mn, const void *func)
     }
 }
 
-static inline VALUE
+static
+#ifndef NO_BIG_INLINE
+inline
+#endif
+VALUE
 opt_eq_func(VALUE recv, VALUE obj, IC ic)
 {
     VALUE val = Qundef;

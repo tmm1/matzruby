@@ -59,7 +59,7 @@ static void
 time_modify(VALUE time)
 {
     rb_check_frozen(time);
-    if (!OBJ_TAINTED(time) && rb_safe_level() >= 4)
+    if (!OBJ_UNTRUSTED(time) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify Time");
 }
 
@@ -1086,8 +1086,18 @@ time_cmp(VALUE time1, VALUE time2)
 	if (tobj1->ts.tv_sec > tobj2->ts.tv_sec) return INT2FIX(1);
 	return INT2FIX(-1);
     }
+    else {
+	VALUE cmp;
+	int n;
 
-    return Qnil;
+	cmp = rb_funcall(time2, rb_intern("<=>"), 1, time1);
+	if (NIL_P(cmp)) return Qnil;
+
+	n = rb_cmpint(cmp, time1, time2);
+	if (n == 0) return INT2FIX(0);
+	if (n > 0) return INT2FIX(1);
+	return INT2FIX(-1);
+    }
 }
 
 /*
@@ -2342,6 +2352,7 @@ void
 Init_Time(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     id_divmod = rb_intern("divmod");
     id_mul = rb_intern("*");

@@ -262,6 +262,7 @@ struct rb_iseq_struct {
     /****************/
 
     VALUE self;
+    VALUE orig;			/* non-NULL if its data have origin */
 
     /* block inlining */
     /* 
@@ -454,6 +455,7 @@ struct rb_thread_struct
     rb_thread_id_t thread_id;
     enum rb_thread_status status;
     int priority;
+    int slice;
 
     native_thread_data_t native_thread_data;
 
@@ -536,6 +538,7 @@ VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE ruby_iseq_disasm(VALUE self);
 VALUE ruby_iseq_disasm_insn(VALUE str, VALUE *iseqval, int pos, rb_iseq_t *iseq, VALUE child);
 const char *ruby_node_name(int node);
+VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
 
 /* each thread has this size stack : 128KB */
 #define RUBY_VM_THREAD_STACK_SIZE (128 * 1024)
@@ -747,6 +750,7 @@ void rb_thread_execute_interrupts(rb_thread_t *);
 static inline void
 exec_event_hooks(rb_event_hook_t *hook, rb_event_flag_t flag, VALUE self, ID id, VALUE klass)
 {
+    if (self == rb_mRubyVMFrozenCore) return;
     while (hook) {
 	if (flag & hook->flag) {
 	    (*hook->func)(flag, hook->data, self, id, klass);

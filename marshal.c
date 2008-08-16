@@ -136,6 +136,7 @@ struct dump_arg {
     st_table *symbols;
     st_table *data;
     int taint;
+    int untrust;
     st_table *compat_tbl;
     VALUE wrapper;
     st_table *encodings;
@@ -192,6 +193,7 @@ w_nbyte(const char *s, int n, struct dump_arg *arg)
     rb_str_buf_cat(buf, s, n);
     if (arg->dest && RSTRING_LEN(buf) >= BUFSIZ) {
 	if (arg->taint) OBJ_TAINT(buf);
+	if (arg->untrust) OBJ_UNTRUST(buf);
 	rb_io_write(arg->dest, buf);
 	rb_str_resize(buf, 0);
     }
@@ -581,6 +583,7 @@ w_object(VALUE obj, struct dump_arg *arg, int limit)
     }
     else {
 	if (OBJ_TAINTED(obj)) arg->taint = Qtrue;
+	if (OBJ_UNTRUSTED(obj)) arg->untrust = Qtrue;
 
 	if (rb_respond_to(obj, s_mdump)) {
 	    volatile VALUE v;
@@ -803,10 +806,14 @@ dump_ensure(struct dump_arg *arg)
     st_free_table(arg->symbols);
     st_free_table(arg->data);
     st_free_table(arg->compat_tbl);
+    if (arg->encodings) st_free_table(arg->encodings);
     DATA_PTR(arg->wrapper) = 0;
     arg->wrapper = 0;
     if (arg->taint) {
 	OBJ_TAINT(arg->str);
+    }
+    if (arg->untrust) {
+	OBJ_UNTRUST(arg->str);
     }
     return 0;
 }
@@ -877,6 +884,7 @@ marshal_dump(int argc, VALUE *argv)
     arg.symbols = st_init_numtable();
     arg.data    = st_init_numtable();
     arg.taint   = Qfalse;
+    arg.untrust = Qfalse;
     arg.compat_tbl = st_init_numtable();
     arg.wrapper = Data_Wrap_Struct(rb_cData, mark_dump_arg, 0, &arg);
     arg.encodings = 0;
@@ -900,6 +908,7 @@ struct load_arg {
     VALUE data;
     VALUE proc;
     int taint;
+    int untrust;
     st_table *compat_allocator_tbl;
     st_table *compat_tbl;
     VALUE compat_tbl_wrapper;
@@ -1015,6 +1024,7 @@ r_bytes0(long len, struct load_arg *arg)
 	StringValue(str);
 	if (RSTRING_LEN(str) != len) goto too_short;
 	if (OBJ_TAINTED(str)) arg->taint = Qtrue;
+	if (OBJ_UNTRUSTED(str)) arg->untrust = Qtrue;
     }
     return str;
 }
@@ -1084,6 +1094,11 @@ r_entry(VALUE v, struct load_arg *arg)
         OBJ_TAINT(v);
         if ((VALUE)real_obj != Qundef)
             OBJ_TAINT((VALUE)real_obj);
+    }
+    if (arg->untrust) {
+        OBJ_UNTRUST(v);
+        if ((VALUE)real_obj != Qundef)
+            OBJ_UNTRUST((VALUE)real_obj);
     }
     return v;
 }
@@ -1610,6 +1625,7 @@ marshal_load(int argc, VALUE *argv)
     else {
 	rb_raise(rb_eTypeError, "instance of IO needed");
     }
+    arg.untrust = OBJ_UNTRUSTED(port);
     arg.src = port;
     arg.offset = 0;
     arg.compat_tbl = st_init_numtable();
@@ -1676,6 +1692,7 @@ void
 Init_marshal(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     VALUE rb_mMarshal = rb_define_module("Marshal");
 

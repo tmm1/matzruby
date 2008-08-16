@@ -25,12 +25,10 @@
 #endif
 
 #include <sys/types.h>
-#if !defined(_WIN32) && !defined(__DJGPP__)
-# if defined(__BEOS__)
-#  include <net/socket.h>
-# else
-#  include <sys/socket.h>
-# endif
+#if defined HAVE_NET_SOCKET_H
+# include <net/socket.h>
+#elif defined HAVE_SYS_SOCKET_H
+# include <sys/socket.h>
 #endif
 
 #if defined(MSDOS) || defined(__BOW__) || defined(__CYGWIN__) || defined(_WIN32) || defined(__human68k__) || defined(__EMX__) || defined(__BEOS__)
@@ -90,7 +88,6 @@ extern void Init_File(void);
 # ifndef NOFILE
 #  define NOFILE (OPEN_MAX)
 # endif
-#include <net/socket.h>
 #endif
 
 #include "ruby/util.h"
@@ -200,11 +197,14 @@ static rb_thread_lock_t max_file_descriptor_lock = RB_THREAD_LOCK_INITIALIZER;
 #  endif
 #endif
 
+#if !defined HAVE_SHUTDOWN && !defined shutdown
+#define shutdown(a,b)	0
+#endif
+
 #if defined(_WIN32)
 #define is_socket(fd, path)	rb_w32_is_socket(fd)
 #elif !defined(S_ISSOCK)
 #define is_socket(fd, path)	0
-#define shutdown(a,b)	0
 #else
 static int
 is_socket(int fd, const char *path)
@@ -225,8 +225,8 @@ rb_eof_error(void)
 VALUE
 rb_io_taint_check(VALUE io)
 {
-    if (!OBJ_TAINTED(io) && rb_safe_level() >= 4)
-	rb_raise(rb_eSecurityError, "Insecure: operation on untainted IO");
+    if (!OBJ_UNTRUSTED(io) && rb_safe_level() >= 4)
+	rb_raise(rb_eSecurityError, "Insecure: operation on trusted IO");
     rb_check_frozen(io);
     return io;
 }
@@ -2817,7 +2817,7 @@ rb_io_close(VALUE io)
 static VALUE
 rb_io_close_m(VALUE io)
 {
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(io)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't close");
     }
     rb_io_check_closed(RFILE(io)->fptr);
@@ -2900,7 +2900,7 @@ rb_io_close_read(VALUE io)
     rb_io_t *fptr;
     VALUE write_io;
 
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(io)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't close");
     }
     GetOpenFile(io, fptr);
@@ -2960,7 +2960,7 @@ rb_io_close_write(VALUE io)
     rb_io_t *fptr;
     VALUE write_io;
 
-    if (rb_safe_level() >= 4 && !OBJ_TAINTED(io)) {
+    if (rb_safe_level() >= 4 && !OBJ_UNTRUSTED(io)) {
 	rb_raise(rb_eSecurityError, "Insecure: can't close");
     }
     write_io = GetWriteIO(io);
@@ -4516,7 +4516,8 @@ io_reopen(VALUE io, VALUE nfile)
     off_t pos = 0;
 
     nfile = rb_io_get_io(nfile);
-    if (rb_safe_level() >= 4 && (!OBJ_TAINTED(io) || !OBJ_TAINTED(nfile))) {
+    if (rb_safe_level() >= 4 &&
+       	(!OBJ_UNTRUSTED(io) || !OBJ_UNTRUSTED(nfile))) {
 	rb_raise(rb_eSecurityError, "Insecure: can't reopen");
     }
     GetOpenFile(io, fptr);
@@ -4586,7 +4587,7 @@ io_reopen(VALUE io, VALUE nfile)
 	rb_io_binmode(io);
     }
 
-    RBASIC(io)->klass = RBASIC(nfile)->klass;
+    RBASIC(io)->klass = rb_obj_class(nfile);
     return io;
 }
 
@@ -6713,9 +6714,16 @@ retry_sendfile:
         }
     }
     if (ss == -1) {
-        if (errno == EINVAL || errno == ENOSYS)
+        switch (errno) {
+	  case EINVAL:
+#ifdef ENOSYS
+	  case ENOSYS:
+#endif
             return 0;
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+	  case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	  case EWOULDBLOCK:
+#endif
             if (copy_stream_wait_write(stp) == -1)
                 return -1;
             if (RUBY_VM_INTERRUPTED(stp->th))
@@ -6749,12 +6757,17 @@ retry_read:
         return 0;
     }
     if (ss == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        switch (errno) {
+	  case EAGAIN:
+#if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
+	  case EWOULDBLOCK:
+#endif
             if (copy_stream_wait_read(stp) == -1)
                 return -1;
             goto retry_read;
-        }
-        if (errno == ENOSYS) {
+#ifdef ENOSYS
+	  case ENOSYS:
+#endif
             stp->notimp = "pread";
             return -1;
         }
@@ -7761,6 +7774,7 @@ void
 Init_IO(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     VALUE rb_cARGF;
     VALUE *argfp = &ruby_vm_argf(GET_VM());

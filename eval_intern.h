@@ -75,7 +75,7 @@ char *strrchr(const char *, const char);
 #include <unistd.h>
 #endif
 
-#ifdef __BEOS__
+#ifdef HAVE_NET_SOCKET_H
 #include <net/socket.h>
 #endif
 

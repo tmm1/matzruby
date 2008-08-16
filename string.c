@@ -25,9 +25,17 @@
 #include <unistd.h>
 #endif
 
+#undef rb_str_new_cstr
+#undef rb_tainted_str_new_cstr
+#undef rb_usascii_str_new_cstr
 #undef rb_str_new2
+#undef rb_str_new3
+#undef rb_str_new4
+#undef rb_str_new5
 #undef rb_tainted_str_new2
 #undef rb_usascii_str_new2
+#undef rb_str_dup_frozen
+#undef rb_str_buf_new_cstr
 #undef rb_str_buf_new2
 #undef rb_str_buf_cat2
 #undef rb_str_cat2
@@ -434,7 +442,7 @@ rb_enc_str_new(const char *ptr, long len, rb_encoding *enc)
 }
 
 VALUE
-rb_str_new2(const char *ptr)
+rb_str_new_cstr(const char *ptr)
 {
     if (!ptr) {
 	rb_raise(rb_eArgError, "NULL pointer given");
@@ -442,13 +450,19 @@ rb_str_new2(const char *ptr)
     return rb_str_new(ptr, strlen(ptr));
 }
 
+RUBY_ALIAS_FUNCTION(rb_str_new2(const char *ptr), rb_str_new_cstr, (ptr))
+#define rb_str_new2 rb_str_new_cstr
+
 VALUE
-rb_usascii_str_new2(const char *ptr)
+rb_usascii_str_new_cstr(const char *ptr)
 {
     VALUE str = rb_str_new2(ptr);
     ENCODING_CODERANGE_SET(str, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
     return str;
 }
+
+RUBY_ALIAS_FUNCTION(rb_usascii_str_new2(const char *ptr), rb_usascii_str_new_cstr, (ptr))
+#define rb_usascii_str_new2 rb_usascii_str_new_cstr
 
 VALUE
 rb_tainted_str_new(const char *ptr, long len)
@@ -460,13 +474,16 @@ rb_tainted_str_new(const char *ptr, long len)
 }
 
 VALUE
-rb_tainted_str_new2(const char *ptr)
+rb_tainted_str_new_cstr(const char *ptr)
 {
     VALUE str = rb_str_new2(ptr);
 
     OBJ_TAINT(str);
     return str;
 }
+
+RUBY_ALIAS_FUNCTION(rb_tainted_str_new2(const char *ptr), rb_tainted_str_new_cstr, (ptr))
+#define rb_tainted_str_new2 rb_tainted_str_new_cstr
 
 static VALUE
 str_replace_shared(VALUE str2, VALUE str)
@@ -501,13 +518,16 @@ str_new3(VALUE klass, VALUE str)
 }
 
 VALUE
-rb_str_new3(VALUE str)
+rb_str_new_shared(VALUE str)
 {
     VALUE str2 = str_new3(rb_obj_class(str), str);
 
     OBJ_INFECT(str2, str);
     return str2;
 }
+
+RUBY_ALIAS_FUNCTION(rb_str_new3(VALUE str), rb_str_new_shared, (str))
+#define rb_str_new3 rb_str_new_shared
 
 static VALUE
 str_new4(VALUE klass, VALUE str)
@@ -532,7 +552,7 @@ str_new4(VALUE klass, VALUE str)
 }
 
 VALUE
-rb_str_new4(VALUE orig)
+rb_str_new_frozen(VALUE orig)
 {
     VALUE klass, str;
 
@@ -569,11 +589,18 @@ rb_str_new4(VALUE orig)
     return str;
 }
 
+RUBY_ALIAS_FUNCTION(rb_str_new4(VALUE orig), rb_str_new_frozen, (orig))
+#define rb_str_new4 rb_str_new_frozen
+
 VALUE
-rb_str_new5(VALUE obj, const char *ptr, long len)
+rb_str_new_with_class(VALUE obj, const char *ptr, long len)
 {
     return str_new(rb_obj_class(obj), ptr, len);
 }
+
+RUBY_ALIAS_FUNCTION(rb_str_new5(VALUE obj, const char *ptr, long len),
+	   rb_str_new_with_class, (obj, ptr, len))
+#define rb_str_new5 rb_str_new_with_class
 
 #define STR_BUF_MIN_SIZE 128
 
@@ -594,7 +621,7 @@ rb_str_buf_new(long capa)
 }
 
 VALUE
-rb_str_buf_new2(const char *ptr)
+rb_str_buf_new_cstr(const char *ptr)
 {
     VALUE str;
     long len = strlen(ptr);
@@ -604,6 +631,9 @@ rb_str_buf_new2(const char *ptr)
 
     return str;
 }
+
+RUBY_ALIAS_FUNCTION(rb_str_buf_new2(const char *ptr), rb_str_buf_new_cstr, (ptr))
+#define rb_str_buf_new2 rb_str_buf_new_cstr
 
 VALUE
 rb_str_tmp_new(long len)
@@ -634,7 +664,10 @@ rb_str_shared_replace(VALUE str, VALUE str2)
     enc = STR_ENC_GET(str2);
     cr = ENC_CODERANGE(str2);
     rb_str_modify(str);
-    if (OBJ_TAINTED(str2)) OBJ_TAINT(str);
+    OBJ_INFECT(str, str2);
+    if (!STR_SHARED_P(str) && !STR_EMBED_P(str)) {
+	xfree(RSTRING_PTR(str));
+    }
     if (RSTRING_LEN(str2) <= RSTRING_EMBED_LEN_MAX) {
 	STR_SET_EMBED(str);
 	memcpy(RSTRING_PTR(str), RSTRING_PTR(str2), RSTRING_LEN(str2)+1);
@@ -642,9 +675,6 @@ rb_str_shared_replace(VALUE str, VALUE str2)
         rb_enc_associate(str, enc);
         ENC_CODERANGE_SET(str, cr);
 	return;
-    }
-    if (!STR_SHARED_P(str) && !STR_EMBED_P(str)) {
-	xfree(RSTRING_PTR(str));
     }
     STR_SET_NOEMBED(str);
     STR_UNSET_NOCAPA(str);
@@ -1007,7 +1037,7 @@ str_modifiable(VALUE str)
 	rb_raise(rb_eRuntimeError, "can't modify string; temporarily locked");
     }
     if (OBJ_FROZEN(str)) rb_error_frozen("string");
-    if (!OBJ_TAINTED(str) && rb_safe_level() >= 4)
+    if (!OBJ_UNTRUSTED(str) && rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't modify string");
 }
 
@@ -1345,21 +1375,8 @@ rb_str_freeze(VALUE str)
     return rb_obj_freeze(str);
 }
 
-VALUE
-rb_str_dup_frozen(VALUE str)
-{
-    if (STR_SHARED_P(str) && RSTRING(str)->as.heap.aux.shared) {
-	VALUE shared = RSTRING(str)->as.heap.aux.shared;
-	if (RSTRING_LEN(shared) == RSTRING_LEN(str)) {
-	    OBJ_FREEZE(shared);
-	    return shared;
-	}
-    }
-    if (OBJ_FROZEN(str)) return str;
-    str = rb_str_dup(str);
-    OBJ_FREEZE(str);
-    return str;
-}
+RUBY_ALIAS_FUNCTION(rb_str_dup_frozen(VALUE str), rb_str_new_frozen, (str))
+#define rb_str_dup_frozen rb_str_new_frozen
 
 VALUE
 rb_str_locktmp(VALUE str)
@@ -1568,7 +1585,7 @@ rb_enc_cr_str_buf_cat(VALUE str, const char *ptr, long len,
         str_cr != ENC_CODERANGE_7BIT &&
         ptr_cr != ENC_CODERANGE_7BIT) {
       incompatible:
-        rb_raise(rb_eArgError, "append incompatible encoding strings: %s and %s",
+        rb_raise(rb_eEncCompatError, "incompatible character encodings: %s and %s",
             rb_enc_name(rb_enc_from_index(str_encindex)),
             rb_enc_name(rb_enc_from_index(ptr_encindex)));
     }
@@ -2822,9 +2839,43 @@ rb_str_aref_m(int argc, VALUE *argv, VALUE str)
     return rb_str_aref(str, argv[0]);
 }
 
+VALUE
+rb_str_drop_bytes(VALUE str, long len)
+{
+    char *ptr = RSTRING_PTR(str);
+    long olen = RSTRING_LEN(str), nlen;
+
+    str_modifiable(str);
+    if (len > olen) len = olen;
+    nlen = olen - len;
+    if (nlen <= RSTRING_EMBED_LEN_MAX) {
+	char *oldptr = ptr;
+	int fl = (RBASIC(str)->flags & (STR_NOEMBED|ELTS_SHARED));
+	STR_SET_EMBED(str);
+	STR_SET_EMBED_LEN(str, nlen);
+	ptr = RSTRING(str)->as.ary;
+	memmove(ptr, oldptr + len, nlen);
+	if (fl == STR_NOEMBED) xfree(oldptr);
+    }
+    else {
+	if (!STR_SHARED_P(str)) rb_str_new4(str);
+	ptr = RSTRING(str)->as.heap.ptr += len;
+	RSTRING(str)->as.heap.len = nlen;
+    }
+    ptr[nlen] = 0;
+    ENC_CODERANGE_CLEAR(str);
+    return str;
+}
+
 static void
 rb_str_splice_0(VALUE str, long beg, long len, VALUE val)
 {
+    if (beg == 0 && RSTRING_LEN(val) == 0) {
+	rb_str_drop_bytes(str, len);
+	OBJ_INFECT(str, val);
+	return;
+    }
+
     rb_str_modify(str);
     if (len < RSTRING_LEN(val)) {
 	/* expand string */
@@ -3129,6 +3180,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
     VALUE pat, repl, hash = Qnil;
     int iter = 0;
     int tainted = 0;
+    int untrusted = 0;
     long plen;
 
     if (argc == 1 && rb_block_given_p()) {
@@ -3141,6 +3193,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	    StringValue(repl);
 	}
 	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_UNTRUSTED(repl)) untrusted = 1;
     }
     else {
 	rb_raise(rb_eArgError, "wrong number of arguments (%d for 2)", argc);
@@ -3177,7 +3230,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
             if (coderange_scan(RSTRING_PTR(str), beg0, str_enc) != ENC_CODERANGE_7BIT ||
                 coderange_scan(RSTRING_PTR(str)+end0,
 			       RSTRING_LEN(str)-end0, str_enc) != ENC_CODERANGE_7BIT) {
-                rb_raise(rb_eArgError, "character encodings differ: %s and %s",
+                rb_raise(rb_eEncCompatError, "incompatible character encodings: %s and %s",
 			 rb_enc_name(str_enc),
 			 rb_enc_name(STR_ENC_GET(repl)));
             }
@@ -3186,6 +3239,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	rb_str_modify(str);
 	rb_enc_associate(str, enc);
 	if (OBJ_TAINTED(repl)) tainted = 1;
+	if (OBJ_UNTRUSTED(repl)) untrusted = 1;
 	if (ENC_CODERANGE_UNKNOWN < cr && cr < ENC_CODERANGE_BROKEN) {
 	    int cr2 = ENC_CODERANGE(repl);
 	    if (cr2 == ENC_CODERANGE_UNKNOWN || cr2 > cr) cr = cr2;
@@ -3205,6 +3259,7 @@ rb_str_sub_bang(int argc, VALUE *argv, VALUE str)
 	RSTRING_PTR(str)[RSTRING_LEN(str)] = '\0';
 	ENC_CODERANGE_SET(str, cr);
 	if (tainted) OBJ_TAINT(str);
+	if (untrusted) OBJ_UNTRUST(str);
 
 	return str;
     }
@@ -3442,10 +3497,10 @@ rb_str_replace(VALUE str, VALUE str2)
     if (STR_ASSOC_P(str2)) {
 	str2 = rb_str_new4(str2);
     }
+    if (str_independent(str) && !STR_EMBED_P(str)) {
+	xfree(RSTRING_PTR(str));
+    }
     if (STR_SHARED_P(str2)) {
-	if (str_independent(str) && !STR_EMBED_P(str)) {
-	    xfree(RSTRING_PTR(str));
-	}
 	STR_SET_NOEMBED(str);
 	RSTRING(str)->as.heap.len = len;
 	RSTRING(str)->as.heap.ptr = RSTRING_PTR(str2);
@@ -3454,7 +3509,6 @@ rb_str_replace(VALUE str, VALUE str2)
 	RSTRING(str)->as.heap.aux.shared = RSTRING(str2)->as.heap.aux.shared;
     }
     else {
-	rb_str_modify(str);
 	str_replace_shared(str, rb_str_new4(str2));
     }
 
@@ -5773,7 +5827,7 @@ rb_str_hex(VALUE str)
     rb_encoding *enc = rb_enc_get(str);
 
     if (!rb_enc_asciicompat(enc)) {
-	rb_raise(rb_eArgError, "ASCII incompatible encoding: %s", rb_enc_name(enc));
+	rb_raise(rb_eEncCompatError, "ASCII incompatible encoding: %s", rb_enc_name(enc));
     }
     return rb_str_to_inum(str, 16, Qfalse);
 }
@@ -5799,7 +5853,7 @@ rb_str_oct(VALUE str)
     rb_encoding *enc = rb_enc_get(str);
 
     if (!rb_enc_asciicompat(enc)) {
-	rb_raise(rb_eArgError, "ASCII incompatible encoding: %s", rb_enc_name(enc));
+	rb_raise(rb_eEncCompatError, "ASCII incompatible encoding: %s", rb_enc_name(enc));
     }
     return rb_str_to_inum(str, -8, Qfalse);
 }
@@ -5859,10 +5913,25 @@ VALUE
 rb_str_intern(VALUE s)
 {
     VALUE str = RB_GC_GUARD(s);
-    ID id;
+    VALUE sym;
+    ID id, id2;
 
     id = rb_intern_str(str);
-    return ID2SYM(id);
+    sym = ID2SYM(id);
+    id2 = SYM2ID(sym);
+    if (id != id2) {
+	const char *name = rb_id2name(id2);
+
+	if (name) {
+	    rb_raise(rb_eRuntimeError, "symbol table overflow (%s given for %s)",
+		     name, RSTRING_PTR(str));
+	}
+	else {
+	    rb_raise(rb_eRuntimeError, "symbol table overflow (symbol %s)",
+		     RSTRING_PTR(str));
+	}
+    }
+    return sym;
 }
 
 
@@ -6560,6 +6629,7 @@ void
 Init_String(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     rb_cString  = rb_define_class("String", rb_cObject);
     rb_include_module(rb_cString, rb_mComparable);

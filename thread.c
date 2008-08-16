@@ -48,6 +48,12 @@
 #include "vm.h"
 #include "gc.h"
 
+#ifndef USE_NATIVE_THREAD_PRIORITY
+#define USE_NATIVE_THREAD_PRIORITY 0
+#define RUBY_THREAD_PRIORITY_MAX 3
+#define RUBY_THREAD_PRIORITY_MIN -3
+#endif
+
 #ifndef THREAD_DEBUG
 #define THREAD_DEBUG 0
 #endif
@@ -393,11 +399,25 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 	    });
 	}
 	else {
-	    if (th->safe_level < 4 &&
-		(th->vm->thread_abort_on_exception ||
-		 th->abort_on_exception || RTEST(ruby_debug))) {
-		errinfo = th->errinfo;
-		if (NIL_P(errinfo)) errinfo = rb_errinfo();
+	    errinfo = th->errinfo;
+	    if (NIL_P(errinfo)) errinfo = rb_errinfo();
+	    if (state == TAG_FATAL) {
+		/* fatal error within this thread, need to stop whole script */
+	    }
+	    else if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {
+		if (th->safe_level >= 4) {
+		    th->errinfo = rb_exc_new3(rb_eSecurityError,
+					      rb_sprintf("Insecure exit at level %d", th->safe_level));
+		    errinfo = Qnil;
+		}
+	    }
+	    else if (th->safe_level < 4 &&
+		     (th->vm->thread_abort_on_exception ||
+		      th->abort_on_exception || RTEST(ruby_debug))) {
+		/* exit on main_thread */
+	    }
+	    else {
+		errinfo = Qnil;
 	    }
 	    th->value = Qnil;
 	}
@@ -872,6 +892,19 @@ rb_thread_polling(void)
     }
 }
 
+/*
+ * CAUTION: This function causes thread switching.
+ *          rb_thread_check_ints() check ruby's interrupts.
+ *          some interrupt needs thread switching/invoke handlers,
+ *          and so on.
+ */
+
+void
+rb_thread_check_ints(void)
+{
+    RUBY_VM_CHECK_INTS();
+}
+
 struct timeval rb_time_timeval();
 
 void
@@ -1001,7 +1034,21 @@ rb_thread_execute_interrupts(rb_thread_t *th)
 
 	if (timer_interrupt) {
 	    EXEC_EVENT_HOOK(th, RUBY_EVENT_SWITCH, th->cfp->self, 0, 0);
-	    rb_thread_schedule();
+
+	    if (th->slice > 0) {
+		th->slice--;
+	    }
+	    else {
+	      reschedule:
+		rb_thread_schedule();
+		if (th->slice < 0) {
+		    th->slice++;
+		    goto reschedule;
+		}
+		else {
+		    th->slice = th->priority;
+		}
+	    }
 	}
     }
 }
@@ -1850,13 +1897,26 @@ static VALUE
 rb_thread_priority_set(VALUE thread, VALUE prio)
 {
     rb_thread_t *th;
+    int priority;
     GetThreadPtr(thread, th);
 
     rb_secure(4);
 
+#if USE_NATIVE_THREAD_PRIORITY
     th->priority = NUM2INT(prio);
     native_thread_apply_priority(th);
-    return prio;
+#else
+    priority = NUM2INT(prio);
+    if (priority > RUBY_THREAD_PRIORITY_MAX) {
+	priority = RUBY_THREAD_PRIORITY_MAX;
+    }
+    else if (priority < RUBY_THREAD_PRIORITY_MIN) {
+	priority = RUBY_THREAD_PRIORITY_MIN;
+    }
+    th->priority = priority;
+    th->slice = priority;
+#endif
+    return INT2NUM(th->priority);
 }
 
 /* for IO */
@@ -3523,6 +3583,7 @@ void
 Init_Thread(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     VALUE cThGroup;
 

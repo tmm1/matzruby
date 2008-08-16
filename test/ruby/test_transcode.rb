@@ -25,9 +25,9 @@ class TestTranscode < Test::Unit::TestCase
     assert_raise(ArgumentError) { 'abc'.encode!('foo', 'bar') }
     assert_raise(ArgumentError) { 'abc'.force_encoding('utf-8').encode('foo') }
     assert_raise(ArgumentError) { 'abc'.force_encoding('utf-8').encode!('foo') }
-    assert_raise(RuntimeError) { "\x80".encode('utf-8','ASCII-8BIT') }
-    assert_raise(RuntimeError) { "\x80".encode('utf-8','US-ASCII') }
-    assert_raise(RuntimeError) { "\xA5".encode('utf-8','iso-8859-3') }
+    assert_raise(Encoding::ConversionUndefined) { "\x80".encode('utf-8','ASCII-8BIT') }
+    assert_raise(Encoding::InvalidByteSequence) { "\x80".encode('utf-8','US-ASCII') }
+    assert_raise(Encoding::ConversionUndefined) { "\xA5".encode('utf-8','iso-8859-3') }
   end
 
   def test_arguments
@@ -252,21 +252,147 @@ class TestTranscode < Test::Unit::TestCase
       "\xF0\x80\x80\x42".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
     assert_equal(''.force_encoding('UTF-16BE'),
       "\x82\xAB".encode('UTF-16BE', 'UTF-8', invalid: :ignore))
+
+    assert_equal("\e$B!!\e(B".force_encoding("ISO-2022-JP"),
+      "\xA1\xA1\xFF".encode("ISO-2022-JP", "EUC-JP", invalid: :ignore))
+    assert_equal("\e$B\x24\x22\x24\x24\e(B".force_encoding("ISO-2022-JP"),
+      "\xA4\xA2\xFF\xA4\xA4".encode("ISO-2022-JP", "EUC-JP", invalid: :ignore))
+    assert_equal("\e$B\x24\x22\x24\x24\e(B".force_encoding("ISO-2022-JP"),
+      "\xA4\xA2\xFF\xFF\xA4\xA4".encode("ISO-2022-JP", "EUC-JP", invalid: :ignore))
+  end
+
+  def test_invalid_replace
+    # arguments only
+    assert_nothing_raised { 'abc'.encode('UTF-8', invalid: :replace) }
+    assert_equal("\xEF\xBF\xBD".force_encoding("UTF-8"),
+      "\x80".encode("UTF-8", "UTF-16BE", invalid: :replace))
+    assert_equal("\xFF\xFD".force_encoding("UTF-16BE"),
+      "\x80".encode("UTF-16BE", "UTF-8", invalid: :replace))
+    assert_equal("\xFD\xFF".force_encoding("UTF-16LE"),
+      "\x80".encode("UTF-16LE", "UTF-8", invalid: :replace))
+    assert_equal("\x00\x00\xFF\xFD".force_encoding("UTF-32BE"),
+      "\x80".encode("UTF-32BE", "UTF-8", invalid: :replace))
+    assert_equal("\xFD\xFF\x00\x00".force_encoding("UTF-32LE"),
+      "\x80".encode("UTF-32LE", "UTF-8", invalid: :replace))
+
+    assert_equal("\uFFFD!",
+      "\xdc\x00\x00!".encode("utf-8", "utf-16be", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\xd8\x00\x00!".encode("utf-8", "utf-16be", :invalid=>:replace))
+
+    assert_equal("\uFFFD!",
+      "\x00\xdc!\x00".encode("utf-8", "utf-16le", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\x00\xd8!\x00".encode("utf-8", "utf-16le", :invalid=>:replace))
+
+    assert_equal("\uFFFD!",
+      "\x01\x00\x00\x00\x00\x00\x00!".encode("utf-8", "utf-32be", :invalid=>:replace), "[ruby-dev:35726]")
+    assert_equal("\uFFFD!",
+      "\x00\xff\x00\x00\x00\x00\x00!".encode("utf-8", "utf-32be", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\x00\x00\xd8\x00\x00\x00\x00!".encode("utf-8", "utf-32be", :invalid=>:replace))
+
+    assert_equal("\uFFFD!",
+      "\x00\x00\x00\xff!\x00\x00\x00".encode("utf-8", "utf-32le", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\x00\x00\xff\x00!\x00\x00\x00".encode("utf-8", "utf-32le", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\x00\xd8\x00\x00!\x00\x00\x00".encode("utf-8", "utf-32le", :invalid=>:replace))
+
+    assert_equal("\uFFFD!",
+      "\xff!".encode("utf-8", "euc-jp", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\xa1!".encode("utf-8", "euc-jp", :invalid=>:replace))
+    assert_equal("\uFFFD!",
+      "\x8f\xa1!".encode("utf-8", "euc-jp", :invalid=>:replace))
+
+    assert_equal("?",
+      "\xdc\x00".encode("EUC-JP", "UTF-16BE", :invalid=>:replace), "[ruby-dev:35776]")
+    assert_equal("ab?cd?ef",
+      "\0a\0b\xdc\x00\0c\0d\xdf\x00\0e\0f".encode("EUC-JP", "UTF-16BE", :invalid=>:replace))
+
+    assert_equal("\e$B!!\e(B?".force_encoding("ISO-2022-JP"),
+      "\xA1\xA1\xFF".encode("ISO-2022-JP", "EUC-JP", invalid: :replace))
+    assert_equal("\e$B\x24\x22\e(B?\e$B\x24\x24\e(B".force_encoding("ISO-2022-JP"),
+      "\xA4\xA2\xFF\xA4\xA4".encode("ISO-2022-JP", "EUC-JP", invalid: :replace))
+    assert_equal("\e$B\x24\x22\e(B??\e$B\x24\x24\e(B".force_encoding("ISO-2022-JP"),
+      "\xA4\xA2\xFF\xFF\xA4\xA4".encode("ISO-2022-JP", "EUC-JP", invalid: :replace))
+  end
+
+  def test_undef_replace
+    assert_equal("?", "\u20AC".encode("EUC-JP", :undef=>:replace), "[ruby-dev:35709]")
+  end
+
+  def test_shift_jis
+    check_both_ways("\u3000", "\x81\x40", 'shift_jis') # full-width space
+    check_both_ways("\u00D7", "\x81\x7E", 'shift_jis') # ~
+    check_both_ways("\u00F7", "\x81\x80", 'shift_jis') # 
+    check_both_ways("\u25C7", "\x81\x9E", 'shift_jis') # 
+    check_both_ways("\u25C6", "\x81\x9F", 'shift_jis') # 
+    check_both_ways("\u25EF", "\x81\xFC", 'shift_jis') # 
+    check_both_ways("\u6A97", "\x9F\x40", 'shift_jis') # @
+    check_both_ways("\u6BEF", "\x9F\x7E", 'shift_jis') # ~
+    check_both_ways("\u9EBE", "\x9F\x80", 'shift_jis') # 
+    check_both_ways("\u6CBE", "\x9F\x9E", 'shift_jis') # 
+    check_both_ways("\u6CBA", "\x9F\x9F", 'shift_jis') # 
+    check_both_ways("\u6ECC", "\x9F\xFC", 'shift_jis') # 
+    check_both_ways("\u6F3E", "\xE0\x40", 'shift_jis') # @
+    check_both_ways("\u70DD", "\xE0\x7E", 'shift_jis') # ~
+    check_both_ways("\u70D9", "\xE0\x80", 'shift_jis') # 
+    check_both_ways("\u71FC", "\xE0\x9E", 'shift_jis') # 
+    check_both_ways("\u71F9", "\xE0\x9F", 'shift_jis') # 
+    check_both_ways("\u73F1", "\xE0\xFC", 'shift_jis') # 
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\x40".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\x7E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\x80".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\x9E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\x9F".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xEF\xFC".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\x40".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\x7E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\x80".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\x9E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\x9F".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xF0\xFC".encode("utf-8", 'shift_jis') }
+    check_both_ways("\u9ADC", "\xFC\x40", 'shift_jis') # @
+    assert_raise(Encoding::ConversionUndefined) { "\xFC\x7E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xFC\x80".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xFC\x9E".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xFC\x9F".encode("utf-8", 'shift_jis') }
+    assert_raise(Encoding::ConversionUndefined) { "\xFC\xFC".encode("utf-8", 'shift_jis') }
+    check_both_ways("\u677E\u672C\u884C\u5F18", "\x8f\xbc\x96\x7b\x8d\x73\x8d\x4f", 'shift_jis') # {sO
+    check_both_ways("\u9752\u5C71\u5B66\u9662\u5927\u5B66", "\x90\xC2\x8E\x52\x8A\x77\x89\x40\x91\xE5\x8A\x77", 'shift_jis') # Rw@w
+    check_both_ways("\u795E\u6797\u7FA9\u535A", "\x90\x5F\x97\xD1\x8B\x60\x94\x8E", 'shift_jis') # _ы`
   end
 
   def test_iso_2022_jp
-    assert_raise(RuntimeError) { "\x1b(A".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\x1b$(A".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\x1b$C".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\x1e".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\x80".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\x1b$(Dd!\x1b(B".encode("utf-8", "iso-2022-jp") }
-    assert_raise(RuntimeError) { "\u9299".encode("iso-2022-jp") }
-    #@@@@ TODO: the next test should actually fail, because iso-2022-jp does not include half-width kana
-    check_both_ways("\uff71\uff72\uff73\uff74\uff75", "\x1b(I12345\x1b(B", "iso-2022-jp") # JIS X 0201 ｧｨｩｪｫ
+    assert_raise(Encoding::InvalidByteSequence) { "\x1b(A".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x1b$(A".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x1b$C".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x0e".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x80".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x1b$(Dd!\x1b(B".encode("utf-8", "iso-2022-jp") }
+    assert_raise(Encoding::ConversionUndefined) { "\u9299".encode("iso-2022-jp") }
+    assert_raise(Encoding::ConversionUndefined) { "\uff71\uff72\uff73\uff74\uff75".encode("iso-2022-jp") }
+    assert_raise(Encoding::InvalidByteSequence) { "\x1b(I12345\x1b(B".encode("utf-8", "iso-2022-jp") }
+    assert_equal("\xA1\xA1".force_encoding("euc-jp"),
+                 "\e$B!!\e(B".encode("EUC-JP", "ISO-2022-JP"))
+    assert_equal("\e$B!!\e(B".force_encoding("ISO-2022-JP"),
+                 "\xA1\xA1".encode("ISO-2022-JP", "EUC-JP"))
   end
   
   def test_iso_2022_jp_1
     # check_both_ways("\u9299", "\x1b$(Dd!\x1b(B", "iso-2022-jp-1") # JIS X 0212 区68 点01 銙
+  end
+  
+  def test_unicode_public_review_issue_121 # see http://www.unicode.org/review/pr-121.html
+    # assert_equal("\x00\x61\xFF\xFD\x00\x62".force_encoding('UTF-16BE'),
+    #   "\x61\xF1\x80\x80\xE1\x80\xC2\x62".encode('UTF-16BE', 'UTF-8', invalid: :replace)) # option 1
+    assert_equal("\x00\x61\xFF\xFD\xFF\xFD\xFF\xFD\x00\x62".force_encoding('UTF-16BE'),
+      "\x61\xF1\x80\x80\xE1\x80\xC2\x62".encode('UTF-16BE', 'UTF-8', invalid: :replace)) # option 2
+    assert_equal("\x61\x00\xFD\xFF\xFD\xFF\xFD\xFF\x62\x00".force_encoding('UTF-16LE'),
+      "\x61\xF1\x80\x80\xE1\x80\xC2\x62".encode('UTF-16LE', 'UTF-8', invalid: :replace)) # option 2
+    # assert_equal("\x00\x61\xFF\xFD\xFF\xFD\xFF\xFD\xFF\xFD\xFF\xFD\xFF\xFD\x00\x62".force_encoding('UTF-16BE'),
+    # "\x61\xF1\x80\x80\xE1\x80\xC2\x62".encode('UTF-16BE', 'UTF-8', invalid: :replace)) # option 3
   end
 end

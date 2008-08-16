@@ -3,9 +3,1555 @@ Sat Aug 16 18:38:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* tool/resolve_changelog.rb (ChangeLog.Reader#split_entry): strips
 	  trailing spaces.
 
+Sat Aug 16 15:23:16 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_elem_t): fields removed: from and
+	  to.
+	  (rb_econv_t): new fields: source_encoding_name and
+	  destination_encoding_name.
+
+	* transcode.c (rb_econv_open_by_transcoder_entries): initialize the
+	  new fields.
+	  (rb_econv_open): set up the new fields.
+	  (econv_inspect): use the new fields.
+
+Sat Aug 16 14:22:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_t): add fields: in_buf_start,
+	  in_data_start, in_data_end, in_buf_end and last_trans_index.
+	  (rb_econv_output): removed.
+	  (rb_econv_insert_output): declared.
+	  (rb_econv_encoding_to_insert_output): declared.
+
+	* enc/trans/newline.trans (rb_universal_newline): stateful_type
+	  changed.
+
+	* transcode.c (transcode_restartable0): initialize inchar_start,
+	  tc->recognized_len and next_table at beginning of the loop.
+	  (rb_econv_open_by_transcoder_entries): initialize new fields.
+	  (rb_econv_open): setup last_trans_index.
+	  (trans_sweep): last out_buf_start can be non-NULL now.
+	  (rb_econv_convert): check last out_buf_start and in_buf_start at
+	  first.
+	  (rb_econv_output_with_destination_encoding): removed.
+	  (econv_just_convert): removed.
+	  (rb_econv_output): removed.
+	  (econv_primitive_output): method removed.
+	  (rb_econv_encoding_to_insert_output): new function.
+	  (allocate_converted_string): new function.
+	  (rb_econv_insert_output): new function.
+	  (econv_primitive_insert_output): new method.
+	  (output_replacement_character): use rb_econv_insert_output.  unused
+	  arguments removed.
+
+Sat Aug 16 09:20:18 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/ruby.h (rb_intern_const): tiny optimization.
+
+	* include/ruby/ruby.h (SSIZET2NUM, NUM2SSIZET, SSIZE_MAX, SSIZE_MIN):
+	  macros for ssize_t.
+
+Sat Aug 16 08:11:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder_stateful_type_t): defined.
+	  (rb_transcoder): add field: stateful_type.
+
+	* tool/transcode-tblgen.rb: generate stateful_type field as
+	  stateless_converter.
+
+	* enc/trans/iso2022.trans: follow rb_transcoder change.
+
+	* enc/trans/newline.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+Fri Aug 15 23:07:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_just_convert): extracted from rb_econv_output.
+	  (rb_econv_output): use econv_just_convert.
+	  (econv_primitive_output): new method.
+
+Fri Aug 15 19:57:01 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_output): add str_encoding
+	  argument.
+
+	* transcode.c (get_replacement_character): add repl_enc_ptr argument.
+	  (rb_econv_output_with_destination_encoding): renamed from
+	  rb_econv_output and make it static.
+	  (rb_econv_output): convert str and call
+	  rb_econv_output_with_destination_encoding.
+	  (output_replacement_character): follow above interface change.
+
+Fri Aug 15 19:33:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_drop_bytes): use memmove.
+
+Fri Aug 15 18:33:22 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_t): add error_tc in last_error.
+
+	* transcode.c (rb_econv_convert): fill error_tc.
+
+Fri Aug 15 18:10:49 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_t): new field: last_error.
+
+	* transcode.c (rb_trans_conv): new argument: result_position_ptr.
+	  (rb_econv_convert): fill last_error.
+	  (econv_result_to_symbol): extracted from econv_primitive_convert.
+	  (econv_primitive_errinfo): new method.
+
+Fri Aug 15 17:39:05 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (parse.{c,h}): creates in the dependency order.
+
+Fri Aug 15 16:59:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (exec_event_hooks): skips RubyVM::FrozenCore.
+
+	* vm.c (Init_VM): get rid of SEGV in a trace proc.
+
+Fri Aug 15 09:33:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (conv_init): check empty name.
+
+Fri Aug 15 09:03:54 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_init): don't create dummy encoding if
+	  rb_econv_open is failed.
+	  (make_dummy_encoding): new function extracted from make_encoding.
+	  (make_encoding): removed.
+
+Fri Aug 15 01:07:16 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk ({$(srcdir)}.y.c): escape backslash.
+
+Fri Aug 15 01:05:39 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_primitive_convert): set destination_buffer
+	  encoding.
+
+Fri Aug 15 00:52:40 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_output): declared.
+
+	* transcode_data.h (rb_transcoder): add resetsize_func field.
+
+	* enc/trans/iso2022.trans (iso2022jp_reset_sequence_size): defined.
+	  (rb_EUC_JP_to_ISO_2022_JP): provede resetsize_func.
+
+	* tool/transcode-tblgen.rb: set NULL for resetsize_func.
+
+	* transcode.c (rb_econv_output): new function for inserting output.
+	  (output_replacement_character): use rb_econv_output.
+	  (transcode_loop): check return value of
+	  output_replacement_character.
+
+Thu Aug 14 23:47:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_UNIVERSAL_NEWLINE_DECODER): defined.
+	  (ECONV_CRLF_NEWLINE_ENCODER): ditto.
+	  (ECONV_CR_NEWLINE_ENCODER): ditto.
+	  (ECONV_PARTIAL_INPUT): ditto.
+	  (ECONV_OUTPUT_FOLLOWED_BY_INPUT): ditto.
+
+	* transcode.c: use ECONV_* defined as above.
+
+Thu Aug 14 23:35:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c: local variable renamed.
+
+Thu Aug 14 23:22:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_result_t): moved from
+	  transcode_data.h.
+	  (rb_econv_elem_t): ditto.
+	  (rb_econv_t): ditto.  source_encoding and destination_encoding field
+	  is added.
+	  (rb_econv_open): declared.
+	  (rb_econv_convert): ditto.
+	  (rb_econv_close): ditto.
+
+	* transcode.c (rb_econv_open_by_transcoder_entries): initialize
+	  source_encoding and destination_encoding field as NULL.
+	  (rb_econv_open): make it external linkage.
+	  (rb_econv_close): ditto.
+	  (rb_econv_convert): ditto.  renamed from rb_econv_conv.
+	  (make_encoding): new function.
+	  (econv_init): use make_encoding and store rb_encoding* in
+	  rb_econv_t.
+	  (econv_source_encoding): new method
+	  Encoding::Converter#source_encoding.
+	  (econv_destination_encoding): new method
+	  Encoding::Converter#destination_encoding.
+
+Thu Aug 14 22:44:32 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_econv_result_t): change enumeration
+	  constant's prefix: transcode_ to econv_.
+
+	* transcode.c: follow the constant prefix change.
+
+Thu Aug 14 21:34:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_init): accept Encoding object as source_encoding
+	  and destination_encoding.
+
+Thu Aug 14 21:10:00 2008  Tanaka Akira  <akr@fsij.org>
+
+	* encoding.c (rb_filesystem_encoding): use default external encoding
+	  for Unix.
+
+	* dir.c (dir_initialize): don't cache fs_encoding.
+
+Thu Aug 14 20:58:57 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_open_by_transcoder_entries): renamed from
+	  rb_trans_open_by_transcoder_entries.
+
+Thu Aug 14 20:56:28 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_max_output): removed.
+
+Thu Aug 14 20:52:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: check unexpected actions.
+
+Thu Aug 14 20:25:52 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (transcode_invalid_byte_sequence): renamed from
+	  transcode_invalid_input.
+	  (transcode_destination_buffer_full): renamed from transcode_obuf_full.
+	  (transcode_source_buffer_empty): renamed from transcode_ibuf_empty.
+	  (rb_econv_result_t): renamed from rb_trans_result_t.
+	  (rb_econv_elem_t): renamed from rb_trans_elem_t.
+	  (rb_econv_t): renamed from rb_trans_t.
+
+	* transcode.c (UNIVERSAL_NEWLINE_DECODER): renamed from
+	  UNIVERSAL_NEWLINE.
+	  (CRLF_NEWLINE_ENCODER): renamed from CRLF_NEWLINE.
+	  (CR_NEWLINE_ENCODER): renamed from CR_NEWLINE.
+	  (rb_econv_open): renamed from rb_trans_open.
+	  (rb_econv_close): renamed from rb_trans_close.
+
+Thu Aug 14 19:41:42 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (load_transcoder): unused function removed.
+	  (rb_transcoding_open): ditto.
+
+Thu Aug 14 17:57:05 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/encoding.h (rb_enc_ispunct): added.
+
+	* common.mk (COMMONOBJS), inits.c (rb_call_inits): id.c is now
+	  included from parse.c.
+
+	* id.c (Init_id), id.h (ruby_method_ids): added IDs used by VM.
+
+	* parse.y (global_symbols): added rooms for VM IDs.
+
+	* parse.y (rb_intern3, rb_id2str): single puctuation symbol is now
+	  same as char code.
+
+Thu Aug 14 17:46:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (union tmpyystype): no longer needed, since YYSTYPE is
+	  defined in parse.h now.
+
+Thu Aug 14 17:27:07 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* version.c (Init_version): add RUBY_ENGINE constant.
+
+Thu Aug 14 15:34:10 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_conv): new function.  it doesn't consume
+	  input too much, even for multilevel conversion.
+	  (transcode_loop): use rb_econv_conv.
+	  (econv_primitive_convert): ditto.
+
+Thu Aug 14 15:27:42 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/defines.h (RUBY_ALIAS_FUNCTION): fallback definition.
+
+Thu Aug 14 15:08:17 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_trans_result_t): new enumeration constant:
+	  transcode_output_followed_by_input.
+
+	* transcode.c (OUTPUT_FOLLOWED_BY_INPUT): new flag.
+	  (transcode_restartable0): suspend when output followed by input if
+	  OUTPUT_FOLLOWED_BY_INPUT is specified.
+	  (trans_sweep): check OUTPUT_FOLLOWED_BY_INPUT.
+	  (rb_trans_conv): support OUTPUT_FOLLOWED_BY_INPUT.
+	  (econv_primitive_convert): return :output_followed_by_input for
+	  transcode_output_followed_by_input.
+
+Thu Aug 14 14:57:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (getrusage_time): should return the value.
+
+	* thread.c (rb_thread_priority_set): get rid of C99 feature.
+
+	* transcode.c (transcode_search_path): ditto.
+
+	* vm.c (REWIND_CFP): get rid of statement expressions.
+
+Thu Aug 14 14:13:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm.c (Init_VM): hide FrozenCore.
+
+Thu Aug 14 12:20:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* transcode.c (load_transcoder): suppress warning.
+
+	* missing/vsnprintf.c (BSD_vfprintf): ditto.
+
+Thu Aug 14 12:01:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (gnumake): check for GNU make.
+
+	* Makefile.in (uncommon.mk): includes filtered common.mk.
+
+	* common.mk (parse.h): workaround for nmake.
+
+Thu Aug 14 06:09:12 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* thread.c (rb_thread_execute_interrupts): switch event
+	  should be occur only once.
+
+Thu Aug 14 05:36:36 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk: parse.h depends on parse.c.
+
+	* common.mk: hash.o depends on $(ID_H_INCLUDES).
+
+Thu Aug 14 02:45:16 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* test/ruby/test_file_exhaustive.rb (TestFileExhaustive#setup):
+	  set group of tmpdir.  [ruby-dev:35633]
+
+Thu Aug 14 15:50:30 2008  Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+
+	* hash.c (set_default): fix rdoc.  #441
+
+Thu Aug 14 02:23:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_primitive_convert): add output_byteoffset
+	  argument.
+
+Thu Aug 14 00:43:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (rb_cv_gcc_function_alias): checks alias attribute.
+
+	* string.c (alias_func): replaced with RUBY_ALIAS_FUNCTION.
+
+Wed Aug 13 23:42:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (parse.h): fake rule.
+
+Wed Aug 13 23:15:58 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* test/ruby/test_thread.rb (test_list): call Thread.pass to run t1.
+	  fixed [ruby-core:18264].
+
+Wed Aug 13 23:05:51 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* string.c (alias_func): changed to 'weak, alias' from 'alias' for
+	  Mac OSX. (closes #429)
+
+Wed Aug 13 19:40:12 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* gc.c: count only freed object as freelist size.
+
+Wed Aug 13 18:34:22 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* marshal.c (marshal_load): set arg.untrust properly.
+
+Wed Aug 13 17:47:09 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_inspect): new method.
+
+Wed Aug 13 17:35:58 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_restartable0): several local variables
+	  removed.
+
+Wed Aug 13 17:35:23 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* hash.c (rb_hash_set_default_proc): add new method.  a patch from
+	  Giuseppe Bilotta.  #419
+
+Wed Aug 13 17:31:12 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* vm_insnhelper.c (caller_setup_args): should ensure if the value
+	  from to_proc is a real Proc.
+
+Wed Aug 13 17:28:29 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* common.mk: regint.h no longer includes vm_core.h.
+
+Wed Aug 13 17:26:44 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): add fields: writebuf_off,
+	  writebuf_len and writebuf.
+	  (TRANSCODING_WRITEBUF): new macro.
+
+	* transcode.c (transcode_restartable0): output until output buffer is
+	  really full.
+	  (rb_transcoding_open_by_transcoder): initialize writebuf_len,
+	  writebuf_off and writebuf.
+	  (rb_transcoding_close): finalize writebuf.
+
+Wed Aug 13 17:18:37 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* thread.c (rb_thread_check_ints): added.  please note that
+	  this function may cause ruby's thread switching.
+
+	* include/ruby/intern.h: ditto.
+
+	* regint.h: use rb_thread_check_ints() instead of
+	  RUBY_CHECK_INTS() directly.
+
+Wed Aug 13 17:01:36 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* golf_prelude.rb, lib/set.rb (TC_Set#test_each),
+	  test/readline/test_readline_history.rb (Readline#test_each__enumerator),
+	  test/ruby/test_array.rb (TestArray#test_collect),
+	  test/ruby/test_enumerator.rb (TestEnumerator#test_initialize):
+	  Enumerable::Enumerator is now called Enumerator.
+
+	* lib/rinda/tuplespace.rb (Rinda::TupleBag#initialize): Use
+	  enum_for instead of hardcoding Enumerable::Enumerator.
+
+Wed Aug 13 16:40:57 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* thread.c, vm_core.h: add manual priority support
+	  using time slice.  if you enable USE_NATIVE_THREAD_PRIORITY
+	  macro, this mechanism is ignored.  [ruby-dev:33124]
+
+	* thread_pthread.c, thread_win32.c: ditto.
+
+	* test/ruby/test_thread.rb: fix test parameter.
+
+Wed Aug 13 16:02:14 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* object.c (rb_obj_untrusted): new method Object#untrusted?.
+	  (rb_obj_untrust): new method Object#untrust.
+	  (rb_obj_trust): new method Object#trust.
+
+	* array.c, debug.c, time.c, include/ruby/ruby.h, re.c, variable.c,
+	  string.c, io.c, dir.c, vm_method.c, struct.c, class.c, hash.c,
+	  ruby.c, marshal.c: fixes for Object#untrusted?.
+
+	* test/ruby/test_module.rb, test/ruby/test_array.rb,
+	  test/ruby/test_object.rb, test/ruby/test_string.rb,
+	  test/ruby/test_marshal.rb, test/ruby/test_hash.rb: added tests for
+	  Object#untrusted?.
+
+Wed Aug 13 16:13:58 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/ruby/test_m17n.rb: follow EncodingCompatibilityError.
+
+	* test/ruby/test_mixed_unicode_escapes.rb: ditto.
+
+	* test/ruby/enc/test_utf16.rb: ditto.
+
+Wed Aug 13 16:05:50 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* time.c (time_cmp): retry with right hand operand if its not a
+	  time object.  [ruby-dev:35011]
+
+Wed Aug 13 15:51:22 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* string.c: Apply a temporary fix to fix build on OS X.  A real
+	  fix will follow later.
+
+Wed Aug 13 15:25:09 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* enumerator.c (Init_Enumerator): Rename Enumerable::Enumerator to
+	  just Enumerator.
+
+Wed Aug 13 15:13:57 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* common.mk (prelude.c, golf_prelude.c): Using $(COMPILE_PRELUDE)
+	  requires $(RBCONFIG).
+
+Wed Aug 13 15:08:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_init): make flags argument optional.
+	  (econv_primitive_convert): ditto.
+
+Wed Aug 13 14:55:27 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* common.mk (realclean-local): Remove parse.h as well.
+
+	* common.mk: Add missing dependencies regarding vm_core.h, id.h,
+	  parse.c (parse.h), etc..
+
+Wed Aug 13 14:45:37 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/newline.trans (rb_crlf_newline): new transcoder.
+	  (rb_cr_newline): new transcoder.
+
+	* transcode.c (trans_open_i): one more exra room for input newline
+	  converter.
+	  (rb_trans_open): crlf newline and cr newline implemented.
+	  (Init_transcode): Encoding::Converter::CRLF_NEWLINE and
+	  Encoding::Converter::CR_NEWLINE defined.
+
+Wed Aug 13 14:22:16 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/newline.trans: new file.
+
+	* transcode_data.h (rb_trans_t): add last_tc field.
+
+	* transcode.c (UNIVERSAL_NEWLINE): defined.
+	  (CRLF_NEWLINE): defined.
+	  (CR_NEWLINE): defined.
+	  (rb_trans_open_by_transcoder_entries): initialize last_tc.
+	  (trans_open_i): allocate one more room for output newline converter.
+	  (rb_trans_open): universal newline implemented.
+	  (more_output_buffer): take max_output argument instead ts.
+	  (output_replacement_character): take tc argument instead of ts.
+	  (transcode_loop): use last_tc field.
+	  (econv_init): add flags argument for rb_trans_open.
+	  (Init_transcode): Encoding::Converter::UNIVERSAL_NEWLINE defined.
+
+Wed Aug 13 14:00:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (parse.c): generates parse.h together.
+
+	* id.c, id.h: use constants for parser tokens.
+
+Wed Aug 13 13:47:05 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* vm.c: rewind cfp to show proper backtrace.
+	  [ruby-dev:35820]
+
+Wed Aug 13 13:09:09 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/make-snapshot: fix for clean up.
+
+Wed Aug 13 11:45:51 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* vm_core.h: Declare rb_iseq_clone, which is used in class.c.
+
+Wed Aug 13 11:39:19 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_search_path): return the length of converter
+	  path.
+	  (load_transcoder_entry): renamed from load_transcoder.
+	  (load_transcoder): new function for loding transcoder by encoding
+	  names.
+	  (rb_transcoding_open_by_transcoder): extracted from
+	  rb_transcoding_open.
+	  (rb_transcoding_open): use load_transcoder and
+	  rb_transcoding_open_by_transcoder.
+	  (rb_trans_open_by_transcoder_entries): new function.
+	  (trans_open_i): construct entries array.
+	  (rb_trans_open): use rb_trans_open_by_transcoder_entries.
+
+Wed Aug 13 10:45:29 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/make-snapshot: try to find exported directory.
+
+Wed Aug 13 10:16:35 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* doc/NEWS: Mention the Readline.vi_editing_mode?,
+	  Readline.emacs_editing_mode?, Readline::HISTORY[] and
+	  Readline::HISTORY.clear change.
+
+Wed Aug 13 08:03:02 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_primitive_convert): add output_size argument.
+
+Wed Aug 13 07:41:03 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_trans_conv): report last transcode_obuf_full.
+	  (econv_max_output): new method Encoding::Converter#max_output.
+
+Wed Aug 13 02:46:01 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* error.c (rb_eEncCompatError): add Exception.
+
+	* include/ruby/ruby.h: ditto.
+
+	* encoding.c (rb_enc_check): use rb_eEncCompatError.
+
+	* string.c (rb_enc_cr_str_buf_cat): ditto.
+
+	* string.c (rb_str_sub_bang): ditto.
+
+	* string.c (rb_str_hex): ditto.
+
+	* string.c (rb_str_oct): ditto.
+
+Wed Aug 13 02:36:47 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* transcode.c (str_transcode): fix error message.
+
+Tue Aug 12 23:42:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_cEncodingConverter): new class Encoding::Converter.
+	  (econv_free): new function.
+	  (econv_s_allocate): ditto.
+	  (econv_init): ditto.
+	  (check_econv): ditto.
+	  (econv_primitive_convert): new method.
+	  (Init_transcode): define Encoding::Converter.
+
+Tue Aug 12 23:16:09 2008  Tanaka Akira  <akr@fsij.org>
+
+	* string.c (rb_str_splice_0): call rb_str_drop_bytes, not rb_str_drop.
+
+Tue Aug 12 19:11:05 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/make-snapshot: fix for enc.mk.
+
+Tue Aug 12 19:08:42 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_drop_bytes): new function to drop first bytes.
+
+Tue Aug 12 18:58:48 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* vm.c, vm_insnhelper.c (vm_define_method): move
+	  function place.
+
+Tue Aug 12 18:56:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c: more descriptive aliases of rb_str_new[2-5].
+	  [ruby-dev:35615]
+
+Tue Aug 12 18:51:29 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* gc.c (getrusage_time): Returned effective value on Windows.
+
+Tue Aug 12 18:51:11 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_trans_open): free ts before raise.
+
+Tue Aug 12 18:46:36 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimalCmp): should not ignore
+	  <=> comparison.  [ruby-dev:35732]
+
+Tue Aug 12 18:43:10 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/make_transdb.rb: *.erb.c is not used anymore.
+
+Tue Aug 12 18:32:33 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_trans_elem_t): new field: from and to.
+
+	* transcode.c (trans_open_i): just record from and to.
+	  (rb_trans_open): load transcodings.
+
+Tue Aug 12 18:32:03 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* ext/syslog/syslog.c (mSyslog_open): Use of Check_SafeStr() is
+	  deprecated.
+	  (mSyslogConstants_LOG_MASK, mSyslogConstants_LOG_UPTO): Use
+	  NUM2INT() instead of FIX2INT() when the type of an given object
+	  is not determined.
+
+Tue Aug 12 18:14:00 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* tool/transcode-tblgen.rb (#transcode_tblgen): slight message
+	  improvement.
+
+Tue Aug 12 17:16:58 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (trans_open_i): check the result of rb_transcoding_open.
+
+Tue Aug 12 16:23:32 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c (gc_profile_result): use rb_str_catf.
+
+Tue Aug 12 16:13:45 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (TRANSCODE_ERROR): removed.
+
+	* tool/transcode-tblgen.rb: 8bit byte of ASCII-8BIT is a valid
+	  (but unique to ASCII-8BIT) character.
+
+	* transcode.c (rb_eConversionUndefined): new error.
+	  (rb_eInvalidByteSequence): ditto.
+
+Tue Aug 12 16:08:51 2008  Minero Aoki  <aamine@loveruby.net>
+
+	* lib/net/pop.rb: POP3Command should export @socket since POP
+	  calls #socket.
+
+Tue Aug 12 16:06:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* sprintf.c, util.c (quorem, nrv_alloc, dtoa): enabled floating point
+	  support.
+
+Tue Aug 12 15:52:45 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c (gc_profile_result): use sprintf.
+
+Tue Aug 12 15:37:40 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* string.c (rb_str_intern): should check symbol table overflow.
+
+Tue Aug 12 15:31:04 2008  Minero Aoki  <aamine@loveruby.net>
+
+	* lib/net/http.rb (send_request_with_body): Content-Length should
+	  be byte length of string. (closes #203)
+
+Tue Aug 12 15:17:06 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* enc/depend: (transvpath_prefix): prefix has no extension, so replace
+	  %s with "".
+
+Tue Aug 12 15:03:43 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* test/readline/test_readline.rb (TestReadline#test_safe_level_4):
+	  tested Readline.vi_editing_mode? and Readline.emacs_editing_mode?.
+
+Tue Aug 12 14:25:09 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/Makefile.in (.SUFFIXES): renamed to .trans.
+
+	* enc/make_encmake.rb: added --encs and --no-encs options.
+
+	* enc/depend (TRANSVPATH): fix for nmake.
+
+Tue Aug 12 14:19:53 2008  Minero Aoki  <aamine@loveruby.net>
+
+	* lib/net/https.rb: supress syntax warning.
+
+Tue Aug 12 14:15:51 2008  Minero Aoki  <aamine@loveruby.net>
+
+	* lib/net/http.rb (Net::HTTP#initialize): initialize net/https
+	  variables to supress syntax warning.
+
+Tue Aug 12 14:15:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/dl/cptr.c (rb_dlptr_s_to_ptr): fixed shadowing variable.
+
+Tue Aug 12 10:25:14 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* array.c (rb_ary_delete): Array#delete to return deleted element.
+
+Tue Aug 12 10:18:01 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* test/win32ole/test_err_in_callback.rb: do not require 'mkmf'
+	  unless WIN32OLE is defined.
+
+Tue Aug 12 07:41:13 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder): add resetstate_func field for
+	  resetting a state of stateful encoding.
+
+	* enc/trans/iso2022.trans (rb_EUC_JP_to_ISO_2022_JP): specify
+	  finish_eucjp_to_iso2022jp for resetstate_func.
+
+	* tool/transcode-tblgen.rb: specify NULL for resetstate_func.
+
+	* transcode.c (output_replacement_character): call resetstate_func
+	  before appending the replacement character.
+
+Tue Aug 12 07:19:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (get_replacement_character): extracted from
+	  output_replacement_character.
+
+Tue Aug 12 07:00:02 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder): typedef at first.
+
+Tue Aug 12 06:48:35 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_trans_conv): find second last error.
+
+Tue Aug 12 00:43:44 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_trans_result_t): new type.
+	  (rb_trans_elem_t): new type.
+	  (rb_trans_t): new type.
+
+	* transcode.c (transcode_dispatch_cb): removed.
+	  (transcode_dispatch): removed.
+	  (rb_transcoding_result_t): moved to rb_trans_result_t in
+	  transcode_data.h.
+	  (transcode_restartable0): goto follow_info when FUNsi.
+	  (rb_transcoding_open): use get_transcoder_entry.
+	  (rb_trans_open): new function.
+	  (rb_trans_conv): ditto.
+	  (rb_trans_close): ditto.
+	  (trans_open_i): ditto.
+	  (trans_sweep): ditto.
+	  (more_output_buffer): take rb_trans_t instead of rb_transcoding as
+	  an argument.
+	  (transcode_loop): take from_encoding and to_encoding instead of tr
+	  as arguments.  use rb_trans_open/rb_trans_conv/rb_trans_close.
+	  (str_transcode): don't use transcode_dispatch.
+
+Mon Aug 11 20:37:05 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* iseq.c (rb_iseq_clone): should preserve cref_stack link.
+
+Mon Aug 11 20:27:12 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/dl/cfunc.c (rb_dlcfunc_call): add taint check.
+
+	* ext/dl/dl.c (rb_dl_malloc): add rb_secure(2).
+
+	* ext/dl/dl.c (rb_dl_realloc): ditto.
+
+	* ext/dl/dl.c (rb_dl_free): ditto.
+
+	* ext/dl/dl.c (rb_dl_ptr2value): ditto.
+
+Mon Aug 11 20:11:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (getrusage_time): works only if RUSAGE_SELF is defined right
+	  now.
+
+	* gc.c (gc_profile_result): C99.
+
+Mon Aug 11 18:57:38 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* array.c (rb_ary_sample): rename #choice to #sample.  in
+	  addition, sample takes optional argument, a la #first.
+
+Mon Aug 11 18:28:02 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c: added GC::Profiler.
+
+Mon Aug 11 17:26:16 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* ext/readline/README.ja: added API document for
+	  Readline.vi_editing_mode? and Readline.emacs_editing_mode?.
+
+	* ext/readline/extconf.rb: checked rl_editing_mode variable in
+	  Readline library.
+
+	* ext/readline/readline.c (readline_s_emacs_editing_mode_p): added
+	  Readline.emacs_editing_mode? method.
+	  (readline_s_vi_editing_mode_p): added Readline.vi_editing_mode?
+	  method.
+	  (Init_readline): ditto.
+
+Mon Aug 11 16:56:40 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* test/readline/test_readline.rb: added test for Readline's class
+	  methods.
+
+Mon Aug 11 16:39:23 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* class.c (clone_method): should copy cbase in cref as well.
+	  [ruby-dev:35116]
+
+	* iseq.c (iseq_mark): mark original iseq object.
+
+	* iseq.c (iseq_free): do not free internal data if they have
+	  original iseq to belong.
+
+	* iseq.c (rb_iseq_clone): a new function to clone iseq value.
+
+Mon Aug 11 16:34:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/iso2022.trans: renamed from iso2022.erb.c.
+
+	* enc/trans/single_byte.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+	* enc/trans/korean.trans: ditto.
+
+	* enc/trans/japanese.trans: ditto.
+
+	* enc/depend: follow the renaming.
+
+	* tool/build-transcode: ditto.
+
+Mon Aug 11 15:09:23 2008  Tanaka Akira  <akr@fsij.org>
+
+	* configure.in (rb_cv_broken_glibc_ia64_erfc): renamed from
+	  rb_broken_glibc_ia64_erfc.
+	  [ruby-core:18228]
+
+Mon Aug 11 10:04:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): rename fields.
+	  readlen -> recognized_len.
+	  feedlen -> readagain_len.
+
+	* transcode.c: follow the field renaming.
+
+Sun Aug 10 22:34:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_restartable0): invalid handling simplified.
+	  (transcode_restartable): use PARTIAL_INPUT for converting buffered
+	  input.
+
+Sun Aug 10 22:24:24 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* encoding.c: include util.h.  [ruby-dev:35715]
+
+	* common.mk: ditto.
+
+Sun Aug 10 20:59:54 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): new field: flags.
+
+	* transcode.c (load_transcoder): extracted from transcode_dispatch_cb.
+	  (rb_transcoding_result_t): renamed from transcode_result_t.
+	  (rb_transcoding_open): new function.
+	  (rb_transcoding_convert): ditto.
+	  (rb_transcoding_close): ditto.
+	  (transcode_loop): use rb_transcoding_open, rb_transcoding_convert
+	  and rb_transcoding_close.
+	  (str_transcode): don't need rb_transcoding.
+
+Sun Aug 10 18:09:16 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: record checksum of
+	  transcode-tblgen.rb itself.
+
+Sun Aug 10 12:34:41 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* config.guess ({powerpc-apple,i586-pc}-haiku): re-applied r18403.
+	  [ruby-core:18110]
+
+	* config.{guess,sub}: updated to automake-1.10.1.
+
+Sun Aug 10 11:45:15 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/Makefile.in (make-workdir): use MAKEDIRS.
+
+	* enc/depend: makes target directory before compile/link.
+
+	* tool/transcode-tblgen.rb: creates target directory.
+
+Sun Aug 10 11:30:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c: rename my_transcoding to tc and my_transcoder to tr.
+
+Sun Aug 10 11:15:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): add feedlen field.
+
+	* transcode.c (transcode_restartable0): renamed from
+	  transcode_restartable.
+	  save input buffer into feed buffer if next character is started the
+	  point before input buffer.  for example, "\x00\xd8\x01" then "\x02"
+	  in UTF-16LE.  \x02 causes invalid and next character is started from
+	  \x01.
+	  (transcode_restartable): new function to call
+	  transcode_restartable0.  if feed buffer is not empty, convert it at
+	  first.
+
+Sun Aug 10 11:02:58 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (extconf): use MAKEDIRS.
+
+Sun Aug 10 09:35:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/irb.rb (IRB::Irb#inspect): instance_variables returns symbols
+	  instead of strings now.  [ruby-dev:34930]
+
+Sun Aug 10 09:22:14 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_char_start): refactored to remove readlen
+	  argument.
+	  (transcode_restartable): refactored to remove readlen variable.
+
+Sun Aug 10 08:56:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (STACK_LEVEL_MAX, ruby_stack_length): returns size_t.
+	  [ruby-core:18207]
+
+	* configure.in (rb_cv_missing__dtos18, rb_cv_missing_fconvert),
+	  ext/digest/md5/md5.c, ext/openssl/ossl.c (main),
+	  ext/socket/extconf.rb (ipv6, wide-getaddrinfo): main should be int.
+
+	* main.c (main), win32/winmain.c, wince/wincemain.c (WinMain): envp is
+	  no longer used so long time.  based on a patch from Peter Bowen at
+	  [ruby-core:18208]
+
+Sat Aug  9 22:05:29 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_loop): take destination and resize function
+	  as parameters.
+	  (more_output_buffer): ditto.
+	  (str_transcoding_resize): argument changed from rb_transcoding* to
+	  VALUE.
+	  (str_transcode): call transcode_loop with destination string and its
+	  resize function.
+
+	* transcode_data.h (rb_transcoding): move ruby_string_dest and
+	  flush_func to transcode_loop parameters.
+
+Sat Aug  9 21:29:45 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk: encs depend on transdb.h
+
+Sat Aug  9 21:10:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (rb_cv_rshift_sign, rb_cv_binary_elf): get rid of
+	  AC_TRY_RUN.
+
+Sat Aug  9 16:33:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): new fields: next_info and next_byte.
+
+	* transcode.c (transcode_restartable): save/restore next_info and
+	  next_byte.
+	  sync readlen and in_p when invalid.
+
+Sat Aug  9 15:10:15 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode_restartable): my_transcoder argument removed.
+	  (transcode_loop): my_transcoder argument removed.
+
+Sat Aug  9 14:39:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): add fields for restartable
+	  transcoding.
+	  (rb_transcoder): add max_input field.
+	  from_unit_length field is renamed to input_unit_length.
+
+	* tool/transcode-tblgen.rb: generate max_input field.
+
+	* enc/trans/iso2022.erb.c: follow rb_transcoder change.
+
+	* enc/trans/utf_16_32.erb.c: ditto.
+
+	* transcode.c (PARTIAL_INPUT): new constant.
+	  (transcode_char_start): new function.
+	  (transcode_result_t): new type.
+	  (transcode_restartable): new function.
+	  (more_output_buffer): new function.
+	  (transcode_loop): use transcode_restartable.
+
+Sat Aug  9 13:35:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* stable/ext/socket/socket.c (NI_MAXHOST, NI_MAXSERV): fixed invalid
+	  preprocessor directives.  a patch from Peter Bowen at
+	  [ruby-core:18211].
+
+Sat Aug  9 06:37:21 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/make_encdb.rb, enc/trans/make_transdb.rb: skip nonexistent
+	  directory.  [ruby-dev:35802]
+
+Sat Aug  9 01:07:51 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/utf_16_32.erb.c (fun_so_from_utf_32le): implemented.
+	  (fun_so_to_utf_32le): implemented.
+	  [ruby-dev:35777]
+
+Sat Aug  9 00:42:33 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder): from_unit_length field added.
+	  from_utf8 field removed.
+
+	* tool/transcode-tblgen.rb: generate offsets range.
+	  follow rb_transcoder change.
+
+	* transcode.c (transcode_loop): don't use from_utf8.
+	  make invalid region from_unit_length wise.
+
+	* enc/trans/iso2022.erb.c: follow rb_transcoder and
+	  transcode_generate_node change.
+
+	* enc/trans/utf_16_32.erb.c: follow rb_transcoder and
+	  transcode_generate_node change.
+	  explicit :invalid map removed.
+
+Fri Aug  8 23:29:44 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/depend (TRANSCSRCS): needs rule_subst to apply.
+
+	* io.c (shutdown): not define if defined already.
+
+Fri Aug  8 22:47:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_insnhelper.c (opt_eq_func): large function to make inline.
+
+	* bcc32/Makefile.sub (config.h): cannot compile a big inline function.
+
+Fri Aug  8 21:09:10 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk (enk.mk): give not RUBY but MINIRUBY.
+
+Fri Aug  8 17:03:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (shutdown, sched_yield, pthread_attr_setinheritsched):
+	  check for Haiku.
+
+	* eval_intern.h, io.c, thread_pthread.c: use autoconfisticated results.
+
+Fri Aug  8 16:52:55 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (enc.mk): mkmf.rb requires rbconfig.rb.
+
+	* common.mk (srcs-enc): renamed from transcodes.
+
+	* enc/Makefile.in (make-workdir): creates object directories.
+
+	* common.mk (encdb.h): see both $(srcdir)/enc and enc.
+
+	* enc/make_encdb.rb: ditto.
+
+	* enc/trans/make_transdb.rb: fix for the case no transdirs are given.
+
+	* enc/trans/make_transdb.rb: converts only one transcoders for each
+	  basename.
+
 Fri Aug  8 13:04:19 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/resolve_changelog.rb (ChangeLog.Reader): fixed typo.
+
+Fri Aug  8 10:53:52 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/resolv.rb: randomize source port and transaction id.
+	  CVE-2008-1447.
+
+	* lib/resolv-replace.rb (UDPSocket#bind): don't resolv host if host is
+	  "".
+
+Fri Aug  8 04:20:14 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk: see both $(srcdir)/enc/trans and enc/trans.
+
+	* enc/trans/make_transdb.rb: ditto.
+
+Fri Aug  8 00:05:02 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* ext/.document: added readline/readline.c.
+
+	* ext/readline/readline.c: changed Copyright. added RDoc.
+
+	* ext/readline/README.ja: fixed typo.
+
+	* ext/readline/README: contents was moved RDoc.
+
+Thu Aug  7 23:43:11 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): new field "stateful".
+	  (rb_transcoder): preprocessor and postprocessor field removed.
+	  change arguments of func_ii, func_si, func_io and func_so.
+	  new field "finish_func".
+
+	* tool/transcode-tblgen.rb: make FUNii, FUNsi and FUNio
+	  generatable.
+
+	* transcode.c (transcoder_lib_table): removed.
+	  (transcoder_table): change structure.
+	  (transcoder_key): removed because the above structure change.
+	  (make_transcoder_entry): new function.
+	  (get_transcoder_entry): ditto.
+	  (rb_register_transcoder): follow the structure change.
+	  (declare_transcoder): ditto.
+	  (transcode_search_path): new function for breadth first search to
+	  find a list of converters.
+	  (transcode_search_path_i): new function.
+	  (transcode_dispatch_cb): ditto.
+	  (transcode_dispatch): use transcode_search_path.
+	  (transcode_loop): follow the argument change.
+	  (str_transcode): preprocessor and postprocessor stuff removed.
+
+	* enc/trans/iso2022.erb.c: new file.  ISO-2022-JP conversion
+	  re-implemented.
+
+	* enc/trans/japanese.erb.c: ISO-2022-JP stuff removed.
+
+	* enc/trans/utf_16_32.erb.c: follow argument change of FUNso.
+
+	[ruby-dev:35798]
+
+Thu Aug  7 22:55:44 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* ext/readline/README.ja: updated API document for Readline module.
+
+Thu Aug  7 20:52:08 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* lib/net/ftp.rb (login): raise FTPReplyError if passwd or acct
+	  is not supplied.  fixed [ruby-core:18058].
+
+Thu Aug  7 18:01:44 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* misc/ruby-mode.el (ruby-imenu-create-index-in-block): Fix the
+	  regexp to only pick definition lines properly.  `module_funtion'
+	  is not a definition of a module named `_function'.
+
+Thu Aug  7 17:47:55 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/depend: add transdb.c.
+
+Thu Aug  7 16:28:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* Makefile.in, common.mk, {bcc,win}32/Makefile.sub (clean-ext): do not
+	  use miniruby.
+
+Thu Aug  7 14:17:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/depend: removed needless explicit commands.
+
+	* lib/mkmf.rb, {bcc32,win32}/Makefile.sub (CLEANLIBS, CLEANOBJS):
+	  moved clean targets to platfrom makefiles.
+
+Thu Aug  7 13:12:30 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/socket/getaddrinfo.c (gai_strerror): ignore only on Haiku.
+	  a patch from <zn at mbf.nifty.com>, [ruby-dev:35796].
+
+Thu Aug  7 06:31:12 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/ruby/process.rb (test_popen_fork): skip a test which is
+	  freeze in FreeBSD.
+
+Thu Aug  7 06:05:48 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* config.guess: add powerpc-apple-haiku, i586-pc-haiku.
+	  see [ruby-core:18110]
+
+Thu Aug  7 05:51:05 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* eval_intern.h: Add support to Haiku. see [ruby-core:18110]
+
+	* include/ruby/defines.h: ditto.
+
+	* configure.in: ditto.
+
+	* thread_pthread.c: ditto.
+
+	* io.c: ditto.
+
+	* lib/mkmf.rb: ditto.
+
+	* ext/socket/getaddrinfo.c: ditto.
+
+	* ext/socket/extconf.rb: ditto.
+
+	* ext/socket/socket.c: ditto.
+
+	* ext/socket/addrinfo.h: ditto.
+
+	* ext/socket/getnameinfo.c: ditto.
+
+Thu Aug  7 05:43:32 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* common.mk: mkdir enc/trans before build tables.
+
+Thu Aug  7 05:18:30 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/depend: enc/*.c is source but enc/trans/*.c is generated.
+
+Thu Aug  7 05:14:12 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* regenc.c (code_to_mbc): raise RangeError Integer#chr
+	  when more than 255 is given with single byte encoding.
+	  [ruby-dev:35789]
+
+Thu Aug  7 05:06:03 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (run_final): runs finalizers with the object terminated.
+
+	* gc.c (rb_gc_call_finalizer_at_exit): keeps finalized objects from
+	  linking to freelist.
+
+Thu Aug  7 04:43:14 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/depend: for build in other than srcdir.
+
+Wed Aug  6 22:40:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (transcode_generate_node): code
+	  argument removed.
+
+Wed Aug  6 21:25:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (chain_finalized_object): deletes finalizers to be invoked from
+	  finalizer_table.
+
+	* gc.c (rb_gc_call_finalizer_at_exit): warns when could not invoke
+	  finalizers.
+
+Wed Aug  6 20:56:43 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/depend: transcode table generation depends on
+	  tool/transcode-tblgen.rb.
+
+Wed Aug  6 20:48:27 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (rb_gc_call_finalizer_at_exit): self-referencing finalizers
+	  cannot be invoked.  [ruby-dev:35681]
+
+Wed Aug  6 20:44:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: distinguish UNDEF and INVALID.
+	  [ruby-dev:35709]
+
+	* transcode.c (transcode_loop): don't need rb_enc_mbclen now.
+
+Wed Aug  6 14:40:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (transdb.h): requires transcoders.
+
+	* enc/depend (srcs): target for transcoders.
+
+Wed Aug  6 14:04:08 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* enc/depend: replace not only $(<:...) but also $<.
+
+Wed Aug  6 13:54:30 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/Makefile.sub (config.status): export BASERUBY.
+
+	* enc/depend: avoid GNU make'ism.
+
+Wed Aug  6 07:59:02 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (ActionMap#eql?): use == to compare @map.
+
+Wed Aug  6 07:45:26 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: show generating tables in verbose mode.
+	  (transcode_generate_node): call ActionMap#generate_node with showing
+	  table name.
+
+	* enc/trans/utf_16_32.erb.c: use transcode_generate_node.
+
+Wed Aug  6 06:55:20 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (thread_start_func_2): propagates fatal error and system
+	  exit to the main thread.
+
+Wed Aug  6 05:31:54 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* encoding.c (rb_to_encoding_index, rb_to_encoding): check if the name
+	  is ascii compatible as well as Encoding.find.
+
+	* transcode.c (str_encode): no need to duplicate first.
+
+Wed Aug  6 05:08:30 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_sort_bang): reset to real class.
+
+	* file.c (rb_find_file_ext, rb_find_file): ditto.
+
+	* io.c (io_reopen): ditto.
+
+Wed Aug  6 03:56:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (transcodes), tool/build-transcode: generates transcode
+	  sources.
+
+	* enc/trans/{japanese,korean,single_byte,utf_16_32}.c: to be
+	  autogenerated now.
+
+	* enc/depend: added rules for .c from .erb.c.
+
+Tue Aug  5 20:46:20 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/build-transcode: new file.
+
+	* tool/transcode-tblgen.rb: new file.
+
+	* enc/trans/make_transdb.rb: exclude *.erb.c.
+
+	* enc/depend: exclude *.erb.c.
+
+	* enc/trans/utf_16_32.erb.c: new file.
+
+	* enc/trans/single_byte.erb.c: new file.
+
+	* enc/trans/japanese.erb.c: new file.
+
+	* enc/trans/korean.erb.c: new file.
+
+	* enc/trans/iso-8859-2-tbl.rb: new file.
+
+	* enc/trans/iso-8859-3-tbl.rb: new file.
+
+	* enc/trans/iso-8859-4-tbl.rb: new file.
+
+	* enc/trans/iso-8859-5-tbl.rb: new file.
+
+	* enc/trans/iso-8859-6-tbl.rb: new file.
+
+	* enc/trans/iso-8859-7-tbl.rb: new file.
+
+	* enc/trans/iso-8859-8-tbl.rb: new file.
+
+	* enc/trans/iso-8859-9-tbl.rb: new file.
+
+	* enc/trans/iso-8859-10-tbl.rb: new file.
+
+	* enc/trans/iso-8859-11-tbl.rb: new file.
+
+	* enc/trans/iso-8859-13-tbl.rb: new file.
+
+	* enc/trans/iso-8859-14-tbl.rb: new file.
+
+	* enc/trans/iso-8859-15-tbl.rb: new file.
+
+	* enc/trans/eucjp-tbl.rb: new file.
+
+	* enc/trans/sjis-tbl.rb: new file.
+
+	* enc/trans/euckr-tbl.rb: new file.
+
+	* enc/trans/utf_16_32.c: regenerated.
+
+	* enc/trans/single_byte.c: regenerated.
+
+	* enc/trans/japanese.c: regenerated.
+
+	* enc/trans/korean.c: regenerated.
+
+	[ruby-dev:35730]
+
+Tue Aug  5 18:02:53 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* test/io/nonblock/test_flush.rb (TestIONonblock#test_flush):
+	  rescue some exceptions. [ruby-dev:35638]
+
+Tue Aug  5 16:40:06 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* lib/net/ftp.rb (chdir): handle 5xx errors correctly.
+	  fixed [ruby-core:18057].
+
+Tue Aug  5 16:38:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/win32.h, bcc32/Makefile.sub (config.h): bcc 5.8 has
+	  stdint.h.
+
+Tue Aug  5 16:13:05 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* lib/net/imap.rb (disconnect): do not refer SSL::SSLSocket for
+	  environments without OpenSSL. fixed [ruby-dev:35755].
+
+Tue Aug  5 14:19:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_stat_mode): generalized st_mode mask.
+
+Tue Aug  5 12:43:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (retry_sendfile, retry_read): ENOSYS and EWOULDBLOCK are not
+	  defined on every platforms.
+
+Tue Aug  5 12:34:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* transcode_data.h (TRANSCODE_ERROR): common transcode failure
+	  exception, would be changed later.
+
+	* enc/trans/japanese.c (UNSUPPORTED_MODE): unsupported mode transition
+	  exception.
+
+Tue Aug  5 03:29:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_sort_bang): respect overridden <=> for String and
+	  Fixnum.  [ruby-core:17708]
+
+	* include/ruby/node.h (NOEX_BASIC): basic definition method flag.
+
+	* include/ruby/intern.h, vm_method.c (rb_method_basic_definition_p):
+	  new function to check if the method is not redefined after the
+	  initialization.
+
+	* vm_method.c (rb_obj_respond_to): use rb_method_basic_definition_p.
+
+Mon Aug  4 20:39:06 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* Makefile.in (update-rubyspec): renamed the rubyspec directory
+	  "spec". Changed directory structure.
+
+	* Makefile.in (test-rubyspec): ditto.
+
+	* spec/README: described the structure of "spec" directory.
+
+	* spec/default.mspec: configured for Matz's Ruby Implementation.
+
+Mon Aug  4 19:21:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* array.c (rb_ary_tmp_new): added.
+
+	* vm_eval.c (vm_call_super): fixed typo, and get rid of too large
+	  alloca.  [ruby-core:17922]
+
+Mon Aug  4 16:48:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (deferred_nodes, compstmt, arg, fixup_nodes, range_op): fix
+	  up fixnum range literal in conditional as automagical line number
+	  comparison.  [ruby-core:12124], [ruby-dev:35731]
+
+Mon Aug  4 14:41:25 2008  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* lib/net/smtp.rb (Net::SMTP::rcptto): fix a typo. a patch from
+	  Masao Takaku <masao at nii.ac.jp>
+	  fix [ruby-dev:35489].
+
+Mon Aug  4 14:08:55 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* marshal.c (dump_ensure), process.c (run_exec_dup2),
+	  string.c (rb_str_replace), transcode.c (transcode_dispatch): fixed
+	  memory leaks.  based on patches from shinichiro.h <shinichiro.hamaji
+	  AT gmail.com> at [ruby-dev:35751].
+
+Sun Aug  3 19:32:52 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* ext/win32ole/win32ole.c (hash2named_arg): refactoring.
+
+	* ext/win32ole/win32ole.c (ole_invoke, fole_respond_to, ev_on_event,
+	  fev_off_event): accepts Symbol argument.
+
+	* test/win32ole/test_win32ole.rb: ditto.
+
+	* test/win32ole/test_win32ole_event.rb: ditto.
+
+Sun Aug  3 10:41:54 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_shared_replace): fixed memory leak.  a patch from
+	  shinichiro.h <shinichiro.hamaji AT gmail.com> at [ruby-dev:35742]
+
+Sat Aug  2 22:55:41 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
+
+	* test/win32ole/test_err_in_callback.rb: remove temporary files.
+	  some refactoring.
+
+Sat Aug  2 15:51:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (yylex): 8 and 9 in octal integer should cause compile
+	  error.  [ruby-dev:35729]
+
+Sat Aug  2 01:06:10 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/japanese.c: add U+FF5E to EUC-JP.
+	  [ruby-dev:35720] [ruby-dev:35722]
+
+Fri Aug  1 23:49:44 2008  TAKAO Kouji  <kouji@takao7.net>
+
+	* ext/readline/extconf.rb: checked to have clear_history in
+	  readline library.
+	* ext/readline/readline.c (hist_get, hist_each, Init_readline):
+	  The offset specified for the argument of history_get() might be
+	  different in GNU Readline and libedit. If use libedit, it was
+	  corrected that the computational method of the offset specified
+	  for the argument of history_get() when the Readline module was
+	  initialized was decided.
+	  (hist_get, hist_set): If use libedit, accesses first an input
+	  content in history when specifies the negative offset for the
+	  argument of history_get() or replace_history_entry(). Then
+	  checks the offset is negative in ruby.
+	  (rb_remove_history): When compiling, it corrects it to warning
+	  when libedit is used.
+	  (hist_clear, Init_readline): added Readline::HISTORY.clear
+	  method. [ruby-dev:35551]
+	* test/readline/test_readline_history.rb: added unit test for
+	  Readline::HISTORY.
+
+Fri Aug  1 23:26:45 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* transcode.c (transcode_loop): undefined character is replaced with
+	  only one character. [ruby-dev:35709]
 
 Thu Jul 31 14:11:00 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -149,7 +1695,7 @@ Tue Jul 29 17:54:35 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 Tue Jul 29 13:17:03 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
 	* test/etc/test_etc.rb (test_getpwuid): fix for users whose uid is
-	  shared. 
+	  shared.
 
 Tue Jul 29 05:37:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -288,7 +1834,7 @@ Sun Jul 27 09:02:32 2008  Masatoshi SEKI  <m_seki@mva.biglobe.ne.jp>
 Sat Jul 26 22:45:18 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 
 	* sample/exyacc.rb: fixed NoMethodError(Kernel#sub!).
-	  replaced use of special variables with explicit IO 
+	  replaced use of special variables with explicit IO
 	  operations.
 
 Sat Jul 26 21:17:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
@@ -300,7 +1846,7 @@ Sat Jul 26 21:17:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
 Sat Jul 26 07:44:14 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
-	* ext/win32ole/win32ole.c (add_event_call_back): remove unused 
+	* ext/win32ole/win32ole.c (add_event_call_back): remove unused
 	  variable.
 
 Fri Jul 25 23:48:10 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
@@ -339,10 +1885,10 @@ Fri Jul 25 21:09:32 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
 Fri Jul 25 20:52:44 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
-	* test/win32ole/err_in_callback.rb : add test of raising
+	* test/win32ole/err_in_callback.rb: add test of raising
 	  exception in WIN32OLE_EVENT callback.
 
-	* test/win32ole/test_err_in_callback.rb : ditto.
+	* test/win32ole/test_err_in_callback.rb: ditto.
 
 Fri Jul 25 20:43:57 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
@@ -1858,10 +3404,10 @@ Sat Jun 28 13:12:06 2008  Tanaka Akira  <akr@fsij.org>
 
 Sat Jun 28 08:40:18 2008  Masaki Suketa  <masaki.suketa@nifty.ne.jp>
 
-	* ext/win32ole/win32ole.c : check String encoding when
+	* ext/win32ole/win32ole.c: check String encoding when
 	  converting String to VT_BSTR in OLE.
 
-	* test/win32ole/test_win32ole.rb : ditto.
+	* test/win32ole/test_win32ole.rb: ditto.
 
 Sat Jun 28 01:08:42 2008  Tanaka Akira  <akr@fsij.org>
 
@@ -1941,7 +3487,7 @@ Thu Jun 26 23:58:29 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 
 Thu Jun 26 17:43:41 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 
-	* variable.c (rb_f_trace_var): should not be allowed at safe level 4.  
+	* variable.c (rb_f_trace_var): should not be allowed at safe level 4.
 	  a patch from Keita Yamaguchi <keita.yamaguchi at gmail.com>.
 
 Thu Jun 26 11:04:30 2008  Eric Hodel  <drbrain@segment7.net>
@@ -2020,7 +3566,7 @@ Tue Jun 24 00:21:53 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 	  Adam Strzelecki <ono@java.pl> in [ruby-core:17220].
 
 Tue Jun 24 00:10:53 2008  wanabe  <s.wanabe@gmail.com>
-	* compile.c (iseq_build_from_ary): fix expression to obtain 
+	* compile.c (iseq_build_from_ary): fix expression to obtain
 	  iseq->local_size and iseq->local_table_size.  [ruby-dev:35205]
 
 Mon Jun 23 11:31:41 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
@@ -2397,7 +3943,7 @@ Wed Jun 18 04:24:20 2008  Koichi Sasada  <ko1@atdot.net>
 Wed Jun 18 01:51:10 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 
 	* ext/tk/lib/multi-tk.rb: cannot access class variable from
-	  singleton method. 
+	  singleton method.
 
 Wed Jun 18 00:03:33 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 
@@ -2745,33 +4291,33 @@ Wed Jun 11 05:55:31 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 
 	* ext/tk/README.tcltklib: add document about --with-tcltkversion
 
-	* ext/tk/lib/tk.rb, ext/tk/lib/multi-tk.rb, ext/tk/lib/remote-tk.rb: 
+	* ext/tk/lib/tk.rb, ext/tk/lib/multi-tk.rb, ext/tk/lib/remote-tk.rb:
 	  not work on $SAFE==4
 
 	* ext/tk/lib/multi-tk.rb: Object#methods returns Symbols on Ruby1.9.
 
-	* ext/tk/lib/tk/timer.rb: add TkTimer#at_end(proc) to register the 
+	* ext/tk/lib/tk/timer.rb: add TkTimer#at_end(proc) to register the
 	  procedure which called at end of the timer.
 
-	* ext/tk/lib/tk.rb, ext/tk/lib/tk/itemfont.rb, ext/tk/lib/font.rb: 
+	* ext/tk/lib/tk.rb, ext/tk/lib/tk/itemfont.rb, ext/tk/lib/font.rb:
 	  support __IGNORE_UNKNOWN_CONFIGURE_OPTION__ about font options.
 
 	* ext/tk/lib/*: treat __IGNORE_UNKNOWN_CONFIGURE_OPTION__
 
-	* ext/tk/lib/tkextlib/iwidgets/scrolledcanvas.rb, 
-	  ext/tk/lib/tkextlib/iwidgets/scrolledlistbox.rb, 
-	  ext/tk/lib/tkextlib/iwidgets/scrolledtext.rb: bug fix. 
+	* ext/tk/lib/tkextlib/iwidgets/scrolledcanvas.rb,
+	  ext/tk/lib/tkextlib/iwidgets/scrolledlistbox.rb,
+	  ext/tk/lib/tkextlib/iwidgets/scrolledtext.rb: bug fix.
 
 	* ext/tk/lib/tk/text.rb: typo. call a wrong method.
 
 	* ext/tk/lib/tk/itemconfig.rb: ditto.
 
-	* ext/tk/lib/tk.rb, ext/tk/lib/tk/itemconfig.rb, 
+	* ext/tk/lib/tk.rb, ext/tk/lib/tk/itemconfig.rb,
 	  ext/tk/lib/tk/canvas.rb: support alias names of option keys.
 
 	* ext/tk/lib/tk/grid.rb: lack of module-method definitions.
 
-	* ext/tk/lib/tk/pack.rb, ext/tk/lib/tk/grid.rb: increase supported 
+	* ext/tk/lib/tk/pack.rb, ext/tk/lib/tk/grid.rb: increase supported
 	  parameter patterns of configure method.
 
 	* ext/tk/lib/tk.rb: add TkWindow#grid_anchor, grid_column, grid_row.
@@ -2779,7 +4325,7 @@ Wed Jun 11 05:55:31 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 	* ext/tk/lib/tk/wm.rb: methods of Tk::Wm_for_General module cannot
 	  pass the given block to methods of Tk::Wm module.
 
-	* ext/tk/lib/tk/wm.rb: Wm#overrideredirect overwrites argument to 
+	* ext/tk/lib/tk/wm.rb: Wm#overrideredirect overwrites argument to
 	  an invalid value.
 
 	* ext/tk/lib/tk.rb: fix memory (object) leak bug.
@@ -2789,15 +4335,15 @@ Wed Jun 11 05:55:31 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 	* ext/tk/sample/demos-jp/aniwave.rb, ext/tk/sample/demos-en/aniwave.rb:
 	  bug fix.
 
-	* ext/tk/lib/tkextlib/blt/component.rb, 
-	  ext/tk/lib/tkextlib/tile/tentry.rb, 
+	* ext/tk/lib/tkextlib/blt/component.rb,
+	  ext/tk/lib/tkextlib/tile/tentry.rb,
 	  ext/tk/lib/tkextlib/tile/treeview.rb: ditto.
 
 	* ext/tk/lib/tkextlib/tile/tpaned.rb: improve TPaned#add.
 
-	* ext/tk/sample/demos-jp/widget, ext/tk/sample/demos-en/widget, 
-	  ext/tk/sample/demos-jp/style.rb, ext/tk/sample/demos-en/style.rb, 
-	  ext/tk/sample/demos-jp/bind.rb, ext/tk/sample/demos-en/bind.rb: 
+	* ext/tk/sample/demos-jp/widget, ext/tk/sample/demos-en/widget,
+	  ext/tk/sample/demos-jp/style.rb, ext/tk/sample/demos-en/style.rb,
+	  ext/tk/sample/demos-jp/bind.rb, ext/tk/sample/demos-en/bind.rb:
 	  bug fix.
 
 	* ext/tk/sample/ttk_wrapper.rb: ditto.
@@ -2806,45 +4352,45 @@ Wed Jun 11 05:55:31 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 
 	* ext/tk/sample/tktextio.rb: add binding for 'Ctrl-u' at console mode.
 
-	* ext/tk/lib/tkextlib/tile.rb, ext/tk/lib/tkextlib/tile/style.rb, 
-	  ext/tk/sample/ttk_wrapper.rb: improve treating and control themes. 
+	* ext/tk/lib/tkextlib/tile.rb, ext/tk/lib/tkextlib/tile/style.rb,
+	  ext/tk/sample/ttk_wrapper.rb: improve treating and control themes.
 	  add Tk::Tile.themes and Tk::Tile.set_theme(theme).
 
 	* ext/tk/lib/tkextlib/tile.rb: lack of autoload definitions.
 
-	* ext/tk/lib/tkextlib/tile/tnotebook.rb: cannot use kanji (not UTF-8) 
+	* ext/tk/lib/tkextlib/tile/tnotebook.rb: cannot use kanji (not UTF-8)
 	  characters for headings.
 
 	* ext/tk/lib/tkextlib/tkDND/shape.rb: wrong package name.
 
-	* ext/tk/tkutil/tkutil.c: improve handling callback-subst-keys. 
+	* ext/tk/tkutil/tkutil.c: improve handling callback-subst-keys.
 	  Now, support longnam-keys (e.g. '%CTT' on tkdnd-2.0; however, still
-	  not support tkdnd-2.0 on tkextlib), and symbols of parameters (e.g. 
-	  :widget=>'%W', :keycode=>'%k', '%x'=>:x, '%X'=>:root_x, and so on; 
+	  not support tkdnd-2.0 on tkextlib), and symbols of parameters (e.g.
+	  :widget=>'%W', :keycode=>'%k', '%x'=>:x, '%X'=>:root_x, and so on;
 	  those are attributes of event object). It means that Ruby/Tk accepts
-	  not only "widget.bind(ev, '%W', '%k', ...){|w, k, ...| ... }", but 
-	  also "widget.bind(ev, :widget, :keycode, ...){|w, k, ...| ... }". 
+	  not only "widget.bind(ev, '%W', '%k', ...){|w, k, ...| ... }", but
+	  also "widget.bind(ev, :widget, :keycode, ...){|w, k, ...| ... }".
 	  It is potentially incompatible, when user passes symbols to the
 	  arguments of the callback block (the block receives the symbols as
 	  strings). I think that is very rare case (probably, used by Ruby/Tk
 	  experts only). When causes such trouble, please give strings instead
 	  of such symbol parameters (e.g. call Symbol#to_s method).
 
-	* ext/tk/lib/tk/event.rb, ext/tk/lib/tk/validation.rb, 
-	  ext/tk/lib/tkextlib/blt/treeview.rb, 
+	* ext/tk/lib/tk/event.rb, ext/tk/lib/tk/validation.rb,
+	  ext/tk/lib/tkextlib/blt/treeview.rb,
 	  ext/tk/lib/tkextlib/winico/winico.rb: ditto.
 
-	* ext/tk/tkutil/tkutil.c: strings are available on subst_tables on 
-	  TkUtil::CallbackSubst class (it is useful on Ruby 1.9). 
+	* ext/tk/tkutil/tkutil.c: strings are available on subst_tables on
+	  TkUtil::CallbackSubst class (it is useful on Ruby 1.9).
 
-	* ext/tk/lib/tk/spinbox.rb, ext/tk/lib/tkextlib/iwidgets/hierarchy.rb, 
-	  ext/tk/lib/tkextlib/iwidgets/spinner.rb, 
-	  ext/tk/lib/tkextlib/iwidgets/entryfield.rb, 
-	  ext/tk/lib/tkextlib/iwidgets/calendar.rb, 
-	  ext/tk/lib/tkextlib/blt/dragdrop.rb, 
-	  ext/tk/lib/tkextlib/tkDND/tkdnd.rb, 
-	  ext/tk/lib/tkextlib/treectrl/tktreectrl.rb, 
-	  ext/tk/lib/tkextlib/tktable/tktable.rb: disable code piece became 
+	* ext/tk/lib/tk/spinbox.rb, ext/tk/lib/tkextlib/iwidgets/hierarchy.rb,
+	  ext/tk/lib/tkextlib/iwidgets/spinner.rb,
+	  ext/tk/lib/tkextlib/iwidgets/entryfield.rb,
+	  ext/tk/lib/tkextlib/iwidgets/calendar.rb,
+	  ext/tk/lib/tkextlib/blt/dragdrop.rb,
+	  ext/tk/lib/tkextlib/tkDND/tkdnd.rb,
+	  ext/tk/lib/tkextlib/treectrl/tktreectrl.rb,
+	  ext/tk/lib/tkextlib/tktable/tktable.rb: disable code piece became
 	  unnecessary by reason of the changes of ext/tk/tkutil/tkutil.c.
 
 	* ext/tk/lib/tk.rb, ext/tk/lib/multi-tk.rb: change strategy to define
@@ -2862,7 +4408,7 @@ Wed Jun 11 01:28:12 2008  Koichi Sasada  <ko1@atdot.net>
 	* include/ruby/intern.h, proc.c: revert rb_proc_call() and
 	  create rb_proc_call_with_block() instead.
 
-	* include/ruby/ruby.h, eval_jump.c, thread.c, vm_insnhelper.c: 
+	* include/ruby/ruby.h, eval_jump.c, thread.c, vm_insnhelper.c:
 	  rb_blockptr should not be exposed.
 
 Tue Jun 10 21:07:19 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
@@ -3055,7 +4601,7 @@ Sun Jun  8 20:12:47 2008  wanabe  <s.wanabe@gmail.com>
 Sun Jun  8 19:17:59 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* gc.c: add a build option "CALC_EXACT_MALLOC_SIZE".
-	  This option enables to calculate exact size of current 
+	  This option enables to calculate exact size of current
 	  allocated size by malloc().  You can access these information
 	  with GC.malloc_allocated_size and GC.malloc_allocations.
 	  This option consume additional memory as a header of each memory
@@ -3074,8 +4620,8 @@ Sun Jun  8 18:15:38 2008  Koichi Sasada  <ko1@atdot.net>
 	  allocated memory objects by xmalloc (ruby_xmalloc) should be
 	  freed by xfree (ruby_xfree).
 
-	* ext/curses/curses.c, ext/dbm/dbm.c, ext/digest/digest.c, 
-	  ext/gdbm/gdbm.c, ext/json/ext/parser/parser.c, 
+	* ext/curses/curses.c, ext/dbm/dbm.c, ext/digest/digest.c,
+	  ext/gdbm/gdbm.c, ext/json/ext/parser/parser.c,
 	  ext/json/ext/parser/unicode.c, ext/openssl/ossl_cipher.c,
 	  ext/openssl/ossl_hmac.c, ext/openssl/ossl_pkey_ec.c,
 	  ext/sdbm/init.c, ext/strscan/strscan.c, ext/zlib/zlib.c:
@@ -3859,7 +5405,7 @@ Fri May 23 12:23:05 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 Fri May 23 08:47:02 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 
-	* error.c (exc_equal): == operator should be transitional.  
+	* error.c (exc_equal): == operator should be transitional.
 	  [ruby-dev:34808]
 
 	* error.c (syserr_eqq): === should be able to handle delegated
@@ -4032,7 +5578,7 @@ Tue May 20 20:59:56 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 	  reverted. nkf-utf8/nkf.c should be independent of ruby.
 
 	* ext/nkf/nkf.c (options):
-	  moved from nkf-utf8/nkf.c. 
+	  moved from nkf-utf8/nkf.c.
 	  override nkf's original settings for Unicode BOM.
 
 Tue May 20 13:20:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
@@ -4100,7 +5646,7 @@ Mon May 19 23:19:35 2008  Yusuke Endoh  <mame@tsg.ne.jp>
 
 Mon May 19 21:07:48 2008  Koichi Sasada  <ko1@atdot.net>
 
-	* thread_pthread.c (native_thread_apply_priority): 
+	* thread_pthread.c (native_thread_apply_priority):
 	  fix argument range check.  [ruby-dev:33124]
 
 Mon May 19 18:22:35 2008  Akinori MUSHA  <knu@iDaemons.org>
@@ -4130,7 +5676,7 @@ Mon May 19 17:23:55 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 	  already have MatchData.
 
 	* re.c (match_init_copy): avoid unnecessary onig_region_free()
-	  before onig_region_copy. 
+	  before onig_region_copy.
 
 	* encoding.c (rb_enc_get_index): remove implicit enc_capable check
 	  each time.

@@ -9,6 +9,7 @@ Incompatible (Severe)
           o Block local variables
     * Array
           o Array#nitems was removed (use count {|i| !i.nil?})
+          o Array#choice was removed (use sample)
     * String
           o No longer an Enumerable
           o ?c semantics
@@ -62,6 +63,8 @@ Incompatible (Trivial)
           o New format in Time#to_s
           o Timezone information preserved on Marshal.dump/load
     * Symbols: restriction on literal symbols
+    * Readline
+          o If Readline uses libedit, Readline::HISTORY[0] returns the first of the history.
     * $SAFE and bound methods
     * Deprecation
           o VERSION and friends
@@ -111,6 +114,8 @@ Compatible
           o Regexp#match, String#match
     * Fiber: coroutines/micro-threads
     * Array
+          o Array#delete returns a deleted element rather than a given
+            object
           o Array#to_s is equivalent to Array#inspect
           o Array.try_convert
     * Hash
@@ -150,6 +155,10 @@ Compatible
           o New methods
     * Process
           o Process.daemon
+    * Readline
+          o Readline.vi_editing_mode?
+          o Readline.emacs_editing_mode?
+          o Readline.HISTORY::clear
     * Misc. new methods
           o public_send
           o GC.count

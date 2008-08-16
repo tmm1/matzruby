@@ -522,7 +522,9 @@ native_thread_create(rb_thread_t *th)
 	CHECK_ERR(pthread_attr_setstacksize(&attr, stack_size));
 #endif
 
+#ifdef HAVE_PTHREAD_ATTR_SETINHERITSCHED
 	CHECK_ERR(pthread_attr_setinheritsched(&attr, PTHREAD_INHERIT_SCHED));
+#endif
 	CHECK_ERR(pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED));
 
 	err = pthread_create(&th->thread_id, &attr, thread_start_func_1, th);
@@ -550,6 +552,9 @@ native_thread_join(pthread_t th)
     }
 }
 
+
+#if USE_NATIVE_THREAD_PRIORITY
+
 static void
 native_thread_apply_priority(rb_thread_t *th)
 {
@@ -575,6 +580,8 @@ native_thread_apply_priority(rb_thread_t *th)
     /* not touched */
 #endif
 }
+
+#endif /* USE_NATIVE_THREAD_PRIORITY */
 
 static void
 ubf_pthread_cond_signal(void *ptr)

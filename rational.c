@@ -1481,6 +1481,7 @@ void
 Init_Rational(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     assert(fprintf(stderr, "assert() is now active\n"));
 

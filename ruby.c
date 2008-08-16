@@ -1069,12 +1069,12 @@ process_options(VALUE arg)
 #endif
     OBJ_FREEZE(opt->script_name);
     opt->script = RSTRING_PTR(opt->script_name);
+    safe = rb_safe_level();
+    rb_set_safe_level_force(0);
     ruby_vm_set_argv(vm, argc, argv);
     process_sflag(vm, opt);
 
     ruby_init_loadpath();
-    safe = rb_safe_level();
-    rb_set_safe_level_force(0);
     ruby_init_gems(!(opt->disable & DISABLE_BIT(gems)));
     lenc = rb_locale_encoding();
     for (i = 0; i < RARRAY_LEN(rb_argv); i++) {

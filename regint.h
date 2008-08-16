@@ -115,8 +115,7 @@
 
 #ifdef RUBY
 
-#include "vm_core.h"
-#define CHECK_INTERRUPT_IN_MATCH_AT RUBY_VM_CHECK_INTS()
+#define CHECK_INTERRUPT_IN_MATCH_AT rb_thread_check_ints()
 #define onig_st_init_table                  st_init_table
 #define onig_st_init_table_with_size        st_init_table_with_size
 #define onig_st_init_numtable               st_init_numtable
@@ -217,13 +216,7 @@
 
 #include <ctype.h>
 #ifdef HAVE_SYS_TYPES_H
-#ifndef __BORLANDC__
 #include <sys/types.h>
-#endif
-#endif
-
-#ifdef __BORLANDC__
-#include <malloc.h>
 #endif
 
 #ifdef ONIG_DEBUG

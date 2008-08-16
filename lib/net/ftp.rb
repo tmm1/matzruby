@@ -396,9 +396,11 @@ module Net
       synchronize do
 	resp = sendcmd('USER ' + user)
 	if resp[0] == ?3
+          raise FTPReplyError, resp if passwd.nil?
 	  resp = sendcmd('PASS ' + passwd)
 	end
 	if resp[0] == ?3
+          raise FTPReplyError, resp if acct.nil?
 	  resp = sendcmd('ACCT ' + acct)
 	end
       end
@@ -722,9 +724,9 @@ module Net
 	begin
 	  voidcmd("CDUP")
 	  return
-	rescue FTPPermError
-	  if $![0, 3] != "500"
-	    raise FTPPermError, $!
+	rescue FTPPermError => e
+	  if e.message[0, 3] != "500"
+	    raise e
 	  end
 	end
       end

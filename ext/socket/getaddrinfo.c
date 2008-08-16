@@ -42,7 +42,7 @@
 #include <sys/types.h>
 #ifndef _WIN32
 #include <sys/param.h>
-#if defined(__BEOS__)
+#if defined(__BEOS__) && !defined(__HAIKU__) 
 # include <net/socket.h>
 #else
 # include <sys/socket.h>
@@ -194,6 +194,7 @@ if (pai->ai_flags & AI_CANONNAME) {\
 
 #define ERR(err) { error = (err); goto bad; }
 
+#ifndef __HAIKU__
 #if defined __UCLIBC__
 const
 #endif
@@ -204,6 +205,7 @@ gai_strerror(int ecode)
 		ecode = EAI_MAX;
 	return (char *)ai_errlist[ecode];
 }
+#endif
 
 void
 freeaddrinfo(struct addrinfo *ai)
@@ -374,7 +376,7 @@ getaddrinfo(const char *hostname, const char *servname, const struct addrinfo *h
 			port = htons((unsigned short)atoi(servname));
 		} else {
 			struct servent *sp;
-			char *proto;
+			const char *proto;
 
 			proto = NULL;
 			switch (pai->ai_socktype) {

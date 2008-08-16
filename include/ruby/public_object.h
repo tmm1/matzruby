@@ -154,6 +154,8 @@ enum ruby_public_object_vmkey {
 #define rb_eSysStackError (*rb_vm_specific_ptr(rb_vmkey_eSysStackError))
     rb_vmkey_eRegexpError,
 #define rb_eRegexpError (*rb_vm_specific_ptr(rb_vmkey_eRegexpError))
+    rb_vmkey_eEncCompatError,
+#define rb_eEncCompatError (*rb_vm_specific_ptr(rb_vmkey_eEncCompatError))
 
     rb_vmkey_eScriptError,
 #define rb_eScriptError (*rb_vm_specific_ptr(rb_vmkey_eScriptError))

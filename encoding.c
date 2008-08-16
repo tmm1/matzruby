@@ -17,6 +17,7 @@
 #ifdef HAVE_LANGINFO_H
 #include <langinfo.h>
 #endif
+#include "ruby/util.h"
 
 static ID id_encoding, id_base_encoding;
 
@@ -120,22 +121,33 @@ rb_to_encoding_index(VALUE enc)
     else if (NIL_P(enc = rb_check_string_type(enc))) {
 	return -1;
     }
-    else {
-	return rb_enc_find_index(StringValueCStr(enc));
+    if (!rb_enc_asciicompat(rb_enc_get(enc))) {
+	return -1;
     }
+    return rb_enc_find_index(StringValueCStr(enc));
+}
+
+static rb_encoding *
+to_encoding(VALUE enc)
+{
+    int idx;
+
+    StringValue(enc);
+    if (!rb_enc_asciicompat(rb_enc_get(enc))) {
+	rb_raise(rb_eArgError, "invalid name encoding (non ASCII)");
+    }
+    idx = rb_enc_find_index(StringValueCStr(enc));
+    if (idx < 0) {
+	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
+    }
+    return rb_enc_from_index(idx);
 }
 
 rb_encoding *
 rb_to_encoding(VALUE enc)
 {
-    int idx;
-
-    idx = enc_check_encoding(enc);
-    if (idx >= 0) return RDATA(enc)->data;
-    if ((idx = rb_enc_find_index(StringValueCStr(enc))) < 0) {
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
-    }
-    return rb_enc_from_index(idx);
+    if (enc_check_encoding(enc) >= 0) return RDATA(enc)->data;
+    return to_encoding(enc);
 }
 
 void
@@ -587,7 +599,7 @@ rb_enc_check(VALUE str1, VALUE str2)
 {
     rb_encoding *enc = rb_enc_compatible(str1, str2);
     if (!enc)
-	rb_raise(rb_eArgError, "character encodings differ: %s and %s",
+	rb_raise(rb_eEncCompatError, "incompatible character encodings: %s and %s",
 		 rb_enc_name(rb_enc_get(str1)),
 		 rb_enc_name(rb_enc_get(str2)));
     return enc;
@@ -730,7 +742,7 @@ rb_enc_codepoint(const char *p, const char *e, rb_encoding *enc)
     if (MBCLEN_CHARFOUND_P(r))
         return rb_enc_mbc_to_codepoint(p, e, enc);
     else
-	rb_raise(rb_eArgError, "invalid mbstring sequence");
+	rb_raise(rb_eArgError, "invalid byte sequence in %s", rb_enc_name(enc));
 }
 
 int
@@ -738,7 +750,7 @@ rb_enc_codelen(int c, rb_encoding *enc)
 {
     int n = ONIGENC_CODE_TO_MBCLEN(enc,c);
     if (n == 0) {
-	rb_raise(rb_eArgError, "invalid codepoint 0x%x", c);
+	rb_raise(rb_eArgError, "invalid codepoint 0x%x in %s", c, rb_enc_name(enc));
     }
     return n;
 }
@@ -837,17 +849,7 @@ enc_list(VALUE klass)
 static VALUE
 enc_find(VALUE klass, VALUE enc)
 {
-    int idx;
-
-    StringValue(enc);
-    if (!rb_enc_asciicompat(rb_enc_get(enc))) {
-	rb_raise(rb_eArgError, "invalid name encoding (non ASCII)");
-    }
-    idx = rb_enc_find_index(StringValueCStr(enc));
-    if (idx < 0) {
-	rb_raise(rb_eArgError, "unknown encoding name - %s", RSTRING_PTR(enc));
-    }
-    return rb_enc_from_encoding(rb_enc_from_index(idx));
+    return rb_enc_from_encoding(to_encoding(enc));
 }
 
 /*
@@ -959,16 +961,14 @@ rb_locale_encoding(void)
 rb_encoding *
 rb_filesystem_encoding(void)
 {
-    static rb_encoding *enc;
-    if (!enc) {
+    rb_encoding *enc;
 #if defined _WIN32
-	enc = rb_locale_encoding();
+    enc = rb_locale_encoding();
 #elif defined __APPLE__
-	enc = rb_enc_find("UTF8-MAC");
+    enc = rb_enc_find("UTF8-MAC");
 #else
-	enc = rb_locale_encoding();
+    enc = rb_default_external_encoding();
 #endif
-    }
     return enc;
 }
 
@@ -1171,6 +1171,7 @@ void
 Init_Encoding(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
     VALUE list;
     int i;
 

@@ -29,7 +29,11 @@ typedef pthread_mutex_t rb_thread_lock_t;
 #define RB_THREAD_LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 #define ruby_native_thread_lock(lock) pthread_mutex_lock(lock)
 #define ruby_native_thread_unlock(lock) pthread_mutex_unlock(lock)
-#define ruby_native_thread_yield() sched_yield()
+#ifdef HAVE_SCHED_YIELD
+#define ruby_native_thread_yield() (void)sched_yield()
+#else
+#define ruby_native_thread_yield() ((void)0)
+#endif
 
 #endif
 

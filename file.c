@@ -232,6 +232,8 @@ rb_stat_cmp(VALUE self, VALUE other)
     return Qnil;
 }
 
+#define ST2UINT(val) ((val) & ~(~1UL << (sizeof(val) * CHAR_BIT - 1)))
+
 /*
  *  call-seq:
  *     stat.dev    => fixnum
@@ -329,11 +331,7 @@ rb_stat_ino(VALUE self)
 static VALUE
 rb_stat_mode(VALUE self)
 {
-#ifdef __BORLANDC__
-    return UINT2NUM((unsigned short)(get_stat(self)->st_mode));
-#else
-    return UINT2NUM(get_stat(self)->st_mode);
-#endif
+    return UINT2NUM(ST2UINT(get_stat(self)->st_mode));
 }
 
 /*
@@ -4068,10 +4066,10 @@ rb_stat_wr(VALUE obj)
 {
 #ifdef S_IROTH
     if ((get_stat(obj)->st_mode & (S_IROTH)) == S_IROTH) {
-      return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+	return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
-      return Qnil;
+	return Qnil;
     }
 #endif
 }
@@ -4160,10 +4158,10 @@ rb_stat_ww(VALUE obj)
 {
 #ifdef S_IROTH
     if ((get_stat(obj)->st_mode & (S_IWOTH)) == S_IWOTH) {
-      return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
+	return UINT2NUM(get_stat(obj)->st_mode & (S_IRUGO|S_IWUGO|S_IXUGO));
     }
     else {
-      return Qnil;
+	return Qnil;
     }
 #endif
 }
@@ -4540,7 +4538,7 @@ rb_find_file_ext(VALUE *filep, const char *const *ext)
 	    if (RSTRING_LEN(str) == 0) continue;
 	    file_expand_path(fname, str, tmp);
 	    if (file_load_ok(RSTRING_PTR(tmp))) {
-		RBASIC(tmp)->klass = RBASIC(*filep)->klass;
+		RBASIC(tmp)->klass = rb_obj_class(*filep);
 		OBJ_FREEZE(tmp);
 		*filep = tmp;
 		return j+1;
@@ -4606,7 +4604,7 @@ rb_find_file(VALUE path)
 	}
 	return 0;
       found:
-	RBASIC(tmp)->klass = RBASIC(path)->klass;
+	RBASIC(tmp)->klass = rb_obj_class(path);
 	OBJ_FREEZE(tmp);
     }
     else {

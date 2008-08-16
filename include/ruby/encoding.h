@@ -143,6 +143,7 @@ int rb_enc_codelen(int code, rb_encoding *enc);
 #define rb_enc_isalpha(c,enc) ONIGENC_IS_CODE_ALPHA(enc,c)
 #define rb_enc_islower(c,enc) ONIGENC_IS_CODE_LOWER(enc,c)
 #define rb_enc_isupper(c,enc) ONIGENC_IS_CODE_UPPER(enc,c)
+#define rb_enc_ispunct(c,enc) ONIGENC_IS_CODE_PUNCT(enc,c)
 #define rb_enc_isalnum(c,enc) ONIGENC_IS_CODE_ALNUM(enc,c)
 #define rb_enc_isprint(c,enc) ONIGENC_IS_CODE_PRINT(enc,c)
 #define rb_enc_isspace(c,enc) ONIGENC_IS_CODE_SPACE(enc,c)
@@ -193,5 +194,82 @@ rb_enc_dummy_p(rb_encoding *enc)
 }
 
 VALUE rb_str_transcode(VALUE str, VALUE to);
+
+/* econv stuff */
+
+typedef enum {
+    econv_invalid_byte_sequence,
+    econv_undefined_conversion,
+    econv_destination_buffer_full,
+    econv_source_buffer_empty,
+    econv_finished,
+    econv_output_followed_by_input,
+} rb_econv_result_t;
+
+typedef struct {
+    struct rb_transcoding *tc;
+    unsigned char *out_buf_start;
+    unsigned char *out_data_start;
+    unsigned char *out_data_end;
+    unsigned char *out_buf_end;
+    rb_econv_result_t last_result;
+} rb_econv_elem_t;
+
+typedef struct {
+    const char *source_encoding_name;
+    const char *destination_encoding_name;
+
+    unsigned char *in_buf_start;
+    unsigned char *in_data_start;
+    unsigned char *in_data_end;
+    unsigned char *in_buf_end;
+    rb_econv_elem_t *elems;
+    int num_trans;
+    int num_finished;
+    int last_trans_index; /* last trans, not including universal newline */
+    struct rb_transcoding *last_tc;
+
+    /* last error */
+    struct {
+        rb_econv_result_t result;
+        struct rb_transcoding *error_tc;
+        const char *source_encoding;
+        const char *destination_encoding;
+        const unsigned char *error_bytes_start;
+        size_t error_bytes_len;
+        size_t readagain_len;
+        int partial_input;
+    } last_error;
+
+    /* The following fields are only for Encoding::Converter.
+     * rb_econv_open set them NULL. */
+    rb_encoding *source_encoding;
+    rb_encoding *destination_encoding;
+} rb_econv_t;
+
+rb_econv_t *rb_econv_open(const char *source_encoding, const char *destination_encoding, int flags);
+rb_econv_result_t rb_econv_convert(rb_econv_t *ec,
+    const unsigned char **source_buffer_ptr, const unsigned char *source_buffer_end,
+    unsigned char **destination_buffer_ptr, unsigned char *destination_buffer_end,
+    int flags);
+
+
+/* result: 0:success -1:failure */
+int rb_econv_insert_output(rb_econv_t *ec,
+    const unsigned char *str, size_t len, const char *str_encoding);
+
+/* encoding that rb_econv_insert_output doesn't need conversion */
+const char *rb_econv_encoding_to_insert_output(rb_econv_t *ec);
+
+void rb_econv_close(rb_econv_t *ec);
+
+/* flags for rb_econv_open */
+#define ECONV_UNIVERSAL_NEWLINE_DECODER       0x100
+#define ECONV_CRLF_NEWLINE_ENCODER            0x200
+#define ECONV_CR_NEWLINE_ENCODER              0x400
+
+/* flags for rb_econv_convert */
+#define ECONV_PARTIAL_INPUT                   0x10000
+#define ECONV_OUTPUT_FOLLOWED_BY_INPUT        0x20000
 
 #endif /* RUBY_ENCODING_H */

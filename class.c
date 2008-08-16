@@ -13,6 +13,7 @@
 #include "ruby/signal.h"
 #include "ruby/node.h"
 #include "ruby/st.h"
+#include "vm_core.h"
 #include <ctype.h>
 
 static VALUE
@@ -76,10 +77,17 @@ clone_method(ID mid, NODE *body, struct clone_method_data *data)
 	st_insert(data->tbl, mid, 0);
     }
     else {
+	NODE *fbody = body->nd_body->nd_body;
+
+	if (nd_type(fbody) == RUBY_VM_METHOD_NODE) {
+	    fbody = NEW_NODE(RUBY_VM_METHOD_NODE, 0, 
+			     rb_iseq_clone((VALUE)fbody->nd_body, data->klass),
+			     0);
+	}
 	st_insert(data->tbl, mid,
 		  (st_data_t)
 		  NEW_FBODY(
-		      NEW_METHOD(body->nd_body->nd_body,
+		      NEW_METHOD(fbody,
 				 data->klass, /* TODO */
 				 body->nd_body->nd_noex),
 		      0));
@@ -373,7 +381,7 @@ rb_include_module(VALUE klass, VALUE module)
     int changed = 0;
 
     rb_frozen_class_p(klass);
-    if (!OBJ_TAINTED(klass)) {
+    if (!OBJ_UNTRUSTED(klass)) {
 	rb_secure(4);
     }
     
@@ -822,6 +830,12 @@ rb_singleton_class(VALUE obj)
     }
     else {
 	FL_UNSET(klass, FL_TAINT);
+    }
+    if (OBJ_UNTRUSTED(obj)) {
+	OBJ_UNTRUST(klass);
+    }
+    else {
+	FL_UNSET(klass, FL_UNTRUSTED);
     }
     if (OBJ_FROZEN(obj)) OBJ_FREEZE(klass);
     ALLOW_INTS;

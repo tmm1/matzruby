@@ -88,6 +88,7 @@ SETUP         =
 EXTSTATIC     = @EXTSTATIC@
 SET_LC_MESSAGES = env LC_MESSAGES=C
 
+MAKEDIRS      = @MAKEDIRS@
 CP            = cp
 MV            = mv
 RM            = rm -f
@@ -157,7 +158,7 @@ fake.rb:	Makefile
 
 Makefile:	$(srcdir)/Makefile.in $(srcdir)/enc/Makefile.in
 
-$(MKFILES): config.status $(srcdir)/common.mk
+$(MKFILES): config.status
 		MAKE=$(MAKE) $(SHELL) ./config.status
 		@{ \
 		    echo "all:; -@rm -f conftest.mk"; \
@@ -166,6 +167,9 @@ $(MKFILES): config.status $(srcdir)/common.mk
 		} > conftest.mk || exit 1; \
 		$(MAKE) -f conftest.mk | grep '^AUTO_REMAKE$$' >/dev/null 2>&1 || \
 		{ echo "Makefile updated, restart."; exit 1; }
+
+uncommon.mk: $(srcdir)/common.mk
+		sed 's/{\$$([^(){}]*)[^{}]*}//g' $< > $@
 
 config.status:	$(srcdir)/configure $(srcdir)/enc/Makefile.in
 		MINIRUBY="$(MINIRUBY)" $(SHELL) ./config.status --recheck
@@ -180,9 +184,12 @@ $(srcdir)/configure: $(srcdir)/configure.in
 # * svn checkout generate a file with mtime as current time
 # * XFS has a mtime with fractional part
 lex.c: keywords
+	@\
 	if cmp -s $(srcdir)/lex.c.src $?; then \
+	  set -x; \
 	  cp $(srcdir)/lex.c.blt $@; \
 	else \
+	  set -x; \
 	  gperf -C -p -j1 -i 1 -g -o -t -N rb_reserved_word -k1,3,$$ $? > $@.tmp && \
 	  mv $@.tmp $@ && \
 	  cp $? $(srcdir)/lex.c.src && \
@@ -203,6 +210,15 @@ clean-local::
 
 distclean-local::
 	@$(RM) ext/config.cache $(RBCONFIG)
+	-$(RM) $(INSTALLED_LIST) $(arch_hdrdir)/ruby/config.h
+	-rmdir -p $(arch_hdrdir)/ruby
+
+clean-ext distclean-ext realclean-ext::
+	@find ext -name Makefile | sort | while read mk; do \
+	    dir=`dirname "$$mk"`; \
+	    echo $(@:-ext=)ing `expr "$$dir" : 'ext/\(.*\)'`; \
+	    (cd "$$dir"; $(MAKE) $(MFLAGS) $(@:-ext=)); \
+	done
 
 ext/extinit.$(OBJEXT): ext/extinit.c $(SETUP)
 	$(CC) $(CFLAGS) $(XCFLAGS) $(CPPFLAGS) $(COUTFLAG)$@ -c ext/extinit.c
@@ -217,3 +233,22 @@ gvar: $(LIBRUBY_A)
 	    -e 's/\.[0-9][0-9]*$$/ #static#/' \
 	    -e 's/^/  /' \
 	    > $@.r`sed -n 's/^#define RUBY_REVISION //p' $(srcdir)/revision.h`
+
+update-rubyspec: 
+	if [ -d $(srcdir)/spec/mspec ]; then \
+	  cd $(srcdir)/spec/mspec; \
+	  git pull; \
+	  cd ../..; \
+	else \
+	  git clone $(MSPEC_GIT_URL) $(srcdir)/spec/mspec; \
+	fi
+	if [ -d $(srcdir)/spec/rubyspec ]; then \
+	  cd $(srcdir)/spec/rubyspec; \
+	  git pull; \
+	else \
+	  git clone $(RUBYSPEC_GIT_URL) $(srcdir)/spec/rubyspec; \
+	fi
+
+test-rubyspec:
+	@if [ ! -d $(srcdir)/spec/rubyspec ]; then echo No rubyspec here.  make update-rubyspec first.; exit 1; fi
+	$(RUNRUBY) $(srcdir)/spec/mspec/bin/mspec $(srcdir)/spec/rubyspec/$(MAJOR).$(MINOR)

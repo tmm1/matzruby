@@ -198,7 +198,7 @@ void xfree(void*);
 #include "vms/vms.h"
 #endif
 
-#if defined(__BEOS__)
+#if defined(__BEOS__) && !defined(__HAIKU__)
 #include <net/socket.h> /* intern.h needs fd_set definition */
 #endif
 
@@ -276,6 +276,11 @@ void rb_ia64_flushrs(void);
 
 #ifndef RUBY_PLATFORM
 #define RUBY_PLATFORM "unknown-unknown"
+#endif
+
+#ifndef RUBY_ALIAS_FUNCTION
+#define RUBY_ALIAS_FUNCTION(old_prot, new_name, args) \
+    VALUE old_prot {return new_name args;}
 #endif
 
 #if defined(__cplusplus)

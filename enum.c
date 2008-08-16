@@ -1802,6 +1802,7 @@ void
 Init_Enumerable(void)
 {
 #undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
 
     rb_mEnumerable = rb_define_module("Enumerable");
 

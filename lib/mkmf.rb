@@ -63,6 +63,7 @@ $human = /human/ =~ RUBY_PLATFORM
 $netbsd = /netbsd/ =~ RUBY_PLATFORM
 $os2 = /os2/ =~ RUBY_PLATFORM
 $beos = /beos/ =~ RUBY_PLATFORM
+$haiku = /haiku/ =~ RUBY_PLATFORM
 $solaris = /solaris/ =~ RUBY_PLATFORM
 $dest_prefix_pattern = (File::PATH_SEPARATOR == ';' ? /\A([[:alpha:]]:)?/ : /\A/)
 
@@ -1603,11 +1604,11 @@ STATIC_LIB = #{staticlib unless $static.nil?}
 " #"
   # TODO: fixme
   install_dirs.each {|d| mfile.print("%-14s= %s\n" % d) if /^[[:upper:]]/ =~ d[0]}
-  n = ($extout ? '$(RUBYARCHDIR)/' : '') + '$(TARGET).'
+  n = ($extout ? '$(RUBYARCHDIR)/' : '') + '$(TARGET)'
   mfile.print "
 TARGET_SO     = #{($extout ? '$(RUBYARCHDIR)/' : '')}$(DLLIB)
-CLEANLIBS     = #{n}#{CONFIG['DLEXT']} #{n}il? #{n}tds #{n}map
-CLEANOBJS     = *.#{$OBJEXT} *.#{$LIBEXT} *.s[ol] *.pdb *.exp *.bak
+CLEANLIBS     = #{n}.#{CONFIG['DLEXT']} #{config_string('cleanlibs') {|t| t.gsub(/\$\*/) {n}}}
+CLEANOBJS     = *.#{$OBJEXT} #{config_string('cleanobjs') {|t| t.gsub(/\$\*/, '$(TARGET)')}} *.bak
 
 all:		#{$extout ? "install" : target ? "$(DLLIB)" : "Makefile"}
 static:		$(STATIC_LIB)#{$extout ? " install-rb" : ""}
