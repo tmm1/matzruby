@@ -58,6 +58,9 @@
 #define THREAD_DEBUG 0
 #endif
 
+#define native_mutex_initialize(lock) ruby_native_thread_lock_initialize(lock)
+#define native_mutex_destroy(lock) ruby_native_thread_lock_destroy(lock)
+
 static void sleep_timeval(rb_thread_t *th, struct timeval time);
 static void sleep_wait_for_interrupt(rb_thread_t *th, double sleepsec);
 static void sleep_forever(rb_thread_t *th, int nodeadlock);
@@ -2244,24 +2247,22 @@ rb_gc_save_machine_context(rb_thread_t *th)
  *
  */
 
-int rb_get_next_signal(rb_vm_t *vm);
+int ruby_vm_get_next_signal(rb_vm_t *vm);
 
-static void
-timer_thread_function(void *arg)
+static int
+vm_timer_thread_function(rb_vm_t *vm, void *arg)
 {
-    rb_vm_t *vm = arg; /* TODO: fix me for Multi-VM */
-
     /* for time slice */
     RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
 
     /* check signal */
-    if (vm->buffered_signal_size && vm->main_thread->exec_signal == 0) {
+    if (vm->signal.buffered_size && vm->main_thread->exec_signal == 0) {
 	rb_thread_t *mth = vm->main_thread;
 	enum rb_thread_status prev_status = mth->status;
-	mth->exec_signal = rb_get_next_signal(vm);
+	mth->exec_signal = ruby_vm_get_next_signal(vm);
 	thread_debug("main_thread: %s\n", thread_status_name(prev_status));
 	thread_debug("buffered_signal_size: %ld, sig: %d\n",
-		     (long)vm->buffered_signal_size, vm->main_thread->exec_signal);
+		     (long)vm->signal.buffered_size, vm->main_thread->exec_signal);
 	if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
 	rb_thread_interrupt(mth);
 	mth->status = prev_status;
@@ -2277,6 +2278,14 @@ timer_thread_function(void *arg)
 	}
     }
 #endif
+
+    return Qtrue;
+}
+
+static void
+timer_thread_function(void *arg)
+{
+    ruby_vm_foreach(vm_timer_thread_function, arg);
 }
 
 void
@@ -3667,7 +3676,6 @@ Init_Thread(void)
 	{
 	    /* acquire global interpreter lock */
 	    rb_thread_lock_t *lp = &GET_THREAD()->vm->global_vm_lock;
-	    native_mutex_initialize(lp);
 	    native_mutex_lock(lp);
 	    native_mutex_initialize(&GET_THREAD()->interrupt_lock);
 	}

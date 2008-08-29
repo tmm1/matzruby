@@ -1340,6 +1340,55 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
 
 /* vm */
 
+static struct {
+    rb_thread_lock_t lock;
+    st_table *list;
+} vm_manager = {RB_THREAD_LOCK_INITIALIZER};
+
+static void
+vm_add(rb_vm_t *vm)
+{
+    ruby_native_thread_lock(&vm_manager.lock);
+    st_insert(vm_manager.list, (st_data_t)vm, 0);
+    ruby_native_thread_unlock(&vm_manager.lock);
+}
+
+static void
+vm_del(rb_vm_t *vm)
+{
+    st_data_t key = (st_data_t)vm, val = 0;
+    ruby_native_thread_lock(&vm_manager.lock);
+    st_delete(vm_manager.list, &key, &val);
+    ruby_native_thread_unlock(&vm_manager.lock);
+}
+
+struct each_vm_arg {
+    int (*func)(rb_vm_t *, void *);
+    void *arg;
+};
+
+static int
+each_vm(st_data_t vm, st_data_t val, st_data_t arg)
+{
+    struct each_vm_arg *p = (void *)arg;
+    if ((*p->func)((rb_vm_t *)vm, p->arg)) return ST_CONTINUE;
+    return ST_STOP;
+}
+
+void
+ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
+{
+    struct each_vm_arg args;
+
+    args.func = func;
+    args.arg = arg;
+    ruby_native_thread_lock(&vm_manager.lock);
+    if (vm_manager.list) {
+	st_foreach(vm_manager.list, each_vm, (st_data_t)&args);
+    }
+    ruby_native_thread_unlock(&vm_manager.lock);
+}
+
 static void
 vm_free(void *ptr)
 {
@@ -1349,10 +1398,8 @@ vm_free(void *ptr)
 
 	st_free_table(vmobj->living_threads);
 	vmobj->living_threads = 0;
-	/* TODO: MultiVM Instance */
-	/* VM object should not be cleaned by GC */
-	/* ruby_xfree(ptr); */
-	/* ruby_current_vm = 0; */
+	vm_del(vmobj);
+	ruby_xfree(ptr);
     }
     RUBY_FREE_LEAVE("vm");
 }
@@ -1404,14 +1451,50 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
+#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
+struct rb_objspace *rb_objspace_alloc(void);
+#endif
+
 static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
+    ruby_native_thread_lock_initialize(&vm->global_vm_lock);
+    ruby_native_thread_lock_initialize(&vm->signal.lock);
+    vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
     vm->specific_storage.len = rb_vm_key_count();
     vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
+}
+
+int
+ruby_vm_send_signal(rb_vm_t *vm, int sig)
+{
+    if (sig <= 0 || sig >= RUBY_NSIG) return -1;
+    ruby_native_thread_lock(&vm->signal.lock);
+    ATOMIC_INC(vm->signal.buff[sig]);
+    ATOMIC_INC(vm->signal.buffered_size);
+    ruby_native_thread_unlock(&vm->signal.lock);
+    return sig;
+}
+
+int
+ruby_vm_get_next_signal(rb_vm_t *vm)
+{
+    int i, sig = 0;
+
+    ruby_native_thread_lock(&vm->signal.lock);
+    for (i = 1; i < RUBY_NSIG; i++) {
+	if (vm->signal.buff[i] > 0) {
+	    ATOMIC_DEC(vm->signal.buff[i]);
+	    ATOMIC_DEC(vm->signal.buffered_size);
+	    sig = i;
+	    break;
+	}
+    }
+    ruby_native_thread_unlock(&vm->signal.lock);
+    return sig;
 }
 
 /* Thread */
@@ -1896,9 +1979,6 @@ Init_VM(void)
     }
 }
 
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-struct rb_objspace *rb_objspace_alloc(void);
-#endif
 void ruby_thread_init_stack(rb_thread_t *th);
 
 void
@@ -1916,11 +1996,11 @@ Init_BareVM(void)
     rb_thread_set_current_raw(th);
 
     vm_init2(vm);
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-    vm->objspace = rb_objspace_alloc();
-#endif
-
     th->vm = vm;
+
+    vm_manager.list = st_init_numtable();
+    vm_add(vm);
+
     th_init2(th, 0);
     ruby_thread_init_stack(th);
 }

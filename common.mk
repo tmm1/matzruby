@@ -434,7 +434,7 @@ RUBY_H_INCLUDES = {$(VPATH)}ruby.h {$(VPATH)}config.h {$(VPATH)}defines.h \
 		  {$(VPATH)}public_object.h
 ID_H_INCLUDES = {$(VPATH)}id.h {$(VPATH)}parse.h
 
-VM_CORE_H_INCLUDES = {$(VPATH)}vm_core.h {$(VPATH)}private_object.h
+VM_CORE_H_INCLUDES = {$(VPATH)}vm_core.h {$(VPATH)}mvm.h {$(VPATH)}private_object.h
 
 array.$(OBJEXT): {$(VPATH)}array.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}st.h {$(VPATH)}util.h

@@ -338,8 +338,11 @@ struct rb_vm_struct
     struct st_table *loading_table;
     
     /* signal */
-    rb_atomic_t signal_buff[RUBY_NSIG];
-    rb_atomic_t buffered_signal_size;
+    struct {
+	rb_thread_lock_t lock;
+	rb_atomic_t buff[RUBY_NSIG];
+	rb_atomic_t buffered_size;
+    } signal;
 
     /* hook */
     rb_event_hook_t *event_hooks;

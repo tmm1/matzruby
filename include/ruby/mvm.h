@@ -37,8 +37,13 @@ typedef pthread_mutex_t rb_thread_lock_t;
 
 #endif
 
+void ruby_native_thread_lock_initialize(rb_thread_lock_t *);
+void ruby_native_thread_lock_destroy(rb_thread_lock_t *);
+
 typedef struct rb_vm_struct rb_vm_t;
 typedef struct rb_thread_struct rb_thread_t;
+
+void ruby_vm_foreach(int (*)(rb_vm_t *, void *), void *); /* returning false stops iteration */
 
 VALUE *ruby_vm_verbose_ptr(rb_vm_t *);
 VALUE *ruby_vm_debug_ptr(rb_vm_t *);

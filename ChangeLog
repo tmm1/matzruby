@@ -1,3 +1,27 @@
+Fri Aug 29 19:44:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* common.mk (VM_CORE_H_INCLUDES): needs mvm.h.
+
+	* signal.c (sighandler), thread.c (timer_thread_function): delivers to
+	  all VMs.
+
+	* thread_{pthread,win32}.c (ruby_native_thread_lock_initialize),
+	  (ruby_native_thread_lock_destroy): exported.
+
+	* vm_core.h (struct rb_vm_struct): added signal lock.
+
+	* vm.c (vm_manager): manages MVM.
+
+	* vm.c (ruby_vm_foreach): iterates over all VMs.  returnig false stops
+	  the iteration.
+
+	* vm.c (vm_free): unregister and free VM structure.
+
+	* vm.c (vm_init2): moved initialization of locks and object space.
+
+	* vm.c (ruby_vm_send_signal, ruby_vm_get_next_signal): sends/retreives
+	  VM signal.
+
 Sat Aug 16 18:38:13 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* tool/resolve_changelog.rb (ChangeLog.Reader#split_entry): strips

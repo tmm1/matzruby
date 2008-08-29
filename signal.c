@@ -508,13 +508,19 @@ ruby_nativethread_signal(int signum, sighandler_t handler)
 #endif
 #endif
 
+int ruby_vm_send_signal(rb_vm_t *, int);
+
+static int
+signal_vm(rb_vm_t *vm, void *sig)
+{
+    ruby_vm_send_signal(vm, (int)sig);
+    return Qtrue;
+}
+
 static RETSIGTYPE
 sighandler(int sig)
 {
-    rb_vm_t *vm = GET_VM(); /* fix me for Multi-VM */
-    ATOMIC_INC(vm->signal_buff[sig]);
-    ATOMIC_INC(vm->buffered_signal_size);
-
+    ruby_vm_foreach(signal_vm, (void *)sig);
 #if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
     ruby_signal(sig, sighandler);
 #endif
@@ -552,26 +558,6 @@ rb_enable_interrupt(void)
     sigemptyset(&mask);
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
 #endif
-}
-
-int
-rb_get_next_signal(rb_vm_t *vm)
-{
-    int i, sig = 0;
-
-    for (i=1; i<RUBY_NSIG; i++) {
-	if (vm->signal_buff[i] > 0) {
-	    rb_disable_interrupt();
-	    {
-		ATOMIC_DEC(vm->signal_buff[i]);
-		ATOMIC_DEC(vm->buffered_signal_size);
-	    }
-	    rb_enable_interrupt();
-	    sig = i;
-	    break;
-	}
-    }
-    return sig;
 }
 
 #ifdef SIGBUS
