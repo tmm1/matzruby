@@ -630,6 +630,10 @@ rb_enc_compatible(VALUE str1, VALUE str2)
     if (!rb_enc_asciicompat(enc1) || !rb_enc_asciicompat(enc2)) {
 	return 0;
     }
+    if (BUILTIN_TYPE(str2) == T_REGEXP && idx2 == ENCINDEX_US_ASCII)
+	return enc1;
+    if (BUILTIN_TYPE(str1) == T_REGEXP && idx1 == ENCINDEX_US_ASCII)
+	return enc2;
 
     if (BUILTIN_TYPE(str1) != T_STRING) {
 	VALUE tmp = str1;
@@ -651,7 +655,7 @@ rb_enc_compatible(VALUE str1, VALUE str2)
 		if (cr2 == ENC_CODERANGE_7BIT) return enc1;
 	    }
 	    if (cr2 == ENC_CODERANGE_7BIT) {
-		if (idx1 == 0) return enc2;
+		if (idx1 == ENCINDEX_ASCII) return enc2;
 		return enc1;
 	    }
 	}
@@ -875,6 +879,14 @@ enc_compatible_p(VALUE klass, VALUE str1, VALUE str2)
 {
     rb_encoding *enc;
 
+    if (BUILTIN_TYPE(str1) != T_STRING && BUILTIN_TYPE(str1) != T_REGEXP) {
+       rb_raise(rb_eTypeError, "wrong argument type %s (expected String or Regexp)",
+		 rb_obj_classname(str1));
+    }
+    if (BUILTIN_TYPE(str2) != T_STRING && BUILTIN_TYPE(str2) != T_REGEXP) {
+       rb_raise(rb_eTypeError, "wrong argument type %s (expected String or Regexp)",
+		 rb_obj_classname(str2));
+    }
     if (!enc_capable(str1)) return Qnil;
     if (!enc_capable(str2)) return Qnil;
     enc = rb_enc_compatible(str1, str2);

@@ -1115,9 +1115,6 @@ static VALUE
 nurat_to_s(VALUE self)
 {
     get_dat1(self);
-
-    if (f_one_p(dat->den))
-	return f_to_s(dat->num);
     return rb_funcall(rb_mKernel, id_format, 3,
 		      rb_str_new2("%d/%d"), dat->num, dat->den);
 }
@@ -1127,7 +1124,7 @@ nurat_inspect(VALUE self)
 {
     get_dat1(self);
     return rb_funcall(rb_mKernel, id_format, 3,
-		      rb_str_new2("Rational(%d, %d)"), dat->num, dat->den);
+		      rb_str_new2("(%d/%d)"), dat->num, dat->den);
 }
 
 static VALUE
@@ -1239,7 +1236,7 @@ static int vmkey_rat_pat, vmkey_an_e_pat, vmkey_a_dot_pat,
 
 #define DIGITS "(?:\\d(?:_\\d|\\d)*)"
 #define NUMERATOR "(?:" DIGITS "?\\.)?" DIGITS "(?:[eE][-+]?" DIGITS ")?"
-#define DENOMINATOR "[-+]?" DIGITS
+#define DENOMINATOR DIGITS
 #define PATTERN "\\A([-+])?(" NUMERATOR ")(?:\\/(" DENOMINATOR "))?"
 
 static void

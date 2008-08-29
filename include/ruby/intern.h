@@ -135,6 +135,7 @@ VALUE rb_complex_raw(VALUE, VALUE);
 VALUE rb_complex_new(VALUE, VALUE);
 #define rb_complex_new1(x) rb_complex_new(x, INT2FIX(0))
 #define rb_complex_new2(x,y) rb_complex_new(x, y)
+VALUE rb_complex_polar(VALUE, VALUE);
 VALUE rb_Complex(VALUE, VALUE);
 #define rb_Complex1(x) rb_Complex(x, INT2FIX(0))
 #define rb_Complex2(x,y) rb_Complex(x, y)
@@ -372,6 +373,7 @@ VALUE rb_io_write(VALUE, VALUE);
 VALUE rb_io_gets(VALUE);
 VALUE rb_io_getbyte(VALUE);
 VALUE rb_io_ungetc(VALUE, VALUE);
+VALUE rb_io_ungetbyte(VALUE, VALUE);
 VALUE rb_io_close(VALUE);
 VALUE rb_io_flush(VALUE);
 VALUE rb_io_eof(VALUE);

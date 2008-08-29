@@ -1,3 +1,5 @@
+/* -*- c-file-style: "linux" -*- */
+
 /*
  * strftime.c
  *
@@ -45,18 +47,23 @@
  * January 1996
  */
 
-#include "ruby/config.h"
+#include "ruby/ruby.h"
 
 #ifndef GAWK
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <errno.h>
 #endif
 #if defined(TM_IN_SYS_TIME) || !defined(GAWK) && !defined(_WIN32_WCE)
 #include <sys/types.h>
+#if HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
+#endif
+#include <math.h>
 
 /* defaults: season to taste */
 #define SYSV_EXT	1	/* stuff in System V ascftime routine */
@@ -92,13 +99,11 @@
 
 #undef strchr	/* avoid AIX weirdness */
 
-#ifndef __STDC__
+#if !defined __STDC__ && !defined _WIN32
 #define const	/**/
-extern void tzset();
 static int weeknumber();
 adddecl(static int iso8601wknum();)
 #else
-extern void tzset(void);
 static int weeknumber(const struct tm *timeptr, int firstweekday);
 adddecl(static int iso8601wknum(const struct tm *timeptr);)
 #endif
@@ -115,11 +120,11 @@ extern char *strchr();
 
 #define range(low, item, hi)	max(low, min(item, hi))
 
-#ifdef __CYGWIN__
+#if defined __WIN32__ || defined _WIN32
 #define DLL_IMPORT __declspec(dllimport)
 #endif
-#ifdef __WIN32__
-#define DLL_IMPORT __declspec(dllimport)
+#ifndef DLL_IMPORT
+#define DLL_IMPORT
 #endif
 #if !defined(OS2) && !defined(MSDOS) && defined(HAVE_TZNAME)
 extern DLL_IMPORT char *tzname[2];
@@ -166,22 +171,18 @@ max(int a, int b)
 	return (a > b ? a : b);
 }
 
+#ifdef NO_STRING_LITERAL_CONCATENATION
+#error No string literal concatenation
+#endif
+
 /* strftime --- produce formatted time */
 
-#ifndef __STDC__
 size_t
-strftime(s, maxsize, format, timeptr)
-char *s;
-size_t maxsize;
-const char *format;
-const struct tm *timeptr;
-#else
-size_t
-strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
-#endif
+rb_strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr, const struct timespec *ts, int gmt)
 {
 	char *endp = s + maxsize;
 	char *start = s;
+	const char *sp, *tp;
 	auto char tbuf[100];
 	long off;
 	int i, w;
@@ -194,37 +195,40 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 #endif /* POSIX_SEMANTICS */
 #ifndef HAVE_TM_ZONE
 #ifndef HAVE_TM_NAME
+#if !defined HAVE_VAR_TIMEZONE || defined HAVE_TIMEZONE
 	struct timeval tv;
+#endif
+#ifdef HAVE_TIMEZONE
 	struct timezone zone;
+#endif /* HAVE_TIMEZONE */
 #endif /* HAVE_TM_NAME */
 #endif /* HAVE_TM_ZONE */
+	int precision, flags;
+	char padding;
+	enum {LEFT, CHCASE, LOWER, UPPER, LOCALE_O, LOCALE_E};
+#define BIT_OF(n) (1U<<(n))
 
 	/* various tables, useful in North America */
-	static const char *days_a[] = {
-		"Sun", "Mon", "Tue", "Wed",
-		"Thu", "Fri", "Sat",
-	};
-	static const char *days_l[] = {
+	static const char days_l[][10] = {
 		"Sunday", "Monday", "Tuesday", "Wednesday",
 		"Thursday", "Friday", "Saturday",
 	};
-	static const char *months_a[] = {
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-	};
-	static const char *months_l[] = {
+	static const char months_l[][10] = {
 		"January", "February", "March", "April",
 		"May", "June", "July", "August", "September",
 		"October", "November", "December",
 	};
-	static const char *ampm[] = { "AM", "PM", };
+	static const char ampm[][3] = { "AM", "PM", };
 
 	if (s == NULL || format == NULL || timeptr == NULL || maxsize == 0)
 		return 0;
 
 	/* quick check if we even need to bother */
-	if (strchr(format, '%') == NULL && strlen(format) + 1 >= maxsize)
+	if (strchr(format, '%') == NULL && strlen(format) + 1 >= maxsize) {
+	err:
+		errno = ERANGE;
 		return 0;
+	}
 
 #ifndef POSIX_SEMANTICS
 	if (first) {
@@ -262,11 +266,38 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 #endif	/* POSIX_SEMANTICS */
 
 	for (; *format && s < endp - 1; format++) {
-		tbuf[0] = '\0';
+#define FLAG_FOUND() do { \
+			if (precision > 0 || flags & (BIT_OF(LOCALE_E)|BIT_OF(LOCALE_O))) \
+				goto unknown; \
+		} while (0)
+#define NEEDS(n) do if (s + (n) >= endp - 1) goto err; while (0)
+#define FMT(def_pad, def_prec, fmt, val) \
+		do { \
+			int l; \
+			if (precision <= 0) precision = (def_prec); \
+			if (flags & BIT_OF(LEFT)) precision = 1; \
+			l = snprintf(s, endp - s, \
+				     ((padding == '0' || (!padding && def_pad == '0')) ? "%.*"fmt : "%*"fmt), \
+				     precision, val); \
+			if (l < 0) goto err; \
+			s += l; \
+		} while (0)
+#define STRFTIME(fmt, tm) \
+		do { \
+			i = strftime(s, endp - s, fmt, tm); \
+			if (!i) return 0; \
+			s += i; \
+		} while (0)
+
 		if (*format != '%') {
 			*s++ = *format;
 			continue;
 		}
+		tp = tbuf;
+		sp = format;
+		precision = -1;
+		flags = 0;
+		padding = 0;
 	again:
 		switch (*++format) {
 		case '\0':
@@ -279,16 +310,16 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 
 		case 'a':	/* abbreviated weekday name */
 			if (timeptr->tm_wday < 0 || timeptr->tm_wday > 6)
-				strcpy(tbuf, "?");
+				i = 1, tp = "?";
 			else
-				strcpy(tbuf, days_a[timeptr->tm_wday]);
+				i = 3, tp = days_l[timeptr->tm_wday];
 			break;
 
 		case 'A':	/* full weekday name */
 			if (timeptr->tm_wday < 0 || timeptr->tm_wday > 6)
-				strcpy(tbuf, "?");
+				i = 1, tp = "?";
 			else
-				strcpy(tbuf, days_l[timeptr->tm_wday]);
+				i = strlen(tp = days_l[timeptr->tm_wday]);
 			break;
 
 #ifdef SYSV_EXT
@@ -296,31 +327,31 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 #endif
 		case 'b':	/* abbreviated month name */
 			if (timeptr->tm_mon < 0 || timeptr->tm_mon > 11)
-				strcpy(tbuf, "?");
+				i = 1, tp = "?";
 			else
-				strcpy(tbuf, months_a[timeptr->tm_mon]);
+				i = 3, tp = months_l[timeptr->tm_mon];
 			break;
 
 		case 'B':	/* full month name */
 			if (timeptr->tm_mon < 0 || timeptr->tm_mon > 11)
-				strcpy(tbuf, "?");
+				i = 1, tp = "?";
 			else
-				strcpy(tbuf, months_l[timeptr->tm_mon]);
+				i = strlen(tp = months_l[timeptr->tm_mon]);
 			break;
 
 		case 'c':	/* appropriate date and time representation */
-			strftime(tbuf, sizeof tbuf, "%a %b %e %H:%M:%S %Y", timeptr);
-			break;
+			STRFTIME("%a %b %e %H:%M:%S %Y", timeptr);
+			continue;
 
 		case 'd':	/* day of the month, 01 - 31 */
 			i = range(1, timeptr->tm_mday, 31);
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
 		case 'H':	/* hour, 24-hour clock, 00 - 23 */
 			i = range(0, timeptr->tm_hour, 23);
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
 		case 'I':	/* hour, 12-hour clock, 01 - 12 */
 			i = range(0, timeptr->tm_hour, 23);
@@ -328,65 +359,76 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 				i = 12;
 			else if (i > 12)
 				i -= 12;
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
 		case 'j':	/* day of the year, 001 - 366 */
-			sprintf(tbuf, "%03d", timeptr->tm_yday + 1);
-			break;
+			FMT('0', 3, "d", timeptr->tm_yday + 1);
+			continue;
 
 		case 'm':	/* month, 01 - 12 */
 			i = range(0, timeptr->tm_mon, 11);
-			sprintf(tbuf, "%02d", i + 1);
-			break;
+			FMT('0', 2, "d", i + 1);
+			continue;
 
 		case 'M':	/* minute, 00 - 59 */
 			i = range(0, timeptr->tm_min, 59);
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
-		case 'p':	/* am or pm based on 12-hour clock */
+		case 'p':	/* AM or PM based on 12-hour clock */
+		case 'P':	/* am or pm based on 12-hour clock */
+			if ((*format == 'p' && (flags & BIT_OF(CHCASE))) ||
+			    (*format == 'P' && !(flags & BIT_OF(CHCASE)))) {
+				flags &= ~(BIT_OF(UPPER)|BIT_OF(CHCASE));
+				flags |= BIT_OF(LOWER);
+			}
 			i = range(0, timeptr->tm_hour, 23);
 			if (i < 12)
-				strcpy(tbuf, ampm[0]);
+				tp = ampm[0];
 			else
-				strcpy(tbuf, ampm[1]);
+				tp = ampm[1];
+			i = 2;
 			break;
+
+		case 's':
+			FMT(' ', 1, "d", (int) ts->tv_sec);
+			continue;
 
 		case 'S':	/* second, 00 - 60 */
 			i = range(0, timeptr->tm_sec, 60);
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
 		case 'U':	/* week of year, Sunday is first day of week */
-			sprintf(tbuf, "%02d", weeknumber(timeptr, 0));
-			break;
+			FMT('0', 2, "d", weeknumber(timeptr, 0));
+			continue;
 
 		case 'w':	/* weekday, Sunday == 0, 0 - 6 */
 			i = range(0, timeptr->tm_wday, 6);
-			sprintf(tbuf, "%d", i);
-			break;
+			FMT('0', 0, "d", i);
+			continue;
 
 		case 'W':	/* week of year, Monday is first day of week */
-			sprintf(tbuf, "%02d", weeknumber(timeptr, 1));
-			break;
+			FMT('0', 2, "d", weeknumber(timeptr, 1));
+			continue;
 
 		case 'x':	/* appropriate date representation */
-			strftime(tbuf, sizeof tbuf, "%m/%d/%y", timeptr);
-			break;
+			STRFTIME("%m/%d/%y", timeptr);
+			continue;
 
 		case 'X':	/* appropriate time representation */
-			strftime(tbuf, sizeof tbuf, "%H:%M:%S", timeptr);
-			break;
+			STRFTIME("%H:%M:%S", timeptr);
+			continue;
 
 		case 'y':	/* year without a century, 00 - 99 */
 			i = timeptr->tm_year % 100;
-			sprintf(tbuf, "%02d", i);
-			break;
+			FMT('0', 2, "d", i);
+			continue;
 
 		case 'Y':	/* year with century */
-			sprintf(tbuf, "%ld", 1900L + timeptr->tm_year);
-			break;
+			FMT('0', 0, "ld", 1900L + timeptr->tm_year);
+			continue;
 
 #ifdef MAILHEADER_EXT
 		/*
@@ -405,105 +447,126 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 		 * us that muck around with various message processors.
 		 */
  		case 'z':	/* time zone offset east of GMT e.g. -0600 */
+			if (precision < 4) precision = 4;
+			NEEDS(precision + 1);
+			if (gmt) {
+				off = 0;
+			}
+			else {
 #ifdef HAVE_TM_NAME
-			/*
-			 * Systems with tm_name probably have tm_tzadj as
-			 * secs west of GMT.  Convert to mins east of GMT.
-			 */
-			off = -timeptr->tm_tzadj / 60;
+				/*
+				 * Systems with tm_name probably have tm_tzadj as
+				 * secs west of GMT.  Convert to mins east of GMT.
+				 */
+				off = -timeptr->tm_tzadj / 60;
 #else /* !HAVE_TM_NAME */
 #ifdef HAVE_TM_ZONE
-			/*
-			 * Systems with tm_zone probably have tm_gmtoff as
-			 * secs east of GMT.  Convert to mins east of GMT.
-			 */
-			off = timeptr->tm_gmtoff / 60;
+				/*
+				 * Systems with tm_zone probably have tm_gmtoff as
+				 * secs east of GMT.  Convert to mins east of GMT.
+				 */
+				off = timeptr->tm_gmtoff / 60;
 #else /* !HAVE_TM_ZONE */
-#ifdef HAVE_GETTIMEOFDAY
-			gettimeofday(&tv, &zone);
-			off = -zone.tz_minuteswest;
-#else
 #if HAVE_VAR_TIMEZONE
 #if HAVE_VAR_ALTZONE
-			off = -(daylight ? timezone : altzone) / 60;
+				off = -(daylight ? timezone : altzone) / 60;
 #else
-			off = -timezone / 60;
+				off = -timezone / 60;
 #endif
+#else /* !HAVE_TIMEZONE */
+#ifdef HAVE_GETTIMEOFDAY
+				gettimeofday(&tv, &zone);
+				off = -zone.tz_minuteswest;
 #endif
-#endif
+#endif /* !HAVE_TIMEZONE */
 #endif /* !HAVE_TM_ZONE */
 #endif /* !HAVE_TM_NAME */
-			if (off < 0) {
-				tbuf[0] = '-';
-				off = -off;
-			} else {
-				tbuf[0] = '+';
 			}
-			sprintf(tbuf+1, "%02u%02u", (unsigned)off/60, (unsigned)off%60);
-			break;
+			if (off < 0) {
+				off = -off;
+				*s++ = '-';
+			} else {
+				*s++ = '+';
+			}
+			off = off/60*100 + off%60;
+			i = snprintf(s, endp - s, (padding == ' ' ? "%*ld" : "%.*ld"),
+				     precision - (precision > 4), off);
+			if (i < 0) goto err;
+			s += i;
+			continue;
 #endif /* MAILHEADER_EXT */
 
 		case 'Z':	/* time zone name or abbrevation */
+			if (flags & BIT_OF(CHCASE)) {
+				flags &= ~(BIT_OF(UPPER)|BIT_OF(CHCASE));
+				flags |= BIT_OF(LOWER);
+			}
+			if (gmt) {
+				i = 3;
+				tp = "UTC";
+				break;
+			}
 #ifdef HAVE_TZNAME
 			i = (daylight && timeptr->tm_isdst > 0); /* 0 or 1 */
-			strcpy(tbuf, tzname[i]);
+			tp = tzname[i];
 #else
 #ifdef HAVE_TM_ZONE
-			strcpy(tbuf, timeptr->tm_zone);
+			tp = timeptr->tm_zone;
 #else
 #ifdef HAVE_TM_NAME
-			strcpy(tbuf, timeptr->tm_name);
+			tp = timeptr->tm_name;
 #else
 #ifdef HAVE_TIMEZONE
 			gettimeofday(& tv, & zone);
 #ifdef TIMEZONE_VOID
-			strcpy(tbuf, timezone());
+			tp = timezone();
 #else
-			strcpy(tbuf, timezone(zone.tz_minuteswest,
-						timeptr->tm_isdst > 0));
+			tp = timezone(zone.tz_minuteswest, timeptr->tm_isdst > 0);
 #endif /* TIMEZONE_VOID */
 #endif /* HAVE_TIMEZONE */
 #endif /* HAVE_TM_NAME */
 #endif /* HAVE_TM_ZONE */
 #endif /* HAVE_TZNAME */
+			i = strlen(tp);
 			break;
 
 #ifdef SYSV_EXT
 		case 'n':	/* same as \n */
-			tbuf[0] = '\n';
-			tbuf[1] = '\0';
-			break;
+			NEEDS(1);
+			*s++ = '\n';
+			continue;
 
 		case 't':	/* same as \t */
-			tbuf[0] = '\t';
-			tbuf[1] = '\0';
-			break;
+			NEEDS(1);
+			*s++ = '\t';
+			continue;
 
 		case 'D':	/* date as %m/%d/%y */
-			strftime(tbuf, sizeof tbuf, "%m/%d/%y", timeptr);
-			break;
+			STRFTIME("%m/%d/%y", timeptr);
+			continue;
 
 		case 'e':	/* day of month, blank padded */
-			sprintf(tbuf, "%2d", range(1, timeptr->tm_mday, 31));
-			break;
+			FMT(' ', 2, "d", range(1, timeptr->tm_mday, 31));
+			continue;
 
 		case 'r':	/* time as %I:%M:%S %p */
-			strftime(tbuf, sizeof tbuf, "%I:%M:%S %p", timeptr);
-			break;
+			STRFTIME("%I:%M:%S %p", timeptr);
+			continue;
 
 		case 'R':	/* time as %H:%M */
-			strftime(tbuf, sizeof tbuf, "%H:%M", timeptr);
-			break;
+			STRFTIME("%H:%M", timeptr);
+			continue;
 
 		case 'T':	/* time as %H:%M:%S */
-			strftime(tbuf, sizeof tbuf, "%H:%M:%S", timeptr);
-			break;
+			STRFTIME("%H:%M:%S", timeptr);
+			continue;
 #endif
 
 #ifdef SUNOS_EXT
 		case 'k':	/* hour, 24-hour clock, blank pad */
-			sprintf(tbuf, "%2d", range(0, timeptr->tm_hour, 23));
-			break;
+			i = range(0, timeptr->tm_hour, 23);
+			FMT(' ', 2, "d", i);
+			continue;
 
 		case 'l':	/* hour, 12-hour clock, 1 - 12, blank pad */
 			i = range(0, timeptr->tm_hour, 23);
@@ -511,44 +574,49 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 				i = 12;
 			else if (i > 12)
 				i -= 12;
-			sprintf(tbuf, "%2d", i);
-			break;
+			FMT(' ', 2, "d", i);
+			continue;
 #endif
 
 
 #ifdef VMS_EXT
 		case 'v':	/* date as dd-bbb-YYYY */
-			sprintf(tbuf, "%2d-%3.3s-%4ld",
-				range(1, timeptr->tm_mday, 31),
-				months_a[range(0, timeptr->tm_mon, 11)],
-				timeptr->tm_year + 1900L);
+			w = snprintf(s, endp - s, "%2d-%3.3s-%4ld",
+				     range(1, timeptr->tm_mday, 31),
+				     months_l[range(0, timeptr->tm_mon, 11)],
+				     timeptr->tm_year + 1900L);
+			if (w < 0) goto err;
 			for (i = 3; i < 6; i++)
-				if (islower(tbuf[i]))
-					tbuf[i] = toupper(tbuf[i]);
-			break;
+				if (islower(s[i]))
+					s[i] = toupper(s[i]);
+			s += w;
+			continue;
 #endif
 
 
 #ifdef POSIX2_DATE
 		case 'C':
-			sprintf(tbuf, "%02ld", (timeptr->tm_year + 1900L) / 100);
-			break;
+			FMT('0', 2, "ld", (timeptr->tm_year + 1900L) / 100);
+			continue;
 
 
 		case 'E':
+			/* POSIX locale extensions, ignored for now */
+			flags |= BIT_OF(LOCALE_E);
+			goto again;
 		case 'O':
 			/* POSIX locale extensions, ignored for now */
+			flags |= BIT_OF(LOCALE_O);
 			goto again;
 
 		case 'V':	/* week of year according ISO 8601 */
-			sprintf(tbuf, "%02d", iso8601wknum(timeptr));
-			break;
+			FMT('0', 2, "d", iso8601wknum(timeptr));
+			continue;
 
 		case 'u':
 		/* ISO 8601: Weekday as a decimal number [1 (Monday) - 7] */
-			sprintf(tbuf, "%d", timeptr->tm_wday == 0 ? 7 :
-					timeptr->tm_wday);
-			break;
+			FMT('0', 0, "d", timeptr->tm_wday == 0 ? 7 : timeptr->tm_wday);
+			continue;
 #endif	/* POSIX2_DATE */
 
 #ifdef ISO_DATE_EXT
@@ -572,28 +640,131 @@ strftime(char *s, size_t maxsize, const char *format, const struct tm *timeptr)
 				y = 1900L + timeptr->tm_year;
 
 			if (*format == 'G')
-				sprintf(tbuf, "%ld", y);
+				FMT('0', 0, "ld", y);
 			else
-				sprintf(tbuf, "%02ld", y % 100);
-			break;
+				FMT('0', 2, "ld", y % 100);
+			continue;
 #endif /* ISO_DATE_EXT */
+
+
+		case 'L':
+			w = 3;
+			goto subsec;
+
+		case 'N':
+			/*
+			 * fractional second digits. default is 9 digits
+			 * (nanosecond).
+			 *
+			 * %3N  millisecond (3 digits)
+			 * %6N  microsecond (6 digits)
+			 * %9N  nanosecond (9 digits)
+			 */
+			w = 9;
+		subsec:
+			{
+				long n = ts->tv_nsec;
+
+				if (precision == 0) continue;
+				if (precision < 0) {
+				    precision = w;
+				}
+				NEEDS(precision);
+				if (precision < w) {
+					snprintf(tbuf, w + 1, "%.*ld", w, n);
+					memcpy(s, tbuf, precision);
+				}
+				else {
+					snprintf(s, endp - s, "%.*ld", w, n);
+					memset(s + w, '0', precision - w);
+				}
+				s += precision;
+			}
+			continue;
+
+		case 'F':	/*  Equivalent to %Y-%m-%d */
+			{
+				int mon, mday;
+				mon = range(0, timeptr->tm_mon, 11) + 1;
+				mday = range(1, timeptr->tm_mday, 31);
+				i = snprintf(s, endp - s, "%ld-%02d-%02d",
+					     1900L + timeptr->tm_year, mon, mday);
+				if (i < 0)
+					goto err;
+				s += i;
+			}
+			continue;
+
+		case '-':
+			FLAG_FOUND();
+			flags |= BIT_OF(LEFT);
+			padding = precision = 0;
+			goto again;
+
+		case '^':
+			FLAG_FOUND();
+			flags |= BIT_OF(UPPER);
+			goto again;
+
+		case '#':
+			FLAG_FOUND();
+			flags |= BIT_OF(CHCASE);
+			goto again;
+
+		case '_':
+			FLAG_FOUND();
+			padding = ' ';
+			goto again;
+
+		case '0':
+			padding = '0';
+		case '1':  case '2': case '3': case '4':
+		case '5': case '6':  case '7': case '8': case '9':
+			{
+				char *e;
+				precision = (int)strtoul(format, &e, 10);
+				format = e - 1;
+				goto again;
+			}
+
 		default:
-			tbuf[0] = '%';
-			tbuf[1] = *format;
-			tbuf[2] = '\0';
+		unknown:
+			tp = sp;
+			i = format - sp + 1;
 			break;
 		}
-		i = strlen(tbuf);
 		if (i) {
-			if (s + i < endp - 1) {
-				strcpy(s, tbuf);
+			if (!(flags & BIT_OF(LEFT)) && precision > i) {
+				NEEDS(precision);
+				memset(s, padding ? padding : ' ', precision - i);
+				s += precision - i;
+			}
+			else {
+				NEEDS(i);
+			}
+			memcpy(s, tp, i);
+			switch (flags & (BIT_OF(UPPER)|BIT_OF(LOWER))) {
+			case BIT_OF(UPPER):
+				do {
+					if (islower(*s)) *s = toupper(*s);
+				} while (s++, --i);
+				break;
+			case BIT_OF(LOWER):
+				do {
+					if (isupper(*s)) *s = tolower(*s);
+				} while (s++, --i);
+				break;
+			default:
 				s += i;
-			} else
-				return 0;
+				break;
+			}
 		}
 	}
 out:
-	if (s < endp && *format == '\0') {
+	if (s >= endp) {
+		goto err;
+	}
+	if (*format == '\0') {
 		*s = '\0';
 		return (s - start);
 	} else

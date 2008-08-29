@@ -33,35 +33,63 @@ typedef struct rb_io_t {
     int mode;			/* mode flags */
     rb_pid_t pid;		/* child's pid (for pipes) */
     int lineno;			/* number of lines read */
-    char *path;			/* pathname for file */
+    VALUE pathv;			/* pathname for file */
     void (*finalize)(struct rb_io_t*,int); /* finalize proc */
-    long refcnt;
+
     char *wbuf;                 /* wbuf_off + wbuf_len <= wbuf_capa */
     int wbuf_off;
     int wbuf_len;
     int wbuf_capa;
+
     char *rbuf;                 /* rbuf_off + rbuf_len <= rbuf_capa */
     int rbuf_off;
     int rbuf_len;
     int rbuf_capa;
+
     VALUE tied_io_for_writing;
-    rb_encoding *enc;
-    rb_encoding *enc2;
+
+    /*
+     * enc  enc2 read action                      write action
+     * NULL NULL force_encoding(default_external) write the byte sequence of str
+     * e1   NULL force_encoding(e1)               convert str.encoding to e1
+     * e1   e2   convert from e2 to e1            convert str.encoding to e2
+     */
+    struct rb_io_enc_t {
+        rb_encoding *enc;
+        rb_encoding *enc2;
+        rb_econv_option_t opts;
+    } encs;
+
+    rb_econv_t *readconv;
+    char *cbuf;                /* cbuf_off + cbuf_len <= cbuf_capa */
+    int cbuf_off;
+    int cbuf_len;
+    int cbuf_capa;
+
+    rb_econv_t *writeconv;
+    VALUE writeconv_stateless;
+    rb_econv_option_t writeconv_pre_opts;
+    int writeconv_initialized;
+
 } rb_io_t;
 
 #define HAVE_RB_IO_T 1
 
-#define FMODE_READABLE  1
-#define FMODE_WRITABLE  2
-#define FMODE_READWRITE 3
-#define FMODE_APPEND   64
-#define FMODE_CREATE  128
-#define FMODE_BINMODE   4
-#define FMODE_SYNC      8
-#define FMODE_TTY      16
-#define FMODE_DUPLEX   32
-#define FMODE_WSPLIT  0x200
-#define FMODE_WSPLIT_INITIALIZED  0x400
+#define FMODE_READABLE              0x00000001
+#define FMODE_WRITABLE              0x00000002
+#define FMODE_READWRITE             (FMODE_READABLE|FMODE_WRITABLE)
+#define FMODE_BINMODE               0x00000004
+#define FMODE_SYNC                  0x00000008
+#define FMODE_TTY                   0x00000010
+#define FMODE_DUPLEX                0x00000020
+#define FMODE_APPEND                0x00000040
+#define FMODE_CREATE                0x00000080
+/* #define FMODE_NOREVLOOKUP        0x00000100 */
+#define FMODE_WSPLIT                0x00000200
+#define FMODE_WSPLIT_INITIALIZED    0x00000400
+#define FMODE_TRUNC                 0x00000800
+#define FMODE_TEXTMODE              0x00001000
+/* #define FMODE_PREP               0x00010000 */
 
 #define GetOpenFile(obj,fp) rb_io_check_closed((fp) = RFILE(rb_io_taint_check(obj))->fptr)
 
@@ -78,9 +106,8 @@ typedef struct rb_io_t {
     fp->mode = 0;\
     fp->pid = 0;\
     fp->lineno = 0;\
-    fp->path = NULL;\
+    fp->pathv = Qnil;\
     fp->finalize = 0;\
-    fp->refcnt = 1;\
     fp->wbuf = NULL;\
     fp->wbuf_off = 0;\
     fp->wbuf_len = 0;\
@@ -89,14 +116,22 @@ typedef struct rb_io_t {
     fp->rbuf_off = 0;\
     fp->rbuf_len = 0;\
     fp->rbuf_capa = 0;\
+    fp->readconv = NULL;\
+    fp->cbuf = NULL;\
+    fp->cbuf_off = 0;\
+    fp->cbuf_len = 0;\
+    fp->cbuf_capa = 0;\
+    fp->writeconv = NULL;\
+    fp->writeconv_stateless = Qnil;\
+    fp->writeconv_initialized = 0;\
     fp->tied_io_for_writing = 0;\
-    fp->enc = 0;\
-    fp->enc2 = 0;\
+    fp->encs.enc = NULL;\
+    fp->encs.enc2 = NULL;\
+    fp->encs.opts.flags = 0;\
 } while (0)
 
 FILE *rb_io_stdio_file(rb_io_t *fptr);
 
-FILE *rb_fopen(const char*, const char*);
 FILE *rb_fdopen(int, const char*);
 int  rb_io_mode_flags(const char*);
 int  rb_io_modenum_flags(int);

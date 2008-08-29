@@ -44,6 +44,15 @@ class TestIO < Test::Unit::TestCase
     r.close
   end
 
+  def test_gets_limit_extra_arg
+    with_pipe {|r, w|
+      r, w = IO.pipe
+      w << "0123456789"
+      w.close
+      assert_raise(TypeError) { r.gets(3,nil) }
+    }
+  end
+
   # This test cause SEGV.
   def test_ungetc
     r, w = IO.pipe
@@ -99,7 +108,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
 
       content = "foobar"
       File.open("src", "w") {|f| f << content }
@@ -313,7 +322,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_rbuf
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       with_pipe {|r, w|
         File.open("foo", "w") {|f| f << "abcd" }
         File.open("foo") {|f|
@@ -338,7 +347,7 @@ class TestIO < Test::Unit::TestCase
 
   def test_copy_stream_socket
     return unless defined? UNIXSocket
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
 
       content = "foobar"
       File.open("src", "w") {|f| f << content }
@@ -441,7 +450,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_fname_to_strio
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       File.open("foo", "w") {|f| f << "abcd" }
       src = "foo"
       dst = StringIO.new
@@ -452,7 +461,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_strio_to_fname
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       # StringIO to filename
       src = StringIO.new("abcd")
       ret = IO.copy_stream(src, "fooo", 3)
@@ -463,7 +472,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_io_to_strio
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       # IO to StringIO
       File.open("bar", "w") {|f| f << "abcd" }
       File.open("bar") {|src|
@@ -477,7 +486,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_strio_to_io
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       # StringIO to IO
       src = StringIO.new("abcd")
       ret = File.open("baz", "w") {|dst|
@@ -515,7 +524,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_src_wbuf
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       with_pipe {|r, w|
         File.open("foe", "w+") {|f|
           f.write "abcd\n"
@@ -532,7 +541,7 @@ class TestIO < Test::Unit::TestCase
   end
 
   def test_copy_stream_dst_rbuf
-    mkcdtmpdir {|d|
+    mkcdtmpdir {
       with_pipe {|r, w|
         w << "xyz"
         w.close
@@ -628,7 +637,7 @@ class TestIO < Test::Unit::TestCase
     end
 
     pipe2 do |r, w|
-      assert_raise(Errno::EMFILE, Errno::ENFILE, Errno::NOMEM) do
+      assert_raise(Errno::EMFILE, Errno::ENFILE, Errno::ENOMEM) do
         r2, w2 = r.dup, w.dup
       end
     end
@@ -1075,6 +1084,10 @@ class TestIO < Test::Unit::TestCase
     t = make_tempfile
 
     a = []
+    IO.foreach(t.path) {|x| a << x }
+    assert_equal(["foo\n", "bar\n", "baz\n"], a)
+
+    a = []
     IO.foreach(t.path, {:mode => "r" }) {|x| a << x }
     assert_equal(["foo\n", "bar\n", "baz\n"], a)
 
@@ -1085,6 +1098,28 @@ class TestIO < Test::Unit::TestCase
     a = []
     IO.foreach(t.path, {:open_args => ["r"] }) {|x| a << x }
     assert_equal(["foo\n", "bar\n", "baz\n"], a)
+
+    a = []
+    IO.foreach(t.path, "b") {|x| a << x }
+    assert_equal(["foo\nb", "ar\nb", "az\n"], a)
+
+    a = []
+    IO.foreach(t.path, 3) {|x| a << x }
+    assert_equal(["foo", "\n", "bar", "\n", "baz", "\n"], a)
+
+    a = []
+    IO.foreach(t.path, "b", 3) {|x| a << x }
+    assert_equal(["foo", "\nb", "ar\n", "b", "az\n"], a)
+
+  end
+
+  def test_s_readlines
+    t = make_tempfile
+
+    assert_equal(["foo\n", "bar\n", "baz\n"], IO.readlines(t.path))
+    assert_equal(["foo\nb", "ar\nb", "az\n"], IO.readlines(t.path, "b"))
+    assert_equal(["fo", "o\n", "ba", "r\n", "ba", "z\n"], IO.readlines(t.path, 2))
+    assert_equal(["fo", "o\n", "b", "ar", "\nb", "az", "\n"], IO.readlines(t.path, "b", 2))
   end
 
   def test_printf
@@ -1154,31 +1189,6 @@ class TestIO < Test::Unit::TestCase
 
     assert_equal("foo\nbar\nbaz\n", File.read(t.path))
 
-    with_pipe do |r, w|
-      assert_raise(RuntimeError) do
-        o = Object.new
-        class << o; self; end.instance_eval do
-          define_method(:to_io) { r }
-        end
-        w.instance_eval { initialize(o) }
-      end
-    end
-
-    pipe(proc do |w|
-      w = IO.new(w)
-      w.puts "foo"
-      w.puts "bar"
-      w.puts "baz"
-      w.close
-    end, proc do |r|
-      r = IO.new(r)
-      assert_equal("foo\nbar\nbaz\n", r.read)
-    end)
-
-    with_pipe do |r, w|
-      assert_raise(ArgumentError) { IO.new(r, "r+") }
-    end
-
     f = open(t.path)
     assert_raise(RuntimeError) do
       f.instance_eval { initialize }
@@ -1210,10 +1220,32 @@ class TestIO < Test::Unit::TestCase
   def test_s_read
     t = make_tempfile
 
+    assert_equal("foo\nbar\nbaz\n", File.read(t.path))
+    assert_equal("foo\nba", File.read(t.path, 6))
     assert_equal("bar\n", File.read(t.path, 4, 4))
   end
 
   def test_uninitialized
     assert_raise(IOError) { IO.allocate.print "" }
+  end
+
+  def test_nofollow
+    # O_NOFOLLOW is not standard.
+    return if /freebsd|linux/ !~ RUBY_PLATFORM
+    return unless defined? File::NOFOLLOW
+    mkcdtmpdir {
+      open("file", "w") {|f| f << "content" }
+      begin
+        File.symlink("file", "slnk")
+      rescue NotImplementedError
+        return
+      end
+      assert_raise(Errno::EMLINK, Errno::ELOOP) {
+        open("slnk", File::RDONLY|File::NOFOLLOW) {}
+      }
+      assert_raise(Errno::EMLINK, Errno::ELOOP) {
+        File.foreach("slnk", :open_args=>[File::RDONLY|File::NOFOLLOW]) {}
+      }
+    }
   end
 end

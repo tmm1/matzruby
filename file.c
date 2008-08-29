@@ -167,8 +167,8 @@ rb_file_path(VALUE obj)
 
     fptr = RFILE(rb_io_taint_check(obj))->fptr;
     rb_io_check_initialized(fptr);
-    if (!fptr->path) return Qnil;
-    return rb_tainted_str_new2(fptr->path);
+    if (NIL_P(fptr->pathv)) return Qnil;
+    return rb_obj_taint(rb_str_dup(fptr->pathv));
 }
 
 static VALUE
@@ -670,6 +670,12 @@ rb_stat_inspect(VALUE self)
 	{"ctime",   rb_stat_ctime},
     };
 
+    struct stat* st;
+    Data_Get_Struct(self, struct stat, st);
+    if (!st) {
+        return rb_sprintf("#<%s: uninitialized>", rb_obj_classname(self));
+    }
+
     str = rb_str_buf_new2("#<");
     rb_str_buf_cat2(str, rb_obj_classname(self));
     rb_str_buf_cat2(str, " ");
@@ -793,9 +799,10 @@ rb_io_stat(VALUE obj)
     rb_io_t *fptr;
     struct stat st;
 
+#define rb_sys_fail_path(path) rb_sys_fail(NIL_P(path) ? 0 : RSTRING_PTR(path))
     GetOpenFile(obj, fptr);
     if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
     }
     return stat_new(&st);
 }
@@ -855,9 +862,9 @@ rb_file_lstat(VALUE obj)
 
     rb_secure(2);
     GetOpenFile(obj, fptr);
-    if (!fptr->path) return Qnil;
-    if (lstat(fptr->path, &st) == -1) {
-	rb_sys_fail(fptr->path);
+    if (NIL_P(fptr->pathv)) return Qnil;
+    if (lstat(RSTRING_PTR(fptr->pathv), &st) == -1) {
+	rb_sys_fail_path(fptr->pathv);
     }
     return stat_new(&st);
 #else
@@ -1697,7 +1704,7 @@ rb_file_atime(VALUE obj)
 
     GetOpenFile(obj, fptr);
     if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
     }
     return stat_atime(&st);
 }
@@ -1740,7 +1747,7 @@ rb_file_mtime(VALUE obj)
 
     GetOpenFile(obj, fptr);
     if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
     }
     return stat_mtime(&st);
 }
@@ -1786,7 +1793,7 @@ rb_file_ctime(VALUE obj)
 
     GetOpenFile(obj, fptr);
     if (fstat(fptr->fd, &st) == -1) {
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
     }
     return stat_ctime(&st);
 }
@@ -1852,11 +1859,11 @@ rb_file_chmod(VALUE obj, VALUE vmode)
     GetOpenFile(obj, fptr);
 #ifdef HAVE_FCHMOD
     if (fchmod(fptr->fd, mode) == -1)
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
 #else
-    if (!fptr->path) return Qnil;
-    if (chmod(fptr->path, mode) == -1)
-	rb_sys_fail(fptr->path);
+    if (NIL_P(fptr->pathv)) return Qnil;
+    if (chmod(RSTRING_PTR(fptr->pathv), mode) == -1)
+	rb_sys_fail_path(fptr->pathv);
 #endif
 
     return INT2FIX(0);
@@ -1983,12 +1990,12 @@ rb_file_chown(VALUE obj, VALUE owner, VALUE group)
     g = NIL_P(group) ? -1 : NUM2INT(group);
     GetOpenFile(obj, fptr);
 #if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
-    if (!fptr->path) return Qnil;
-    if (chown(fptr->path, o, g) == -1)
-	rb_sys_fail(fptr->path);
+    if (NIL_P(fptr->pathv)) return Qnil;
+    if (chown(RSTRING_PTR(fptr->pathv), o, g) == -1)
+	rb_sys_fail_path(fptr->pathv);
 #else
     if (fchown(fptr->fd, o, g) == -1)
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
 #endif
 
     return INT2FIX(0);
@@ -2305,7 +2312,7 @@ rb_file_s_readlink(VALUE klass, VALUE path)
     FilePathValue(path);
     buf = ruby_readlink(RSTRING_PTR(path), &rv);
     if (!buf) {
-	rb_sys_fail(RSTRING_PTR(path));
+	rb_sys_fail_path(path);
     }
     return rb_str_wrap(buf, rv);
 #else
@@ -2624,7 +2631,7 @@ ntfs_tail(const char *path)
 #define is_absolute_path(path) ruby_absolute_path_p(path)
 
 static VALUE
-file_expand_path(VALUE fname, VALUE dname, VALUE result)
+file_expand_path(VALUE fname, VALUE dname, int abs_mode, VALUE result)
 {
     const char *s, *b;
     char *buf, *p, *pend, *root;
@@ -2637,7 +2644,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
     BUFINIT();
     tainted = OBJ_TAINTED(fname);
 
-    if (s[0] == '~') {
+    if (s[0] == '~' && abs_mode == 0) {      /* execute only if NOT absolute_path() */
 	if (isdirsep(s[1]) || s[1] == '\0') {
 	    const char *dir = getenv("HOME");
 
@@ -2699,7 +2706,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	    /* specified drive, but not full path */
 	    int same = 0;
 	    if (!NIL_P(dname)) {
-		file_expand_path(dname, Qnil, result);
+		file_expand_path(dname, Qnil, abs_mode, result);
 		BUFINIT();
 		if (has_drive_letter(p) && TOLOWER(p[0]) == TOLOWER(s[0])) {
 		    /* ok, same drive */
@@ -2723,7 +2730,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 #endif
     else if (!is_absolute_path(s)) {
 	if (!NIL_P(dname)) {
-	    file_expand_path(dname, Qnil, result);
+	    file_expand_path(dname, Qnil, abs_mode, result);
 	    BUFINIT();
 	}
 	else {
@@ -2761,6 +2768,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 	*p = '/';
     }
 
+    BUFCHECK(bdiff + 1 >= buflen);
     p[1] = 0;
     root = skipprefix(buf);
 
@@ -2915,7 +2923,7 @@ file_expand_path(VALUE fname, VALUE dname, VALUE result)
 VALUE
 rb_file_expand_path(VALUE fname, VALUE dname)
 {
-    return file_expand_path(fname, dname, rb_usascii_str_new(0, MAXPATHLEN + 2));
+    return file_expand_path(fname, dname, 0, rb_usascii_str_new(0, MAXPATHLEN + 2));
 }
 
 /*
@@ -2946,6 +2954,40 @@ rb_file_s_expand_path(int argc, VALUE *argv)
     rb_scan_args(argc, argv, "11", &fname, &dname);
 
     return rb_file_expand_path(fname, dname);
+}
+
+VALUE
+rb_file_absolute_path(VALUE fname, VALUE dname)
+{
+    return file_expand_path(fname, dname, 1, rb_usascii_str_new(0, MAXPATHLEN + 2));
+}
+
+/*
+ *  call-seq:
+ *     File.absolute_path(file_name [, dir_string] ) -> abs_file_name
+ *  
+ *  Converts a pathname to an absolute pathname. Relative paths are
+ *  referenced from the current working directory of the process unless
+ *  <i>dir_string</i> is given, in which case it will be used as the
+ *  starting point. If the given pathname starts with a ``<code>~</code>''
+ *  it is NOT expanded, it is treated as a normal directory name.
+ *     
+ *     File.absolute_path("~oracle/bin")       #=> "<relative_path>/~oracle/bin"
+ */
+
+VALUE
+rb_file_s_absolute_path(argc, argv)
+    int argc;
+    VALUE *argv;
+{
+    VALUE fname, dname;
+
+    if (argc == 1) {
+	return rb_file_absolute_path(argv[0], Qnil);
+    }
+    rb_scan_args(argc, argv, "11", &fname, &dname);
+
+    return rb_file_absolute_path(fname, dname);
 }
 
 static int
@@ -3375,11 +3417,11 @@ rb_file_truncate(VALUE obj, VALUE len)
     rb_io_flush(obj);
 #ifdef HAVE_FTRUNCATE
     if (ftruncate(fptr->fd, pos) < 0)
-	rb_sys_fail(fptr->path);
+	rb_sys_fail_path(fptr->pathv);
 #else
 # ifdef HAVE_CHSIZE
     if (chsize(fptr->fd, pos) < 0)
-	rb_sys_fail(fptr->path);
+	rb_sys_fail(fptr->pathv);
 # else
     rb_notimplement();
 # endif
@@ -3485,7 +3527,7 @@ rb_file_flock(VALUE obj, VALUE operation)
 	    break;
 
 	  default:
-	    rb_sys_fail(fptr->path);
+	    rb_sys_fail_path(fptr->pathv);
 	}
     }
 #endif
@@ -4536,7 +4578,7 @@ rb_find_file_ext(VALUE *filep, const char *const *ext)
 
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) == 0) continue;
-	    file_expand_path(fname, str, tmp);
+	    file_expand_path(fname, str, 0, tmp);
 	    if (file_load_ok(RSTRING_PTR(tmp))) {
 		RBASIC(tmp)->klass = rb_obj_class(*filep);
 		OBJ_FREEZE(tmp);
@@ -4597,7 +4639,7 @@ rb_find_file(VALUE path)
 	    VALUE str = RARRAY_PTR(load_path)[i];
 	    FilePathValue(str);
 	    if (RSTRING_LEN(str) > 0) {
-		file_expand_path(path, str, tmp);
+		file_expand_path(path, str, 0, tmp);
 		f = RSTRING_PTR(tmp);
 		if (file_load_ok(f)) goto found;
 	    }
@@ -4721,6 +4763,7 @@ Init_File(void)
     rb_define_singleton_method(rb_cFile, "umask", rb_file_s_umask, -1);
     rb_define_singleton_method(rb_cFile, "truncate", rb_file_s_truncate, 2);
     rb_define_singleton_method(rb_cFile, "expand_path", rb_file_s_expand_path, -1);
+    rb_define_singleton_method(rb_cFile, "absolute_path", rb_file_s_absolute_path, -1);
     rb_define_singleton_method(rb_cFile, "basename", rb_file_s_basename, -1);
     rb_define_singleton_method(rb_cFile, "dirname", rb_file_s_dirname, 1);
     rb_define_singleton_method(rb_cFile, "extname", rb_file_s_extname, 1);

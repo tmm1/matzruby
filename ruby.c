@@ -1259,12 +1259,12 @@ load_file(rb_vm_t *vm, VALUE parser, const char *fname, int script, struct cmdli
 		}
 
 		/* push back shebang for pragma may exist in next line */
-		rb_io_ungetc(f, rb_str_new2("!\n"));
+		rb_io_ungetbyte(f, rb_str_new2("!\n"));
 	    }
 	    else if (!NIL_P(c)) {
-		rb_io_ungetc(f, c);
+		rb_io_ungetbyte(f, c);
 	    }
-	    rb_io_ungetc(f, INT2FIX('#'));
+	    rb_io_ungetbyte(f, INT2FIX('#'));
 	    if (no_src_enc && opt->src.enc.name) {
 		opt->src.enc.index = opt_enc_index(opt->src.enc.name);
 		src_encoding_index = opt->src.enc.index;
@@ -1274,7 +1274,7 @@ load_file(rb_vm_t *vm, VALUE parser, const char *fname, int script, struct cmdli
 	    }
 	}
 	else if (!NIL_P(c)) {
-	    rb_io_ungetc(f, c);
+	    rb_io_ungetbyte(f, c);
 	}
 	require_libraries(opt);	/* Why here? unnatural */
     }

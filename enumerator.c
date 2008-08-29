@@ -32,6 +32,22 @@ struct enumerator {
     VALUE no_next;
 };
 
+static VALUE rb_cGenerator, rb_cYielder;
+
+struct generator {
+    VALUE proc;
+};
+
+struct yielder {
+    VALUE proc;
+};
+
+static VALUE generator_allocate(VALUE klass);
+static VALUE generator_init(VALUE obj, VALUE proc);
+
+/*
+ * Enumerator
+ */
 static void
 enumerator_mark(void *p)
 {
@@ -198,6 +214,37 @@ enum_each_cons(VALUE obj, VALUE n)
 }
 
 static VALUE
+each_with_object_i(VALUE val, VALUE memo)
+{
+    return rb_yield_values(2, val, memo);
+}
+
+/*
+ *  call-seq:
+ *    each_with_object(obj) {|(*args), memo_obj| ... }
+ *    each_with_object(obj)
+ *
+ *  Iterates the given block for each element with an arbitrary
+ *  object given, and returns the initially given object.
+
+ *  If no block is given, returns an enumerator.
+ *
+ *  e.g.:
+ *      evens = (1..10).each_with_object([]) {|i, a| a << i*2 }
+ *      # => [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]
+ *
+ */
+static VALUE
+enum_each_with_object(VALUE obj, VALUE memo)
+{
+    RETURN_ENUMERATOR(obj, 1, &memo);
+
+    rb_block_call(obj, SYM2ID(sym_each), 0, 0, each_with_object_i, memo);
+
+    return memo;
+}
+
+static VALUE
 enumerator_allocate(VALUE klass)
 {
     struct enumerator *ptr;
@@ -239,25 +286,53 @@ enumerator_init(VALUE enum_obj, VALUE obj, VALUE meth, int argc, VALUE *argv)
 /*
  *  call-seq:
  *    Enumerator.new(obj, method = :each, *args)
+ *    Enumerator.new { |y| ... }
  *
  *  Creates a new Enumerator object, which is to be used as an
- *  Enumerable object using the given object's given method with the
- *  given arguments.
+ *  Enumerable object iterating in a given way.
  *
- *  Use of this method is discouraged.  Use Kernel#enum_for() instead.
+ *  In the first form, a generated Enumerator iterates over the given
+ *  object using the given method with the given arguments passed.
+ *  Use of this form is discouraged.  Use Kernel#enum_for(), alias
+ *  to_enum, instead.
+ *
+ *    e = Enumerator.new(ObjectSpace, :each_object)
+ *        #-> ObjectSpace.enum_for(:each_object)
+ *
+ *    e.select { |obj| obj.is_a?(Class) }  #=> array of all classes
+ *
+ *  In the second form, iteration is defined by the given block, in
+ *  which a "yielder" object given as block parameter can be used to
+ *  yield a value by calling the +yield+ method, alias +<<+.
+ *
+ *    fib = Enumerator.new { |y|
+ *      a = b = 1
+ *      loop {
+ *        y << a
+ *        a, b = b, a + b
+ *      }
+ *    }
+ *
+ *    p fib.take(10) #=> [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
  */
 static VALUE
 enumerator_initialize(int argc, VALUE *argv, VALUE obj)
 {
     VALUE recv, meth = sym_each;
 
-    if (argc == 0)
-	rb_raise(rb_eArgError, "wrong number of argument (0 for 1)");
-    recv = *argv++;
-    if (--argc) {
-	meth = *argv++;
-	--argc;
+    if (argc == 0) {
+	if (!rb_block_given_p())
+	    rb_raise(rb_eArgError, "wrong number of argument (0 for 1+)");
+
+	recv = generator_init(generator_allocate(rb_cGenerator), rb_block_proc());
+    } else {
+	recv = *argv++;
+	if (--argc) {
+	    meth = *argv++;
+	    --argc;
+	}
     }
+
     return enumerator_init(obj, recv, meth, argc, argv);
 }
 
@@ -365,7 +440,7 @@ enumerator_with_object_i(VALUE val, VALUE memo)
  *    e.with_object(obj)
  *
  *  Iterates the given block for each element with an arbitrary
- *  object given, and returns the memo object.
+ *  object given, and returns the initially given object.
  *
  *  If no block is given, returns an enumerator.
  *
@@ -377,7 +452,7 @@ enumerator_with_object(VALUE obj, VALUE memo)
     int argc = 0;
     VALUE *argv = 0;
 
-    RETURN_ENUMERATOR(obj, 0, 0);
+    RETURN_ENUMERATOR(obj, 1, &memo);
     e = enumerator_ptr(obj);
     if (e->args) {
 	argc = RARRAY_LEN(e->args);
@@ -468,6 +543,217 @@ enumerator_rewind(VALUE obj)
     return obj;
 }
 
+/*
+ * Yielder
+ */
+static void
+yielder_mark(void *p)
+{
+    struct yielder *ptr = p;
+    rb_gc_mark(ptr->proc);
+}
+
+static struct yielder *
+yielder_ptr(VALUE obj)
+{
+    struct yielder *ptr;
+
+    Data_Get_Struct(obj, struct yielder, ptr);
+    if (RDATA(obj)->dmark != yielder_mark) {
+	rb_raise(rb_eTypeError,
+		 "wrong argument type %s (expected %s)",
+		 rb_obj_classname(obj), rb_class2name(rb_cYielder));
+    }
+    if (!ptr || ptr->proc == Qundef) {
+	rb_raise(rb_eArgError, "uninitialized yielder");
+    }
+    return ptr;
+}
+
+/* :nodoc: */
+static VALUE
+yielder_allocate(VALUE klass)
+{
+    struct yielder *ptr;
+    VALUE obj;
+
+    obj = Data_Make_Struct(klass, struct yielder, yielder_mark, -1, ptr);
+    ptr->proc = Qundef;
+
+    return obj;
+}
+
+static VALUE
+yielder_init(VALUE obj, VALUE proc)
+{
+    struct yielder *ptr;
+
+    Data_Get_Struct(obj, struct yielder, ptr);
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "unallocated yielder");
+    }
+
+    ptr->proc = proc;
+
+    return obj;
+}
+
+/* :nodoc: */
+static VALUE
+yielder_initialize(VALUE obj)
+{
+    rb_need_block();
+
+    return yielder_init(obj, rb_block_proc());
+}
+
+/* :nodoc: */
+static VALUE
+yielder_yield(VALUE obj, VALUE args)
+{
+    struct yielder *ptr = yielder_ptr(obj);
+
+    rb_proc_call(ptr->proc, args);
+
+    return obj;
+}
+
+static VALUE
+yielder_new_i(VALUE dummy)
+{
+    return yielder_init(yielder_allocate(rb_cYielder), rb_block_proc());
+}
+
+static VALUE
+yielder_yield_i(VALUE obj, VALUE memo, int argc, VALUE *argv)
+{
+    return rb_yield_values2(argc, argv);
+}
+
+static VALUE
+yielder_new(void)
+{
+    return rb_iterate(yielder_new_i, (VALUE)0, yielder_yield_i, (VALUE)0);
+}
+
+/*
+ * Generator
+ */
+static void
+generator_mark(void *p)
+{
+    struct generator *ptr = p;
+    rb_gc_mark(ptr->proc);
+}
+
+static struct generator *
+generator_ptr(VALUE obj)
+{
+    struct generator *ptr;
+
+    Data_Get_Struct(obj, struct generator, ptr);
+    if (RDATA(obj)->dmark != generator_mark) {
+	rb_raise(rb_eTypeError,
+		 "wrong argument type %s (expected %s)",
+		 rb_obj_classname(obj), rb_class2name(rb_cGenerator));
+    }
+    if (!ptr || ptr->proc == Qundef) {
+	rb_raise(rb_eArgError, "uninitialized generator");
+    }
+    return ptr;
+}
+
+/* :nodoc: */
+static VALUE
+generator_allocate(VALUE klass)
+{
+    struct generator *ptr;
+    VALUE obj;
+
+    obj = Data_Make_Struct(klass, struct generator, generator_mark, -1, ptr);
+    ptr->proc = Qundef;
+
+    return obj;
+}
+
+static VALUE
+generator_init(VALUE obj, VALUE proc)
+{
+    struct generator *ptr;
+
+    Data_Get_Struct(obj, struct generator, ptr);
+
+    if (!ptr) {
+	rb_raise(rb_eArgError, "unallocated generator");
+    }
+
+    ptr->proc = proc;
+
+    return obj;
+}
+
+VALUE rb_obj_is_proc(VALUE proc);
+
+/* :nodoc: */
+static VALUE
+generator_initialize(int argc, VALUE *argv, VALUE obj)
+{
+    VALUE proc;
+
+    if (argc == 0) {
+	rb_need_block();
+
+	proc = rb_block_proc();
+    } else {
+	rb_scan_args(argc, argv, "1", &proc);
+
+	if (!rb_obj_is_proc(proc))
+	    rb_raise(rb_eTypeError,
+		     "wrong argument type %s (expected Proc)",
+		     rb_obj_classname(proc));
+
+	if (rb_block_given_p()) {
+	    rb_warn("given block not used");
+	}
+    }
+
+    return generator_init(obj, proc);
+}
+
+/* :nodoc: */
+static VALUE
+generator_init_copy(VALUE obj, VALUE orig)
+{
+    struct generator *ptr0, *ptr1;
+
+    ptr0 = generator_ptr(orig);
+
+    Data_Get_Struct(obj, struct generator, ptr1);
+
+    if (!ptr1) {
+	rb_raise(rb_eArgError, "unallocated generator");
+    }
+
+    ptr1->proc = ptr0->proc;
+
+    return obj;
+}
+
+/* :nodoc: */
+static VALUE
+generator_each(VALUE obj)
+{
+    struct generator *ptr = generator_ptr(obj);
+    VALUE yielder;
+
+    yielder = yielder_new();
+
+    rb_proc_call(ptr->proc, rb_ary_new3(1, yielder));
+
+    return obj;
+}
+
 void
 Init_Enumerator(void)
 {
@@ -476,6 +762,7 @@ Init_Enumerator(void)
 
     rb_define_method(rb_mEnumerable, "each_slice", enum_each_slice, 1);
     rb_define_method(rb_mEnumerable, "each_cons", enum_each_cons, 1);
+    rb_define_method(rb_mEnumerable, "each_with_object", enum_each_with_object, 1);
 
     rb_cEnumerator = rb_define_class("Enumerator", rb_cObject);
     rb_include_module(rb_cEnumerator, rb_mEnumerable);
@@ -485,18 +772,30 @@ Init_Enumerator(void)
     rb_define_method(rb_cEnumerator, "initialize_copy", enumerator_init_copy, 1);
     rb_define_method(rb_cEnumerator, "each", enumerator_each, 0);
     rb_define_method(rb_cEnumerator, "each_with_index", enumerator_with_index, 0);
+    rb_define_method(rb_cEnumerator, "each_with_object", enumerator_with_object, 1);
     rb_define_method(rb_cEnumerator, "with_index", enumerator_with_index, 0);
-#if 0
     rb_define_method(rb_cEnumerator, "with_object", enumerator_with_object, 1);
-#else
-    (void)enumerator_with_object;
-#endif
     rb_define_method(rb_cEnumerator, "next", enumerator_next, 0);
     rb_define_method(rb_cEnumerator, "rewind", enumerator_rewind, 0);
 
-    rb_eStopIteration   = rb_define_class("StopIteration", rb_eIndexError);
+    rb_eStopIteration = rb_define_class("StopIteration", rb_eIndexError);
 
-    sym_each	 	= ID2SYM(rb_intern("each"));
+    /* Generator */
+    rb_cGenerator = rb_define_class_under(rb_cEnumerator, "Generator", rb_cObject);
+    rb_include_module(rb_cGenerator, rb_mEnumerable);
+    rb_define_alloc_func(rb_cGenerator, generator_allocate);
+    rb_define_method(rb_cGenerator, "initialize", generator_initialize, -1);
+    rb_define_method(rb_cGenerator, "initialize_copy", generator_init_copy, 1);
+    rb_define_method(rb_cGenerator, "each", generator_each, 0);
+
+    /* Yielder */
+    rb_cYielder = rb_define_class_under(rb_cEnumerator, "Yielder", rb_cObject);
+    rb_define_alloc_func(rb_cYielder, yielder_allocate);
+    rb_define_method(rb_cYielder, "initialize", yielder_initialize, 0);
+    rb_define_method(rb_cYielder, "yield", yielder_yield, -2);
+    rb_define_method(rb_cYielder, "<<", yielder_yield, -2);
+
+    sym_each = ID2SYM(rb_intern("each"));
 
     rb_provide("enumerator.so");	/* for backward compatibility */
 }

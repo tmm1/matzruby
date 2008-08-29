@@ -193,8 +193,6 @@ rb_enc_dummy_p(rb_encoding *enc)
     return ENC_DUMMY_P(enc) != 0;
 }
 
-VALUE rb_str_transcode(VALUE str, VALUE to);
-
 /* econv stuff */
 
 typedef enum {
@@ -204,55 +202,28 @@ typedef enum {
     econv_source_buffer_empty,
     econv_finished,
     econv_output_followed_by_input,
+    econv_incomplete_input,
 } rb_econv_result_t;
 
 typedef struct {
-    struct rb_transcoding *tc;
-    unsigned char *out_buf_start;
-    unsigned char *out_data_start;
-    unsigned char *out_data_end;
-    unsigned char *out_buf_end;
-    rb_econv_result_t last_result;
-} rb_econv_elem_t;
+    int flags;
+    /* replacement character, etc. */
+} rb_econv_option_t;
 
-typedef struct {
-    const char *source_encoding_name;
-    const char *destination_encoding_name;
+typedef struct rb_econv_t rb_econv_t;
 
-    unsigned char *in_buf_start;
-    unsigned char *in_data_start;
-    unsigned char *in_data_end;
-    unsigned char *in_buf_end;
-    rb_econv_elem_t *elems;
-    int num_trans;
-    int num_finished;
-    int last_trans_index; /* last trans, not including universal newline */
-    struct rb_transcoding *last_tc;
+VALUE rb_str_transcode(VALUE str, VALUE to, rb_econv_option_t *ecopts);
 
-    /* last error */
-    struct {
-        rb_econv_result_t result;
-        struct rb_transcoding *error_tc;
-        const char *source_encoding;
-        const char *destination_encoding;
-        const unsigned char *error_bytes_start;
-        size_t error_bytes_len;
-        size_t readagain_len;
-        int partial_input;
-    } last_error;
+void rb_econv_opts(VALUE hash, rb_econv_option_t *opts);
 
-    /* The following fields are only for Encoding::Converter.
-     * rb_econv_open set them NULL. */
-    rb_encoding *source_encoding;
-    rb_encoding *destination_encoding;
-} rb_econv_t;
-
-rb_econv_t *rb_econv_open(const char *source_encoding, const char *destination_encoding, int flags);
+rb_econv_t *rb_econv_open(const char *source_encoding, const char *destination_encoding, rb_econv_option_t *opts);
 rb_econv_result_t rb_econv_convert(rb_econv_t *ec,
     const unsigned char **source_buffer_ptr, const unsigned char *source_buffer_end,
     unsigned char **destination_buffer_ptr, unsigned char *destination_buffer_end,
     int flags);
+void rb_econv_close(rb_econv_t *ec);
 
+VALUE rb_econv_open_exc(const char *senc, const char *denc, rb_econv_option_t *opts);
 
 /* result: 0:success -1:failure */
 int rb_econv_insert_output(rb_econv_t *ec,
@@ -261,15 +232,43 @@ int rb_econv_insert_output(rb_econv_t *ec,
 /* encoding that rb_econv_insert_output doesn't need conversion */
 const char *rb_econv_encoding_to_insert_output(rb_econv_t *ec);
 
-void rb_econv_close(rb_econv_t *ec);
+/* raise an error if the last rb_econv_convert is error */
+void rb_econv_check_error(rb_econv_t *ec);
+
+int rb_econv_putbackable(rb_econv_t *ec);
+void rb_econv_putback(rb_econv_t *ec, unsigned char *p, int n);
+
+/* returns corresponding stateless encoding, or NULL if not stateful. */
+const char *rb_econv_stateless_encoding(const char *stateful_enc);
+
+VALUE rb_econv_str_convert(rb_econv_t *ec, VALUE src, int flags);
+VALUE rb_econv_substr_convert(rb_econv_t *ec, VALUE src, long byteoff, long bytesize, int flags);
+VALUE rb_econv_str_append(rb_econv_t *ec, VALUE src, VALUE dst, int flags);
+VALUE rb_econv_substr_append(rb_econv_t *ec, VALUE src, long byteoff, long bytesize, VALUE dst, int flags);
+
+void rb_econv_binmode(rb_econv_t *ec);
 
 /* flags for rb_econv_open */
-#define ECONV_UNIVERSAL_NEWLINE_DECODER       0x100
-#define ECONV_CRLF_NEWLINE_ENCODER            0x200
-#define ECONV_CR_NEWLINE_ENCODER              0x400
+#define ECONV_INVALID_MASK                      0x000f
+#define ECONV_INVALID_IGNORE                    0x0001
+#define ECONV_INVALID_REPLACE                   0x0002
+
+#define ECONV_UNDEF_MASK                        0x00f0
+#define ECONV_UNDEF_IGNORE                      0x0010
+#define ECONV_UNDEF_REPLACE                     0x0020
+
+/* effective only if output is ascii compatible */
+#define ECONV_UNIVERSAL_NEWLINE_DECODER         0x0100
+
+/* effective only if input is ascii compatible */
+#define ECONV_CRLF_NEWLINE_ENCODER              0x0200
+#define ECONV_CR_NEWLINE_ENCODER                0x0400
+
+/* end of flags for rb_econv_open */
 
 /* flags for rb_econv_convert */
 #define ECONV_PARTIAL_INPUT                   0x10000
 #define ECONV_OUTPUT_FOLLOWED_BY_INPUT        0x20000
+/* end of flags for rb_econv_convert */
 
 #endif /* RUBY_ENCODING_H */

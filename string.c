@@ -687,10 +687,9 @@ rb_str_shared_replace(VALUE str, VALUE str2)
     else {
 	RSTRING(str)->as.heap.aux.capa = RSTRING(str2)->as.heap.aux.capa;
     }
-    RSTRING(str2)->as.heap.ptr = 0;	/* abandon str2 */
-    RSTRING(str2)->as.heap.len = 0;
-    RSTRING(str2)->as.heap.aux.capa = 0;
-    STR_UNSET_NOCAPA(str2);
+    STR_SET_EMBED(str2);	/* abandon str2 */
+    RSTRING_PTR(str2)[0] = 0;
+    STR_SET_EMBED_LEN(str2, 0);
     rb_enc_associate(str, enc);
     ENC_CODERANGE_SET(str, cr);
 }
@@ -2188,6 +2187,9 @@ rb_str_index_m(int argc, VALUE *argv, VALUE str)
 
     switch (TYPE(sub)) {
       case T_REGEXP:
+	pos = str_offset(RSTRING_PTR(str), RSTRING_END(str), pos,
+		     rb_enc_check(str, sub), single_byte_optimizable(str));
+
 	pos = rb_reg_adjust_startpos(sub, str, pos, 0);
 	pos = rb_reg_search(sub, str, pos, 0);
 	pos = rb_str_sublen(str, pos);
@@ -2299,6 +2301,9 @@ rb_str_rindex_m(int argc, VALUE *argv, VALUE str)
     switch (TYPE(sub)) {
       case T_REGEXP:
 	/* enc = rb_get_check(str, sub); */
+	pos = str_offset(RSTRING_PTR(str), RSTRING_END(str), pos,
+		     rb_enc_check(str, sub), single_byte_optimizable(str));
+
 	if (!RREGEXP(sub)->ptr || RREGEXP_SRC_LEN(sub)) {
 	    pos = rb_reg_adjust_startpos(sub, str, pos, 1);
 	    pos = rb_reg_search(sub, str, pos, 1);

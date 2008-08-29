@@ -188,7 +188,7 @@ vm_callee_setup_arg_complex(rb_thread_t *th, const rb_iseq_t * iseq,
 	    if (blockptr->proc == 0) {
 		rb_proc_t *proc;
 
-		blockval = vm_make_proc(th, th->cfp, blockptr);
+		blockval = vm_make_proc(th, th->cfp, blockptr, rb_cProc);
 
 		GetProcPtr(blockval, proc);
 		*block = &proc->block;
@@ -518,9 +518,10 @@ vm_call_method(rb_thread_t * const th, rb_control_frame_t * const cfp,
 		break;
 	      }
 	      case NODE_BMETHOD:{
-		VALUE *argv = cfp->sp - num;
-		val = vm_call_bmethod(th, id, node->nd_cval, recv, klass, num, argv, blockptr);
+		VALUE *argv = ALLOCA_N(VALUE, num);
+		MEMCPY(argv, cfp->sp - num, VALUE, num);
 		cfp->sp += - num - 1;
+		val = vm_call_bmethod(th, id, node->nd_cval, recv, klass, num, argv, blockptr);
 		break;
 	      }
 	      case NODE_ZSUPER:{
@@ -662,7 +663,7 @@ vm_yield_with_cfunc(rb_thread_t *th, const rb_block_t *block,
     }
 
     if (blockptr) {
-	blockarg = vm_make_proc(th, th->cfp, blockptr);
+	blockarg = vm_make_proc(th, th->cfp, blockptr, rb_cProc);
     }
     else {
 	blockarg = Qnil;
@@ -704,6 +705,7 @@ vm_yield_setup_args(rb_thread_t * const th, const rb_iseq_t *iseq,
 	int i;
 	int argc = orig_argc;
 	const int m = iseq->argc;
+	VALUE ary;
 
 	th->mark_stack_len = argc;
 
@@ -714,8 +716,7 @@ vm_yield_setup_args(rb_thread_t * const th, const rb_iseq_t *iseq,
 	 */
 	if (!(iseq->arg_simple & 0x02) &&
 	    (m + iseq->arg_post_len) > 0 &&
-	    argc == 1 && TYPE(argv[0]) == T_ARRAY) {
-	    VALUE ary = argv[0];
+	    argc == 1 && !NIL_P(ary = rb_check_array_type(argv[0]))) {
 	    th->mark_stack_len = argc = RARRAY_LEN(ary);
 
 	    CHECK_STACK_OVERFLOW(th->cfp, argc);

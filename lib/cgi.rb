@@ -375,6 +375,19 @@ class CGI
   #      # => "Usage: foo \"bar\" <baz>"
   def CGI::unescapeHTML(string)
     enc = string.encoding
+    if [Encoding::UTF_16BE, Encoding::UTF_16LE, Encoding::UTF_32BE, Encoding::UTF_32LE].include?(enc)
+      return string.gsub(Regexp.new('&(amp|quot|gt|lt|#[0-9]+|#x[0-9A-Fa-f]+);'.encode(enc))) do
+	case $1.encode("US-ASCII")
+	when 'amp'                 then '&'.encode(enc)
+	when 'quot'                then '"'.encode(enc)
+	when 'gt'                  then '>'.encode(enc)
+	when 'lt'                  then '<'.encode(enc)
+	when /\A#0*(\d+)\z/        then $1.to_i.chr(enc)
+	when /\A#x([0-9a-f]+)\z/i  then $1.hex.chr(enc)
+	end
+      end
+    end
+    asciicompat = Encoding.compatible?(string, "a")
     string.gsub(/&(amp|quot|gt|lt|\#[0-9]+|\#x[0-9A-Fa-f]+);/) do
       match = $1.dup
       case match
@@ -382,20 +395,26 @@ class CGI
       when 'quot'                then '"'
       when 'gt'                  then '>'
       when 'lt'                  then '<'
-      when /\A#0*(\d+)\z/        then
-        if Integer($1) < 256
-          Integer($1).chr.force_encoding(enc)
-        else
-          "&##{$1};"
-        end
-      when /\A#x([0-9a-f]+)\z/i then
-        if $1.hex < 256
-          $1.hex.chr.force_encoding(enc)
-        else
-          "&#x#{$1};"
-        end
+      when /\A#0*(\d+)\z/
+        n = $1.to_i
+	if enc == Encoding::UTF_8 or
+          enc == Encoding::ISO_8859_1 && n < 256 or
+          asciicompat && n < 128
+	  n.chr(enc)
+	else
+	  "&##{$1};"
+	end
+      when /\A#x([0-9a-f]+)\z/i
+        n = $1.hex
+	if enc == Encoding::UTF_8 or
+          enc == Encoding::ISO_8859_1 && n < 256 or
+          asciicompat && n < 128
+	  n.chr(enc)
+	else
+	  "&#x#{$1};"
+	end
       else
-        "&#{match};"
+	"&#{match};"
       end
     end
   end
@@ -714,23 +733,7 @@ class CGI
 
     options = { "type" => options } if options.kind_of?(String)
     content = yield
-
-    if options.has_key?("charset")
-      require "nkf"
-      case options["charset"]
-      when /iso-2022-jp/ni
-        content = NKF::nkf('-j -m0 -x', content)
-        options["language"] = "ja" unless options.has_key?("language")
-      when /euc-jp/ni
-        content = NKF::nkf('-e -m0 -x', content)
-        options["language"] = "ja" unless options.has_key?("language")
-      when /shift_jis/ni
-        content = NKF::nkf('-s -m0 -x', content)
-        options["language"] = "ja" unless options.has_key?("language")
-      end
-    end
-
-    options["length"] = content.length.to_s
+    options["length"] = content.bytesize.to_s
     output = stdoutput
     output.binmode if defined? output.binmode
     output.print header(options)
@@ -745,8 +748,6 @@ class CGI
   def print(*options)
     stdoutput.print(*options)
   end
-
-  require "delegate"
 
   # Class representing an HTTP cookie.
   #
@@ -781,7 +782,7 @@ class CGI
   #   cookie1.domain  = 'domain'
   #   cookie1.expires = Time.now + 30
   #   cookie1.secure  = true
-  class Cookie < DelegateClass(Array)
+  class Cookie < Array
 
     # Create a new CGI::Cookie object.
     #
@@ -990,7 +991,7 @@ class CGI
 
       # start multipart/form-data
       stdinput.binmode if defined? stdinput.binmode
-      boundary_size = boundary.size + EOL.size
+      boundary_size = boundary.bytesize + EOL.bytesize
       content_length -= boundary_size
       status = stdinput.read(boundary_size)
       if nil == status
@@ -1012,9 +1013,9 @@ class CGI
             next
           end
 
-          if head and ( (EOL + boundary + EOL).size < buf.size )
-            body.print buf[0 ... (buf.size - (EOL + boundary + EOL).size)]
-            buf[0 ... (buf.size - (EOL + boundary + EOL).size)] = ""
+          if head and ( (EOL + boundary + EOL).bytesize < buf.bytesize )
+            body.print buf[0 ... (buf.bytesize - (EOL + boundary + EOL).bytesize)]
+            buf[0 ... (buf.bytesize - (EOL + boundary + EOL).bytesize)] = ""
           end
 
           c = if bufsize < content_length
@@ -1026,7 +1027,7 @@ class CGI
             raise EOFError, "bad content body"
           end
           buf.concat(c)
-          content_length -= c.size
+          content_length -= c.bytesize
         end
 
         buf = buf.sub(/\A((?:.|\n)*?)(?:[\r\n]{1,2})?#{quoted_boundary}([\r\n]{1,2}|--)/n) do
@@ -1065,7 +1066,7 @@ class CGI
         else
           params[name] = [body]
         end
-        break if buf.size == 0
+        break if buf.bytesize == 0
         break if content_length == -1
       end
       raise EOFError, "bad boundary end of body part" unless boundary_end=~/--/
@@ -1122,7 +1123,7 @@ class CGI
       end
 
       def print(data)
-        if @morph_check && (@cur_size + data.size > @threshold)
+        if @morph_check && (@cur_size + data.bytesize > @threshold)
           convert_body
         end
         @body.print data
@@ -1280,6 +1281,7 @@ class CGI
     #   - O EMPTY
     def nOE_element_def(element, append = nil)
       s = <<-END
+          attributes={attributes=>nil} if attributes.kind_of?(String)
           "<#{element.upcase}" + attributes.collect{|name, value|
             next unless value
             " " + CGI::escapeHTML(name) +
@@ -1386,11 +1388,11 @@ class CGI
     #
     #   blockquote("http://www.example.com/quotes/foo.html") { "Foo!" }
     #     #=> "<BLOCKQUOTE CITE=\"http://www.example.com/quotes/foo.html\">Foo!</BLOCKQUOTE>
-    def blockquote(cite = nil)  # :yield:
+    def blockquote(cite = {})  # :yield:
       attributes = if cite.kind_of?(String)
                      { "CITE" => cite }
                    else
-                     cite or ""
+                     cite
                    end
       if block_given?
         super(attributes){ yield }
@@ -1410,11 +1412,11 @@ class CGI
     #
     #   caption("left") { "Capital Cities" }
     #     # => <CAPTION ALIGN=\"left\">Capital Cities</CAPTION>
-    def caption(align = nil) # :yield:
+    def caption(align = {}) # :yield:
       attributes = if align.kind_of?(String)
                      { "ALIGN" => align }
                    else
-                     align or ""
+                     align
                    end
       if block_given?
         super(attributes){ yield }
@@ -1503,12 +1505,12 @@ class CGI
         if value.kind_of?(String)
           checkbox(name, value) + value
         else
-          if value[value.size - 1] == true
+          if value[value.bytesize - 1] == true
             checkbox(name, value[0], true) +
-            value[value.size - 2]
+            value[value.bytesize - 2]
           else
             checkbox(name, value[0]) +
-            value[value.size - 1]
+            value[value.bytesize - 1]
           end
         end
       }.join
@@ -1879,13 +1881,13 @@ class CGI
           if value.kind_of?(String)
             option({ "VALUE" => value }){ value }
           else
-            if value[value.size - 1] == true
+            if value[value.bytesize - 1] == true
               option({ "VALUE" => value[0], "SELECTED" => true }){
-                value[value.size - 2]
+                value[value.bytesize - 2]
               }
             else
               option({ "VALUE" => value[0] }){
-                value[value.size - 1]
+                value[value.bytesize - 1]
               }
             end
           end
@@ -1958,12 +1960,12 @@ class CGI
         if value.kind_of?(String)
           radio_button(name, value) + value
         else
-          if value[value.size - 1] == true
+          if value[value.bytesize - 1] == true
             radio_button(name, value[0], true) +
-            value[value.size - 2]
+            value[value.bytesize - 2]
           else
             radio_button(name, value[0]) +
-            value[value.size - 1]
+            value[value.bytesize - 1]
           end
         end
       }.join

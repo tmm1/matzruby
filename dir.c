@@ -429,10 +429,14 @@ dir_check(VALUE dir)
 } while (0)
 
 static VALUE
-dir_enc_str(VALUE str, struct dir_data *dirp)
+dir_enc_str_new(const char *p, long len, rb_encoding *enc)
 {
-    rb_enc_associate(str, dirp->extenc);
-    return str;
+    VALUE path = rb_tainted_str_new(p, len);
+    if (rb_enc_asciicompat(enc) && rb_enc_str_asciionly_p(path)) {
+	enc = rb_usascii_encoding();
+    }
+    rb_enc_associate(path, enc);
+    return path;
 }
 
 /*
@@ -495,7 +499,7 @@ dir_read(VALUE dir)
     errno = 0;
     dp = readdir(dirp->dir);
     if (dp) {
-	return dir_enc_str(rb_tainted_str_new(dp->d_name, NAMLEN(dp)), dirp);
+	return dir_enc_str_new(dp->d_name, NAMLEN(dp), dirp->extenc);
     }
     else if (errno == 0) {	/* end of stream */
 	return Qnil;
@@ -533,7 +537,7 @@ dir_each(VALUE dir)
     GetDIR(dir, dirp);
     rewinddir(dirp->dir);
     for (dp = readdir(dirp->dir); dp != NULL; dp = readdir(dirp->dir)) {
-	rb_yield(dir_enc_str(rb_tainted_str_new(dp->d_name, NAMLEN(dp)), dirp));
+	rb_yield(dir_enc_str_new(dp->d_name, NAMLEN(dp), dirp->extenc));
 	if (dirp->dir == NULL) dir_closed();
     }
     return dir;
@@ -1491,9 +1495,7 @@ rb_glob(const char *path, void (*func)(const char *, VALUE, void *), VALUE arg)
 static void
 push_pattern(const char *path, VALUE ary, void *enc)
 {
-    VALUE vpath = rb_tainted_str_new2(path);
-    rb_enc_associate(vpath, enc);
-    rb_ary_push(ary, vpath);
+    rb_ary_push(ary, dir_enc_str_new(path, strlen(path), enc));
 }
 
 static int
@@ -1593,6 +1595,7 @@ push_glob(VALUE ary, VALUE str, int flags)
     struct glob_args args;
     rb_encoding *enc = rb_enc_get(str);
 
+    if (enc == rb_usascii_encoding()) enc = rb_filesystem_encoding();
     args.func = push_pattern;
     args.value = ary;
     args.enc = enc;

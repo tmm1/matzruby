@@ -769,7 +769,7 @@ case $rb_cv_broken_glibc_ia64_erfc in
   yes) ac_cv_func_erf=no;;
 esac
 
-AC_REPLACE_FUNCS(dup2 memmove strerror strftime\
+AC_REPLACE_FUNCS(dup2 memmove strerror\
 		 strchr strstr crypt flock vsnprintf\
 		 isnan finite isinf hypot acosh erf tgamma lgamma_r cbrt \
                  strlcpy strlcat)
@@ -783,7 +783,7 @@ AC_CHECK_FUNCS(fmod killpg wait4 waitpid fork spawnv syscall chroot fsync getcwd
 	      dlopen sigprocmask sigaction sigsetjmp _setjmp _longjmp vsnprintf snprintf\
 	      setsid telldir seekdir fchmod cosh sinh tanh log2 round signbit\
 	      setuid setgid daemon select_large_fdset setenv unsetenv\
-              mktime timegm clock_gettime gettimeofday\
+              mktime timegm gmtime_r clock_gettime gettimeofday\
               pread sendfile shutdown)
 
 AC_CACHE_CHECK(for __builtin_setjmp, ac_cv_func___builtin_setjmp,
@@ -889,18 +889,16 @@ if test "[$rb_cv_var_]$1" != no; then
 fi])
 RUBY_CHECK_VARTYPE(timezone, [@%:@include <time.h>], [long int])
 RUBY_CHECK_VARTYPE(altzone, [@%:@include <time.h>], [long int])
-if test "$rb_cv_var_timezone" = no; then
-  AC_CHECK_FUNCS(timezone)
-  if test "$ac_cv_func_timezone" = yes; then
-    AC_CACHE_CHECK([whether timezone requires zero arguments], rb_cv_func_timezone_void,
-      [AC_TRY_COMPILE([@%:@include <time.h>],
-	[(void)timezone(0, 0);],
-	[rb_cv_func_timezone_void=no],
-	[rb_cv_func_timezone_void=yes])]
-    )
-    if test $rb_cv_func_timezone_void = yes; then
-      AC_DEFINE(TIMEZONE_VOID)
-    fi
+AC_CHECK_FUNCS(timezone)
+if test "$ac_cv_func_timezone" = yes; then
+  AC_CACHE_CHECK([whether timezone requires zero arguments], rb_cv_func_timezone_void,
+    [AC_TRY_COMPILE([@%:@include <time.h>],
+      [(void)timezone(0, 0);],
+      [rb_cv_func_timezone_void=no],
+      [rb_cv_func_timezone_void=yes])]
+  )
+  if test $rb_cv_func_timezone_void = yes; then
+    AC_DEFINE(TIMEZONE_VOID)
   fi
 fi
 
@@ -2111,6 +2109,18 @@ BUILTIN_ENCS=["`sed -n -e '/^BUILTIN_ENCS[ 	]*=/{' \
 BUILTIN_ENCOBJS=
 for e in $BUILTIN_ENCS; do BUILTIN_ENCOBJS="$BUILTIN_ENCOBJS `basename $e .c`"'.$(OBJEXT)'; done
 AC_SUBST(BUILTIN_ENCOBJS)
+
+BUILTIN_TRANSES=["`sed -n -e '/^BUILTIN_TRANSES[ 	]*=/{' \
+	-e s/// -e :l -e '/\\\\$/N' -e 's/\\\\\\n/ /' -e 't l' -e p \
+	-e '}' "${srcdir}/enc/Makefile.in"`"]
+BUILTIN_TRANSSRCS=
+BUILTIN_TRANSOBJS=
+for e in $BUILTIN_TRANSES; do
+  BUILTIN_TRANSSRCS="$BUILTIN_TRANSSRCS `basename $e .trans`"'.c';
+  BUILTIN_TRANSOBJS="$BUILTIN_TRANSOBJS `basename $e .trans`"'.$(OBJEXT)';
+done
+AC_SUBST(BUILTIN_TRANSSRCS)
+AC_SUBST(BUILTIN_TRANSOBJS)
 
 AC_CONFIG_FILES($FIRSTMAKEFILE)
 AC_CONFIG_FILES(Makefile, [{
