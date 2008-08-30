@@ -667,12 +667,11 @@ dir_close(VALUE dir)
     return Qnil;
 }
 
+#ifdef HAVE_FCHDIR
 static void
-dir_chdir(VALUE path)
+dir_fchdir(int dir, VALUE path)
 {
     rb_thread_t *th = GET_THREAD();
-#if USE_OPENAT
-    int dir = openat(th->cwd.fd, RSTRING_PTR(path), O_RDONLY);
     if (dir < 0)
 	rb_sys_fail(RSTRING_PTR(path));
     if (ruby_system_alone() && rb_thread_alone()) {
@@ -680,16 +679,47 @@ dir_chdir(VALUE path)
 	    rb_sys_fail(RSTRING_PTR(path));
 	}
     }
-    close(th->cwd.fd);
     th->cwd.fd = dir;
-#else
-    VALUE fullpath;
-    struct stat st;
-    const char *dir;
-    char *olddir = th->cwd.path;
+}
+#endif
 
-    RB_GC_GUARD(fullpath) = rb_file_expand_path(path, Qnil);
-    dir = RSTRING_PTR(fullpath);
+#ifdef HAVE_FCHDIR
+int
+ruby_dirfd(const char *path)
+{
+# if USE_OPENAT
+    rb_thread_t *th = GET_THREAD();
+    return openat(th->cwd.fd, path, O_RDONLY);
+# elif defined HAVE_DIRFD
+    DIR *cwd = opendir(path);
+    int fd = dup(dirfd(cwd));
+    closedir(cwd);
+    return fd;
+# elif defined O_DIRECTORY
+    return open(path, O_RDONLY|O_DIRECTORY);
+# else
+#   error don't know how to open directory.
+# endif
+}
+#endif
+
+#if USE_OPENAT
+static void
+dir_chdir(VALUE path)
+{
+    dir_fchdir(ruby_dirfd(RSTRING_PTR(dir)), path);
+}
+#define dir_chdir(path, fullpath) dir_chdir(path)
+#else
+static void
+dir_chdir(VALUE path, VALUE fullpath)
+{
+# ifdef HAVE_FCHDIR
+    dir_fchdir(ruby_dirfd(RSTRING_PTR(fullpath)), path);
+# else
+    struct stat st;
+    const char *dir = RSTRING_PTR(fullpath);
+
     if (eaccess(dir, X_OK) != 0 || stat(dir, &st) != 0 ||
 	(!S_ISDIR(st.st_mode) && (errno = ENOTDIR))) {
 	rb_sys_fail(RSTRING_PTR(path));
@@ -699,42 +729,33 @@ dir_chdir(VALUE path)
 	    rb_sys_fail(RSTRING_PTR(path));
 	}
     }
-    th->cwd.path = ruby_strdup(dir);
-    xfree(olddir);
-#endif
-}
-
-#ifdef HAVE_FCHDIR
-# if defined HAVE_OPENAT
-#   define get_cwd_fd() openat(GET_THREAD()->cwd.fd, ".", O_RDONLY)
-# elif defined HAVE_DIRFD
-int
-get_cwd_fd(void)
-{
-    DIR *cwd = opendir(GET_THREAD()->cwd.path);
-    int fd = dup(dirfd(cwd));
-    closedir(cwd);
-    return fd;
-}
-#   define get_cwd_fd() get_cwd_fd()
-# elif defined O_DIRECTORY
-#   define get_cwd_fd() open(GET_THREAD()->cwd.path, O_RDONLY|O_DIRECTORY)
+    GET_THREAD()->cwd.path = fullpath;
 # endif
+}
 #endif
 
 struct chdir_data {
     VALUE new_path;
-#ifdef get_cwd_fd
+#ifdef HAVE_FCHDIR
     int old_dir;
 #endif
+#if !USE_OPENAT
     VALUE old_path;
+#endif
     int done;
 };
+
+#ifdef HAVE_FCHDIR
+#define fd_path(c) rb_str_wrap_cstr(ruby_fd_getcwd((c)->old_dir))
+#else
+#define fd_path(c) (c)->old_path
+#endif
 
 static VALUE
 chdir_yield(struct chdir_data *args)
 {
-    dir_chdir(args->new_path);
+    dir_chdir(args->new_path,
+	      rb_file_absolute_path(args->new_path, fd_path(args)));
     args->done = Qtrue;
     return rb_yield(args->new_path);
 }
@@ -743,14 +764,13 @@ static VALUE
 chdir_restore(struct chdir_data *args)
 {
     if (args->done) {
-#ifdef get_cwd_fd
+#ifdef HAVE_FCHDIR
 	if (fchdir(args->old_dir) < 0) {
-	    close(args->old_dir);
-	    rb_sys_fail(RSTRING_PTR(args->old_path));
+	    rb_sys_fail(0);
 	}
-	close(args->old_dir);
+	GET_THREAD()->cwd.fd = args->old_dir;
 #else
-	dir_chdir(args->old_path);
+	dir_chdir(args->old_path, args->old_path);
 #endif
     }
     return Qnil;
@@ -760,10 +780,11 @@ static VALUE
 dir_chdir_block(VALUE path)
 {
     struct chdir_data args;
-#ifdef get_cwd_fd
-    args.old_dir = get_cwd_fd();
+#ifdef HAVE_FCHDIR
+    args.old_dir = GET_THREAD()->cwd.fd;
+#else
+    args.old_path = GET_THREAD()->cwd.path;
 #endif
-    args.old_path = rb_tainted_str_new2(GET_THREAD()->cwd.path);
     args.new_path = path;
     args.done = Qfalse;
     return rb_ensure(chdir_yield, (VALUE)&args, chdir_restore, (VALUE)&args);
@@ -830,7 +851,7 @@ dir_s_chdir(int argc, VALUE *argv, VALUE obj)
 	return dir_chdir_block(path);
     }
 
-    dir_chdir(path);
+    dir_chdir(path, rb_file_absolute_path(path, Qnil));
 
     return INT2FIX(0);
 }

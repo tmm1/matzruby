@@ -2290,6 +2290,19 @@ ruby_readlink(const char *path, long *len)
 }
 #endif
 
+#if HAVE_FCHDIR
+char *
+ruby_fd_getcwd(int fd)
+{
+    static const char fdpat[] = "/proc/self/fd/%d";
+    char fdname[sizeof(fdpat) + sizeof(int) * 5 / 2];
+    long len;
+
+    snprintf(fdname, sizeof(fdname), fdpat, fd);
+    return ruby_readlink(fdname, &len);
+}
+#endif
+
 /*
  *  call-seq:
  *     File.readlink(link_name) -> file_name

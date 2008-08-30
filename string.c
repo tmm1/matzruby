@@ -420,6 +420,12 @@ rb_str_wrap(char *ptr, long len)
 }
 
 VALUE
+rb_str_wrap_cstr(char *ptr)
+{
+    return rb_str_wrap(ptr, strlen(ptr));
+}
+
+VALUE
 rb_str_new(const char *ptr, long len)
 {
     return str_new(rb_cString, ptr, len);

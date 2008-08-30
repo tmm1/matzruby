@@ -2132,7 +2132,7 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
             return -1;
     }
     else {
-#if USE_OPENAT
+#ifdef HAVE_FCHDIR
         if (fchdir(GET_THREAD()->cwd.fd) == -1)
             return -1;
 #else

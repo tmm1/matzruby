@@ -510,10 +510,11 @@ struct rb_thread_struct
 #endif
 
     struct {
-#if USE_OPENAT
+#if HAVE_FCHDIR
 	int fd;
+#else
+	VALUE path;
 #endif
-	char *path;
     } cwd;
 
     struct rb_thread_struct *join_list_next;

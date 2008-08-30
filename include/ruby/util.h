@@ -64,6 +64,8 @@ char *ruby_strdup(const char *);
 #define strdup(s) ruby_strdup(s)
 
 char *ruby_getcwd(void);
+char *ruby_fd_getcwd(int);
+int ruby_dirfd(const char *);
 #define my_getcwd() ruby_getcwd()
 
 double ruby_strtod(const char *, char **);

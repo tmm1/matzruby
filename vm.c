@@ -1960,10 +1960,14 @@ Init_VM(void)
 	th->cfp->iseq = iseq;
 	th->cfp->pc = iseq->iseq_encoded;
 	vm_init_redefined_flag(vm);
-#if USE_OPENAT
-	th->cwd.fd = openat(AT_FDCWD, ".", O_RDONLY);
-#endif
+#ifdef HAVE_FCHDIR
+# ifdef AT_FDCWD
+	th->cwd.fd = AT_FDCWD;
+# endif
+	th->cwd.fd = ruby_dirfd(".");
+#else
 	th->cwd.path = ruby_getcwd();
+#endif
     }
 }
 

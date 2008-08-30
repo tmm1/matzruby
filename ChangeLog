@@ -1,3 +1,13 @@
+Sun Aug 31 00:02:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_wrap_cstr): new function.
+
+	* dir.c (ruby_dirfd): returns directory fd.
+
+	* dir.c (chdir_restore): restores thread cwd.
+
+	* file.c (ruby_fd_getcwd): returns path for fd.
+
 Sat Aug 30 22:45:00 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_queue_shift): fix memory leak.

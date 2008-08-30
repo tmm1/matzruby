@@ -531,6 +531,7 @@ VALUE rb_str_vcatf(VALUE, const char*, va_list);
 VALUE rb_str_format(int, const VALUE *, VALUE);
 /* string.c */
 VALUE rb_str_wrap(char*, long);
+VALUE rb_str_wrap_cstr(char *);
 VALUE rb_str_new(const char*, long);
 VALUE rb_str_new_cstr(const char*);
 VALUE rb_str_new2(const char*);
