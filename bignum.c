@@ -1801,9 +1801,8 @@ bigdivmod(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 	if (divp) *divp = bigadd(*divp, rb_int2big(1), 0);
 	if (modp) *modp = bigadd(mod, y, 1);
     }
-    else {
-	if (divp) *divp = *divp;
-	if (modp) *modp = mod;
+    else if (modp) {
+	*modp = mod;
     }
 }
 
@@ -2717,6 +2716,7 @@ Init_Bignum(void)
     rb_define_method(rb_cBignum, "hash", rb_big_hash, 0);
     rb_define_method(rb_cBignum, "to_f", rb_big_to_f, 0);
     rb_define_method(rb_cBignum, "abs", rb_big_abs, 0);
+    rb_define_method(rb_cBignum, "magnitude", rb_big_abs, 0);
     rb_define_method(rb_cBignum, "size", rb_big_size, 0);
     rb_define_method(rb_cBignum, "odd?", rb_big_odd_p, 0);
     rb_define_method(rb_cBignum, "even?", rb_big_even_p, 0);

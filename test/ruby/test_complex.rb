@@ -7,6 +7,10 @@ class Complex_Test < Test::Unit::TestCase
   def test_compsub
     c = ComplexSub.__send__(:new, 1)
     cc = ComplexSub.__send__(:convert, 1)
+
+    assert_kind_of(Numeric, c)
+    assert_kind_of(Numeric, cc)
+
     if defined?(ComplexSub::Unify)
       assert_instance_of(Fixnum, c)
       assert_instance_of(Fixnum, cc)
@@ -181,10 +185,12 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(4, c.real)
     assert_equal(5, c.image)
 
-    c = Complex(-0.0,-0.0)
+    if -0.0.to_s == '-0.0'
+      c = Complex(-0.0,-0.0)
 
-    assert_equal('-0.0', c.real.to_s)
-    assert_equal('-0.0', c.image.to_s)
+      assert_equal('-0.0', c.real.to_s)
+      assert_equal('-0.0', c.image.to_s)
+    end
 
     c = Complex.__send__(:new, 4)
 
@@ -198,11 +204,13 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(5, c.image)
     assert_equal(c.imag, c.image)
 
-    c = Complex.__send__(:new, -0.0,-0.0)
+    if -0.0.to_s == '-0.0'
+      c = Complex.__send__(:new, -0.0,-0.0)
 
-    assert_equal('-0.0', c.real.to_s)
-    assert_equal('-0.0', c.image.to_s)
-    assert_equal(c.imag.to_s, c.image.to_s)
+      assert_equal('-0.0', c.real.to_s)
+      assert_equal('-0.0', c.image.to_s)
+      assert_equal(c.imag.to_s, c.image.to_s)
+    end
 
     c = Complex.__send__(:new!, 4)
 
@@ -273,6 +281,15 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(Complex(1,0), Complex(1,0).nonzero?)
     assert_equal(Complex(0,1), Complex(0,1).nonzero?)
     assert_equal(Complex(1,1), Complex(1,1).nonzero?)
+  end
+
+  def rect
+    assert_equal([1,2], Complex.rectangular(1,2).rectangular)
+    assert_equal([1,2], Complex.rect(1,2).rect)
+  end
+
+  def polar
+    assert_equal([1,2], Complex.polar(1,2).polar)
   end
 
   def test_uplus
@@ -503,10 +520,23 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(false, Complex(1) == '')
   end
 
+  def test_unify
+    if defined?(Complex::Unify)
+      assert_instance_of(Fixnum, Complex(1,2) + Complex(-1,-2))
+      assert_instance_of(Fixnum, Complex(1,2) - Complex(1,2))
+      assert_instance_of(Fixnum, Complex(1,2) * 0)
+      assert_instance_of(Fixnum, Complex(1,2) / Complex(1,2))
+      assert_instance_of(Fixnum, Complex(1,2).div(Complex(1,2)))
+      assert_instance_of(Fixnum, Complex(1,2).quo(Complex(1,2)))
+#      assert_instance_of(Fixnum, Complex(1,2) ** 0) # mathn's bug
+    end
+  end
+
   def test_math
     c = Complex(1,2)
 
     assert_in_delta(2.236, c.abs, 0.001)
+    assert_in_delta(2.236, c.magnitude, 0.001)
     assert_equal(5, c.abs2)
 
     assert_equal(c.abs, Math.sqrt(c * c.conj))
@@ -516,6 +546,7 @@ class Complex_Test < Test::Unit::TestCase
 
     assert_in_delta(1.107, c.arg, 0.001)
     assert_in_delta(1.107, c.angle, 0.001)
+    assert_in_delta(1.107, c.phase, 0.001)
 
     r = c.polar
     assert_in_delta(2.236, r[0], 0.001)
@@ -598,6 +629,7 @@ class Complex_Test < Test::Unit::TestCase
   def test_parse
     assert_equal(Complex(0), ''.to_c)
     assert_equal(Complex(0), ' '.to_c)
+    assert_equal(Complex(5), "\f\n\r\t\v5\0".to_c)
     assert_equal(Complex(5), '5'.to_c)
     assert_equal(Complex(-5), '-5'.to_c)
     assert_equal(Complex(5,3), '5+3i'.to_c)
@@ -705,6 +737,7 @@ class Complex_Test < Test::Unit::TestCase
     assert_raise(ArgumentError){ Complex('5+3_i')}
     assert_raise(ArgumentError){ Complex('5+3i_')}
     assert_raise(ArgumentError){ Complex('5+3ix')}
+    assert_raise(ArgumentError){ Complex("5\0")}
 
     if defined?(Rational) && defined?(''.to_r)
       assert_equal(Complex(Rational(1,5)), '1/5'.to_c)
@@ -818,17 +851,36 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(0, 1.1.image)
     assert_equal(0, 1.1.imag)
 
+    assert_equal(1, 1.magnitude)
+    assert_equal(1, -1.magnitude)
+    assert_equal(1, 1.0.magnitude)
+    assert_equal(1, -1.0.magnitude)
+
     assert_equal(0, 1.arg)
     assert_equal(0, 1.angle)
+    assert_equal(0, 1.phase)
 
     assert_equal(0, 1.0.arg)
     assert_equal(0, 1.0.angle)
+    assert_equal(0, 1.0.phase)
 
     assert_equal(Math::PI, -1.arg)
     assert_equal(Math::PI, -1.angle)
+    assert_equal(Math::PI, -1.phase)
 
     assert_equal(Math::PI, -1.0.arg)
     assert_equal(Math::PI, -1.0.angle)
+    assert_equal(Math::PI, -1.0.phase)
+
+    assert_equal([1,0], 1.rect)
+    assert_equal([-1,0], -1.rect)
+    assert_equal([1,0], 1.rectangular)
+    assert_equal([-1,0], -1.rectangular)
+
+    assert_equal([1.0,0], 1.0.rect)
+    assert_equal([-1.0,0], -1.0.rect)
+    assert_equal([1.0,0], 1.0.rectangular)
+    assert_equal([-1.0,0], -1.0.rectangular)
 
     assert_equal([1,0], 1.polar)
     assert_equal([1, Math::PI], -1.polar)
@@ -846,46 +898,14 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(1.1, 1.1.conj)
     assert_equal(-1.1, -1.1.conj)
 
-    assert_equal(1, 1.numerator)
-    assert_equal(9, 9.numerator)
-    assert_equal(1, 1.denominator)
-    assert_equal(1, 9.denominator)
-
-    if defined?(Rational) && !Rational.instance_variable_get('@RCS_ID')
-      assert_equal(1.0, 1.0.numerator)
-      assert_equal(9.0, 9.0.numerator)
-      assert_equal(1.0, 1.0.denominator)
-      assert_equal(1.0, 9.0.denominator)
-    end
-
-=begin
-    if defined?(Rational) && !Rational.instance_variable_get('@RCS_ID')
-      assert_equal(Rational(1,9), 9.reciprocal)
-      assert_equal(Rational(1,9), 9.0.reciprocal)
-      assert_equal(Rational(1,9), 9.inverse)
-      assert_equal(Rational(1,9), 9.0.inverse)
-    end
-=end
-
     if defined?(Rational)
-      assert_equal(Rational(1,2), 1.quo(2))
-      assert_equal(Rational(5000000000), 10000000000.quo(2))
-      assert_equal(0.5, 1.0.quo(2))
-      assert_equal(Rational(1,4), Rational(1,2).quo(2))
       assert_equal(Complex(Rational(1,2),Rational(1)), Complex(1,2).quo(2))
     else
-      assert_equal(0.5, 1.quo(2))
-      assert_equal(5000000000.0, 10000000000.quo(2))
-      assert_equal(0.5, 1.0.quo(2))
       assert_equal(Complex(0.5,1.0), Complex(1,2).quo(2))
     end
 
 =begin
     if defined?(Rational) && !Rational.instance_variable_get('@RCS_ID')
-      assert_equal(Rational(1,2), 1.rdiv(2))
-      assert_equal(Rational(5000000000), 10000000000.rdiv(2))
-      assert_equal(Rational(1,2), 1.0.rdiv(2))
-      assert_equal(Rational(1,4), Rational(1,2).rdiv(2))
       assert_equal(Complex(Rational(1,2),Rational(1)), Complex(1,2).quo(2))
     end
 =end
@@ -1007,132 +1027,6 @@ class Complex_Test < Test::Unit::TestCase
     end
 
   end
-
-=begin
-  def test_canonicalize
-    f = defined?(Complex::Unify)
-    Complex.const_set(:Unify, true) unless f
-
-    assert_same(1, Complex.instance_eval { new(1, 0) })
-    assert_not_same(1.0, Complex.instance_eval { new(1.0, 0) })
-    assert_equal(Complex(1.0, 0), Complex.instance_eval { new(1.0, 0) })
-
-    Complex.instance_eval { remove_const(:Unify) } unless f
-  end
-
-  def test_polar
-    c = Complex.polar(2, 2)
-    assert_in_delta(2*Math.cos(2), c.real , 0.001)
-    assert_in_delta(2*Math.sin(2), c.image, 0.001)
-
-    c = Complex.polar(1, Complex(0, 1))
-    assert_in_delta(1/Math::E, c.real , 0.001)
-    assert_in_delta(        0, c.image, 0.001)
-  end
-
-  def test_generic?
-    assert_equal(true, Complex.generic?(1))
-    assert_equal(true, Complex.generic?(2**100))
-    assert_equal(true, Complex.generic?(Rational(1, 2)))
-    assert_equal(true, Complex.generic?(1.0))
-    assert_equal(false, Complex.generic?(Complex(1, 1)))
-  end
-
-  def test_new_bang2
-    o = Object.new
-    def o.to_i; 1; end
-    assert_equal(Complex(1, 1), Complex.instance_eval { new!(o, o) })
-  end
-
-  def test_denominator
-    f = defined?(Complex::Unify)
-    unify_val = f && Complex::Unify
-    Complex.instance_eval { remove_const(:Unify) } if f
-
-    dummy_rational = Class.new(Rational)
-    o1 = dummy_rational.instance_eval { new(1, 1) }
-    o2 = dummy_rational.instance_eval { new(1, 1) }
-    d1 = d2 = nil
-    class << o1; self; end.instance_eval { define_method(:denominator) { d1 } rescue nil }
-    class << o2; self; end.instance_eval { define_method(:denominator) { d2 } rescue nil }
-    # o1.denominator returns d1 and o1.denominator returns d2
-
-    c = Complex(o1, o2)
-
-    d1 = d2 = 0
-    assert_equal(0, c.denominator)
-
-    d1 = d2 = -1
-    assert_equal(1, c.denominator)
-
-    d1 = d2 = 256
-    assert_equal(256, c.denominator)
-
-    d1, d2 = 512, 256
-    assert_equal(512, c.denominator)
-
-    d1, d2 = 256, 512
-    assert_equal(512, c.denominator)
-
-    d1, d2 = -(2**100), -(3**100)
-    assert_equal(6**100, c.denominator)
-
-    d1, d2 = 1, 2**100
-    assert_equal(2**100, c.denominator)
-
-    Complex.const_set(:Unify, unify_val) if f
-  end
-
-  def test_abs
-    b = 2**100
-    def b.*(x); self; end rescue nil
-    def b.+(x); -1; end rescue nil
-    assert_equal(Complex(0, 1), Complex(b, 1).abs)
-
-    def b.+(x); Complex(0, 1); end rescue nil
-    c = Complex(b, 1).abs
-    assert_in_delta(1/Math.sqrt(2), c.real , 0.001)
-    assert_in_delta(1/Math.sqrt(2), c.image, 0.001)
-
-    def b.+(x); Complex(0, -1); end rescue nil
-    c = Complex(b, 1).abs
-    assert_in_delta( 1/Math.sqrt(2), c.real , 0.001)
-    assert_in_delta(-1/Math.sqrt(2), c.image, 0.001)
-
-    inf = 1.0/0.0
-    nan = inf/inf
-    assert_raise(Errno::EDOM, Errno::ERANGE) { Complex(1, nan).abs }
-  end
-
-  def test_coerce
-    c = Complex(6, 3)
-    assert_equal(Complex(42, 0), c.coerce(42).first)
-    assert_raise(TypeError) { c.coerce(Object.new) }
-
-    o = Object.new
-    def o.coerce(x); [x.real, x.image]; end
-    assert_equal(9, c + o)
-    assert_equal(3, c - o)
-    assert_equal(18, c * o)
-    assert_equal(2, c / o)
-    assert_equal(216, c ** o)
-  end
-
-  def test_add2
-    assert_equal(Complex(2**100, 1), Complex(0, 1) + 2**100)
-  end
-
-  def test_mul2
-    assert_equal(Complex(0.0, 0.0), Complex(1.0, 1.0) * 0)
-    assert_equal(Complex(0, 0), Complex(0, 0) * (2**100))
-  end
-
-  def test_expt2
-    assert_equal(Complex(1, 0), Complex(2, 2) ** 0)
-    assert_equal(Complex(0, -1), Complex(0, 1) ** (2**100-1))
-    assert_equal(Complex(1, 0), Complex(1, 0) ** Rational(1, 2**100))
-  end
-=end
 
   def test_fixed_bug
     if defined?(Rational) && !Rational.instance_variable_get('@RCS_ID')

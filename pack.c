@@ -1153,7 +1153,7 @@ static int
 b64_xtable_once(volatile signed char *init, rb_thread_lock_t *lock)
 {
     signed char t;
-    while ((t = *init) < 0 && (ruby_native_thread_yield(), 1));
+    while ((t = *init) < 0) ruby_native_thread_yield();
     if (t > 0) return 0;
     ruby_native_thread_lock(lock);
     if (*init <= 0) return 1;

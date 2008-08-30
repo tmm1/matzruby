@@ -225,8 +225,6 @@ k_rational_p(VALUE x)
 inline static long
 i_gcd(long x, long y)
 {
-    long b;
-
     if (x < 0)
 	x = -x;
     if (y < 0)
@@ -237,32 +235,12 @@ i_gcd(long x, long y)
     if (y == 0)
 	return x;
 
-    b = 0;
-    while ((x & 1) == 0 && (y & 1) == 0) {
-	b += 1;
-	x >>= 1;
-	y >>= 1;
+    while (x > 0) {
+	long t = x;
+	x = y % x;
+	y = t;
     }
-
-    while ((x & 1) == 0)
-	x >>= 1;
-
-    while ((y & 1) == 0)
-	y >>= 1;
-
-    while (x != y) {
-	if (y > x) {
-	    long t;
-	    t = x;
-	    x = y;
-	    y = t;
-	}
-	x -= y;
-	while ((x & 1) == 0)
-	    x >>= 1;
-    }
-
-    return x << b;
+    return y;
 }
 
 inline static VALUE
@@ -1234,10 +1212,11 @@ static int vmkey_rat_pat, vmkey_an_e_pat, vmkey_a_dot_pat,
 #define underscores_pat *rb_vm_specific_ptr(vmkey_underscores_pat)
 #define an_underscore *rb_vm_specific_ptr(vmkey_an_underscore)
 
+#define WS "\\s*"
 #define DIGITS "(?:\\d(?:_\\d|\\d)*)"
 #define NUMERATOR "(?:" DIGITS "?\\.)?" DIGITS "(?:[eE][-+]?" DIGITS ")?"
 #define DENOMINATOR DIGITS
-#define PATTERN "\\A([-+])?(" NUMERATOR ")(?:\\/(" DENOMINATOR "))?"
+#define PATTERN "\\A" WS "([-+])?(" NUMERATOR ")(?:\\/(" DENOMINATOR "))?" WS
 
 static void
 make_patterns(void)
@@ -1272,9 +1251,6 @@ make_patterns(void)
     rb_global_variable(&an_underscore);
 }
 
-#define id_strip rb_intern("strip")
-#define f_strip(x) rb_funcall(x, id_strip, 0)
-
 #define id_match rb_intern("match")
 #define f_match(x,y) rb_funcall(x, id_match, 1, y)
 
@@ -1294,7 +1270,7 @@ string_to_r_internal(VALUE self)
 {
     VALUE s, m;
 
-    s = f_strip(self);
+    s = self;
 
     if (RSTRING_LEN(s) == 0)
 	return rb_assoc_new(Qnil, self);

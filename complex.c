@@ -756,6 +756,13 @@ nucomp_arg(VALUE self)
 }
 
 static VALUE
+nucomp_rect(VALUE self)
+{
+    get_dat1(self);
+    return rb_assoc_new(dat->real, dat->image);
+}
+
+static VALUE
 nucomp_polar(VALUE self)
 {
     return rb_assoc_new(f_abs(self), f_arg(self));
@@ -1011,14 +1018,15 @@ static int vmkey_comp_pat0, vmkey_comp_pat1, vmkey_comp_pat2, vmkey_a_slash, vmk
 #define underscores_pat *rb_vm_specific_ptr(vmkey_underscores_pat)
 #define an_underscore *rb_vm_specific_ptr(vmkey_an_underscore)
 
+#define WS "\\s*"
 #define DIGITS "(?:\\d(?:_\\d|\\d)*)"
 #define NUMERATOR "(?:" DIGITS "?\\.)?" DIGITS "(?:[eE][-+]?" DIGITS ")?"
 #define DENOMINATOR DIGITS
 #define NUMBER "[-+]?" NUMERATOR "(?:\\/" DENOMINATOR ")?"
 #define NUMBERNOS NUMERATOR "(?:\\/" DENOMINATOR ")?"
-#define PATTERN0 "\\A(" NUMBER ")@(" NUMBER ")"
-#define PATTERN1 "\\A([-+])?(" NUMBER ")?[iIjJ]"
-#define PATTERN2 "\\A(" NUMBER ")(([-+])(" NUMBERNOS ")?[iIjJ])?"
+#define PATTERN0 "\\A" WS "(" NUMBER ")@(" NUMBER ")" WS
+#define PATTERN1 "\\A" WS "([-+])?(" NUMBER ")?[iIjJ]" WS
+#define PATTERN2 "\\A" WS "(" NUMBER ")(([-+])(" NUMBERNOS ")?[iIjJ])?" WS
 
 static void
 make_patterns(void)
@@ -1057,9 +1065,6 @@ make_patterns(void)
     an_underscore = rb_str_new2("_");
 }
 
-#define id_strip rb_intern("strip")
-#define f_strip(x) rb_funcall(x, id_strip, 0)
-
 #define id_match rb_intern("match")
 #define f_match(x,y) rb_funcall(x, id_match, 1, y)
 
@@ -1086,7 +1091,7 @@ string_to_c_internal(VALUE self)
 {
     VALUE s;
 
-    s = f_strip(self);
+    s = self;
 
     if (RSTRING_LEN(s) == 0)
 	return rb_assoc_new(Qnil, self);
@@ -1305,6 +1310,12 @@ numeric_arg(VALUE self)
 }
 
 static VALUE
+numeric_rect(VALUE self)
+{
+    return rb_assoc_new(self, ZERO);
+}
+
+static VALUE
 numeric_polar(VALUE self)
 {
     return rb_assoc_new(f_abs(self), f_arg(self));
@@ -1374,10 +1385,8 @@ Init_Complex(void)
     rb_funcall(rb_cComplex, rb_intern("private_class_method"), 1,
 	       ID2SYM(rb_intern("new")));
 
-#if 0
-    rb_define_singleton_method(rb_cComplex, "rect", nucomp_s_new, -1);
     rb_define_singleton_method(rb_cComplex, "rectangular", nucomp_s_new, -1);
-#endif
+    rb_define_singleton_method(rb_cComplex, "rect", nucomp_s_new, -1);
     rb_define_singleton_method(rb_cComplex, "polar", nucomp_s_polar, 2);
 
     rb_define_global_function(COMPLEX_NAME, nucomp_f_complex, -1);
@@ -1416,12 +1425,13 @@ Init_Complex(void)
     rb_define_method(rb_cComplex, "coerce", nucomp_coerce, 1);
 
     rb_define_method(rb_cComplex, "abs", nucomp_abs, 0);
-#if 0
     rb_define_method(rb_cComplex, "magnitude", nucomp_abs, 0);
-#endif
     rb_define_method(rb_cComplex, "abs2", nucomp_abs2, 0);
     rb_define_method(rb_cComplex, "arg", nucomp_arg, 0);
     rb_define_method(rb_cComplex, "angle", nucomp_arg, 0);
+    rb_define_method(rb_cComplex, "phase", nucomp_arg, 0);
+    rb_define_method(rb_cComplex, "rectangular", nucomp_rect, 0);
+    rb_define_method(rb_cComplex, "rect", nucomp_rect, 0);
     rb_define_method(rb_cComplex, "polar", nucomp_polar, 0);
     rb_define_method(rb_cComplex, "conjugate", nucomp_conjugate, 0);
     rb_define_method(rb_cComplex, "conj", nucomp_conjugate, 0);
@@ -1473,6 +1483,9 @@ Init_Complex(void)
     rb_define_method(rb_cNumeric, "imag", numeric_image, 0);
     rb_define_method(rb_cNumeric, "arg", numeric_arg, 0);
     rb_define_method(rb_cNumeric, "angle", numeric_arg, 0);
+    rb_define_method(rb_cNumeric, "phase", numeric_arg, 0);
+    rb_define_method(rb_cNumeric, "rectangular", numeric_rect, 0);
+    rb_define_method(rb_cNumeric, "rect", numeric_rect, 0);
     rb_define_method(rb_cNumeric, "polar", numeric_polar, 0);
     rb_define_method(rb_cNumeric, "conjugate", numeric_conjugate, 0);
     rb_define_method(rb_cNumeric, "conj", numeric_conjugate, 0);

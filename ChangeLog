@@ -1,3 +1,71 @@
+Sat Aug 30 10:46:44 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* ext/iconv/iconv.c: remove include pragma for "ruby/intern.h".
+
+Sat Aug 30 10:43:03 2008 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* parse.y: remove include pragma for "ruby/intern.h".
+
+Sat Aug 30 10:41:57 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/rake.rb (Rake::Application#help): fix for OPTIONAL_ARGUMENT and
+	  multiple short options.  [ruby-dev:36051]
+
+Sat Aug 30 08:59:25 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h (rb_file_s_absolute_path),
+	  (rb_file_absolute_path): prototyped.
+
+Sat Aug 30 08:09:36 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* encoding.c (enc_compatible_p): use TYPE not BUILTIN_TYPE.
+	  [ruby-dev:36048]
+
+Sat Aug 30 07:48:48 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* encoding.c (enc_compatible_p): add SPECIAL_CONST_P check.
+	  [ruby-dev:36048]
+
+	* test/ruby/test_m17n.rb (test_compatible): fix test.
+
+Sat Aug 30 02:48:11 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* object.c (rb_obj_freeze): update rdoc to mention RuntimeError
+	  (not TypeError any longer) would be raised.  [ruby-dev:35982]
+
+Sat Aug 30 01:55:30 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* bignum.c (bigdivmod): remove redundant code.  a patch from
+	  TOYOFUKU Chikanobu <nobu_toyofuku at nifty.com> in [ruby-dev:36044].
+
+Sat Aug 30 01:37:20 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/cgi.rb (CGI#initialize): remove unused constants.  a patch
+	  from Takeyuki Fujioka in [ruby-dev:36046].
+
+Fri Aug 29 22:29:41 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c ({nucomp,numeric}_rect): new.
+
+	* complex.c: added some aliases
+	  (::rectangular, ::rect, #rectangular, #rect, #phase,
+	  #magnitude).
+
+	* complex.c (string_to_c_internal): should not strip any null
+	  bytes.
+
+	* rational.c (string_to_r_internal): ditto.
+
+	* rational.c (i_gcd): reverted to nurat 0.0.2's one.
+
+	* numeric.c: added an alias (#magnitude).
+
+	* bignum.c: ditto.
+
+	* test/ruby/test_complex.rb: added assertions.
+
+	* test/ruby/test_rational.rb: ditto.
+
 Fri Aug 29 19:46:02 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* gc.c, include/ruby/ruby.h: rename T_DEFERRED to T_ZOMBIE.

@@ -3906,8 +3906,6 @@ rb_io_extract_modeenc(VALUE *mode_p, VALUE opthash,
 struct sysopen_struct {
 #if USE_OPENAT
     int base;
-#else
-    VALUE fullpath;
 #endif
     const char *fname;
     int flag;
@@ -3931,42 +3929,47 @@ rb_sysopen_internal(char *fname, int flags, mode_t mode)
     struct sysopen_struct data;
 
 #if USE_OPENAT
-    data->base = GET_THREAD()->cwd.fd;
-#else
-    if (ruby_absolute_path_p(fname)) {
-	data->fullpath = Qnil;
-    }
-    else {
-	data->fullpath = rb_file_expand_path(rb_str_new2(fname), Qnil);
-	fname = RSTRING_PTR(data->fullpath);
-    }
+    data.base = GET_THREAD()->cwd.fd;
 #endif
-    data->fname = fname;
-    data->flag = flags;
-    data->mode = mode;
-    return (int)rb_thread_blocking_region(sysopen_func, data, RB_UBF_DFL, 0);
+    data.fname = fname;
+    data.flag = flags;
+    data.mode = mode;
+    return (int)rb_thread_blocking_region(sysopen_func, &data, RB_UBF_DFL, 0);
 }
 
 static int
 rb_sysopen(char *fname, int flags, mode_t mode)
 {
     int fd;
-    struct sysopen_struct data;
+#if !USE_OPENAT
+    volatile VALUE fullpath;
+#endif
 
 #ifdef O_BINARY
     flags |= O_BINARY;
+#endif
+
+#if !USE_OPENAT
+    if (!ruby_absolute_path_p(fname)) {
+	fullpath = rb_file_absolute_path(rb_str_new2(fname), Qnil);
+	fname = RSTRING_PTR(fullpath);
+    }
 #endif
 
     fd = rb_sysopen_internal(fname, flags, mode);
     if (fd < 0) {
 	if (errno == EMFILE || errno == ENFILE) {
 	    rb_gc();
-	    fd = rb_sysopen_internal(&data);
+	    fd = rb_sysopen_internal(fname, flags, mode);
 	}
 	if (fd < 0) {
 	    rb_sys_fail(fname);
 	}
     }
+
+#if !USE_OPENAT
+    RB_GC_GUARD(fullpath);
+#endif
     UPDATE_MAXFD(fd);
     return fd;
 }
@@ -4123,7 +4126,7 @@ rb_openat(int argc, VALUE *argv, int base, const char *path)
     }
 #undef RB_DO_OPENAT
     fptr->fd = fd;
-    fptr->path = strdup(fullpath);
+    fptr->pathv = fname;
     if (rb_block_given_p()) {
 	return rb_ensure(rb_yield, newio, io_close, newio);
     }
@@ -5944,7 +5947,7 @@ argf_next_argv(VALUE argf)
 		argf_of(argf).current_file = prep_io(fr, FMODE_READABLE, rb_cFile, fn);
 	    }
 	    if (argf_of(argf).binmode) rb_io_binmode(argf_of(argf).current_file);
-	    if (argf_of(argf).enc) {
+	    if (argf_of(argf).encs.enc) {
 		rb_io_t *fptr;
 
 		GetOpenFile(argf_of(argf).current_file, fptr);

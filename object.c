@@ -749,7 +749,7 @@ rb_obj_infect(VALUE obj1, VALUE obj2)
  *     obj.freeze    => obj
  *  
  *  Prevents further modifications to <i>obj</i>. A
- *  <code>TypeError</code> will be raised if modification is attempted.
+ *  <code>RuntimeError</code> will be raised if modification is attempted.
  *  There is no way to unfreeze a frozen object. See also
  *  <code>Object#frozen?</code>.
  *     
@@ -759,7 +759,7 @@ rb_obj_infect(VALUE obj1, VALUE obj2)
  *     
  *  <em>produces:</em>
  *     
- *     prog.rb:3:in `<<': can't modify frozen array (TypeError)
+ *     prog.rb:3:in `<<': can't modify frozen array (RuntimeError)
  *     	from prog.rb:3
  */
 
