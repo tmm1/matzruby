@@ -1978,8 +1978,6 @@ garbage_collect(rb_objspace_t *objspace)
 	rb_gc_mark_maybe(*list->varptr);
     }
 
-    rb_gc_mark_trap_list();
-
     /* mark generic instance variables for special constants */
     rb_mark_generic_ivar_tbl();
 

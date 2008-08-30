@@ -2247,28 +2247,36 @@ rb_gc_save_machine_context(rb_thread_t *th)
  *
  */
 
-int ruby_vm_get_next_signal(rb_vm_t *vm);
+int rb_get_next_signal(void);
 
 static int
-vm_timer_thread_function(rb_vm_t *vm, void *arg)
+vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
 {
-    /* for time slice */
     RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
+    return Qtrue;
+}
 
-    /* check signal */
-    if (vm->signal.buffered_size && vm->main_thread->exec_signal == 0) {
+static int
+vm_send_signal(rb_vm_t *vm, void *sig)
+{
+    if (vm->main_thread->exec_signal == 0) {
 	rb_thread_t *mth = vm->main_thread;
 	enum rb_thread_status prev_status = mth->status;
-	mth->exec_signal = ruby_vm_get_next_signal(vm);
-	thread_debug("main_thread: %s\n", thread_status_name(prev_status));
-	thread_debug("buffered_signal_size: %ld, sig: %d\n",
-		     (long)vm->signal.buffered_size, vm->main_thread->exec_signal);
+	mth->exec_signal = (VALUE)sig;
+	thread_debug("main_thread: %s, sig: %d\n",
+		     thread_status_name(prev_status),
+		     vm->main_thread->exec_signal);
 	if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
 	rb_thread_interrupt(mth);
 	mth->status = prev_status;
     }
+    return Qtrue;
+}
 
 #if 0
+static int
+vm_prove_profile(rb_vm_t *vm, void *sig)
+{
     /* prove profiler */
     if (vm->prove_profile.enable) {
 	rb_thread_t *th = vm->running_thread;
@@ -2277,15 +2285,26 @@ vm_timer_thread_function(rb_vm_t *vm, void *arg)
 	    /* GC prove profiling */
 	}
     }
-#endif
-
     return Qtrue;
 }
+#endif
 
 static void
 timer_thread_function(void *arg)
 {
-    ruby_vm_foreach(vm_timer_thread_function, arg);
+    int sig;
+
+    /* for time slice */
+    ruby_vm_foreach(vm_set_timer_interrupt, 0);
+
+    /* check signal */
+    while ((sig = rb_get_next_signal()) > 0) {
+	ruby_vm_foreach(vm_send_signal, (void *)(VALUE)sig);
+    }
+
+#if 0
+    ruby_vm_foreach(vm_prove_profile, 0);
+#endif
 }
 
 void

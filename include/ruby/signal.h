@@ -9,8 +9,8 @@
 
 **********************************************************************/
 
-#ifndef RUBYSIG_H
-#define RUBYSIG_H 1
+#ifndef RUBY_SIGNAL_H
+#define RUBY_SIGNAL_H 1
 
 #if defined(__cplusplus)
 extern "C" {
@@ -76,7 +76,6 @@ RUBY_EXTERN int rb_prohibit_interrupt;
 
 VALUE rb_with_disable_interrupt(VALUE(*)(ANYARGS),VALUE);
 
-RUBY_EXTERN rb_atomic_t rb_trap_pending;
 void rb_trap_restore_mask(void);
 
 RUBY_EXTERN int rb_thread_critical;
@@ -89,4 +88,4 @@ void rb_thread_schedule(void);
 }  /* extern "C" { */
 #endif
 
-#endif /* RUBYSIG_H */
+#endif /* RUBY_SIGNAL_H */

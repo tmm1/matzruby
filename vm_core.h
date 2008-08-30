@@ -40,6 +40,8 @@
 #ifndef NSIG
 # ifdef DJGPP
 #  define NSIG SIGMAX
+# elif defined MACOS_UNUSE_SIGNAL
+#  define NSIG 1
 # else
 #  define NSIG (_SIGMAX + 1)      /* For QNX */
 # endif
@@ -336,13 +338,12 @@ struct rb_vm_struct
     VALUE load_path;
     VALUE loaded_features;
     struct st_table *loading_table;
-    
+
     /* signal */
     struct {
-	rb_thread_lock_t lock;
-	rb_atomic_t buff[RUBY_NSIG];
-	rb_atomic_t buffered_size;
-    } signal;
+	VALUE cmd;
+	int safe;
+    } trap_list[RUBY_NSIG];
 
     /* hook */
     rb_event_hook_t *event_hooks;

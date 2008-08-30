@@ -1,3 +1,21 @@
+Sat Aug 30 16:38:23 2008    <nobu@ruby-lang.org>
+
+	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
+	  staff.
+
+	* signal.c (signal_buff): per process resouce now.
+
+	* signal.c (trap_list): moved to VM.
+
+	* signal.c (rb_get_next_signal): reverted.
+
+	* signal.c (rb_trap_exit): trap_pending_list was no longer used.
+
+	* thread.c (timer_thread_function): delivers buffered per-process
+	  signals to each VMs.
+
+	* vm.c (rb_vm_mark): marks trap_list.
+
 Sat Aug 30 10:46:44 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* ext/iconv/iconv.c: remove include pragma for "ruby/intern.h".

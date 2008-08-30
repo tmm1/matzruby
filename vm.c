@@ -1426,6 +1426,8 @@ mark_event_hooks(rb_event_hook_t *hook)
 void
 rb_vm_mark(void *ptr)
 {
+    int i;
+
     RUBY_MARK_ENTER("vm");
     RUBY_GC_INFO("-------------------------------------------------\n");
     if (ptr) {
@@ -1448,6 +1450,11 @@ rb_vm_mark(void *ptr)
 	rb_mark_end_proc(vm->end_procs);
 
 	mark_event_hooks(vm->event_hooks);
+
+	for (i = 0; i < RUBY_NSIG; i++) {
+	    if (vm->trap_list[i].cmd)
+		rb_gc_mark(vm->trap_list[i].cmd);
+	}
     }
 
     RUBY_MARK_LEAVE("vm");
@@ -1462,7 +1469,6 @@ vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
-    ruby_native_thread_lock_initialize(&vm->signal.lock);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
@@ -1474,28 +1480,6 @@ int
 ruby_vm_send_signal(rb_vm_t *vm, int sig)
 {
     if (sig <= 0 || sig >= RUBY_NSIG) return -1;
-    ruby_native_thread_lock(&vm->signal.lock);
-    ATOMIC_INC(vm->signal.buff[sig]);
-    ATOMIC_INC(vm->signal.buffered_size);
-    ruby_native_thread_unlock(&vm->signal.lock);
-    return sig;
-}
-
-int
-ruby_vm_get_next_signal(rb_vm_t *vm)
-{
-    int i, sig = 0;
-
-    ruby_native_thread_lock(&vm->signal.lock);
-    for (i = 1; i < RUBY_NSIG; i++) {
-	if (vm->signal.buff[i] > 0) {
-	    ATOMIC_DEC(vm->signal.buff[i]);
-	    ATOMIC_DEC(vm->signal.buffered_size);
-	    sig = i;
-	    break;
-	}
-    }
-    ruby_native_thread_unlock(&vm->signal.lock);
     return sig;
 }
 
