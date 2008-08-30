@@ -1,3 +1,20 @@
+Sat Aug 30 20:06:24 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (struct rb_thread_struct): added signal and message
+	  queues.
+
+	* thread.c (rb_queue_initialize, rb_queue_destroy, rb_queue_push),
+	  (rb_queue_shift): new functions.
+
+	* thread.c (rb_thread_execute_interrupts): uses signal queue.
+
+	* thread.c (ruby_vm_send_signal): extracted from vm_send_signal.
+
+	* vm.c (vm_free): unlock and destroys global_vm_lock.
+
+	* vm.c (th_init2, thread_free): initializes and destroys signal and
+	  message queues.
+
 Sat Aug 30 16:38:23 2008    <nobu@ruby-lang.org>
 
 	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap

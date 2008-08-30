@@ -426,6 +426,21 @@ struct rb_unblock_callback {
 
 struct rb_mutex_struct;
 
+typedef struct rb_queue_element {
+    struct rb_queue_element *next;
+    void *value;
+} rb_queue_element_t;
+
+typedef struct rb_queue {
+    rb_thread_lock_t lock;
+    rb_queue_element_t *head, **tail;
+} rb_queue_t;
+
+void rb_queue_initialize(rb_queue_t *);
+void rb_queue_destroy(rb_queue_t *);
+int rb_queue_push(rb_queue_t *, void *);
+int rb_queue_shift(rb_queue_t *, void **);
+
 struct rb_thread_struct
 {
     VALUE self;
@@ -468,10 +483,14 @@ struct rb_thread_struct
 
     VALUE errinfo;
     VALUE thrown_errinfo;
-    int exec_signal;
+
+    struct {
+	rb_queue_t signal, message;
+    } queue;
 
     int interrupt_flag;
     rb_thread_lock_t interrupt_lock;
+
     struct rb_unblock_callback unblock;
     VALUE locking_mutex;
     struct rb_mutex_struct *keeping_mutexes;

@@ -1345,6 +1345,7 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
 static struct {
     rb_thread_lock_t lock;
     st_table *list;
+    rb_vm_t *main;
 } vm_manager = {RB_THREAD_LOCK_INITIALIZER};
 
 static void
@@ -1401,6 +1402,8 @@ vm_free(void *ptr)
 	st_free_table(vmobj->living_threads);
 	vmobj->living_threads = 0;
 	vm_del(vmobj);
+	ruby_native_thread_unlock(&vmobj->global_vm_lock);
+	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
 	ruby_xfree(ptr);
     }
     RUBY_FREE_LEAVE("vm");
@@ -1474,13 +1477,6 @@ vm_init2(rb_vm_t *vm)
     vm->global_state_version = 1;
     vm->specific_storage.len = rb_vm_key_count();
     vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
-}
-
-int
-ruby_vm_send_signal(rb_vm_t *vm, int sig)
-{
-    if (sig <= 0 || sig >= RUBY_NSIG) return -1;
-    return sig;
 }
 
 /* Thread */
@@ -1565,7 +1561,10 @@ thread_free(void *ptr)
 	}
 #endif
 
-	if (th->vm->main_thread == th) {
+	rb_queue_destroy(&th->queue.message);
+	rb_queue_destroy(&th->queue.signal);
+
+	if (th->vm->main_thread == th && th->vm == vm_manager.main) {
 	    RUBY_GC_INFO("main thread\n");
 	}
 	else {
@@ -1652,6 +1651,9 @@ static void
 th_init2(rb_thread_t *th, VALUE self)
 {
     th->self = self;
+
+    rb_queue_initialize(&th->queue.signal);
+    rb_queue_initialize(&th->queue.message);
 
     /* allocate thread stack */
     th->stack_size = RUBY_VM_THREAD_STACK_SIZE;
@@ -1984,6 +1986,7 @@ Init_BareVM(void)
     vm_init2(vm);
     th->vm = vm;
 
+    vm_manager.main = vm;
     vm_manager.list = st_init_numtable();
     vm_add(vm);
 

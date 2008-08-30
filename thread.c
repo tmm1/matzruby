@@ -961,6 +961,59 @@ rb_thread_blocking_region(
     return val;
 }
 
+void
+rb_queue_initialize(rb_queue_t *que)
+{
+    ruby_native_thread_lock_initialize(&que->lock);
+    que->head = 0;
+    que->tail = &que->head;
+}
+
+void
+rb_queue_destroy(rb_queue_t *que)
+{
+    rb_queue_element_t *e, *n;
+    ruby_native_thread_lock(&que->lock);
+    for (e = que->head; e; e = n) {
+	n = e->next;
+	free(e);
+    }
+    que->head = 0;
+    que->tail = 0;
+    ruby_native_thread_unlock(&que->lock);
+    native_mutex_destroy(&que->lock);
+}
+
+int
+rb_queue_push(rb_queue_t *que, void *value)
+{
+    rb_queue_element_t *e = malloc(sizeof(rb_queue_element_t));
+    if (!e) return Qfalse;
+    e->value = value;
+    e->next = 0;
+    ruby_native_thread_lock(&que->lock);
+    *que->tail = e;
+    que->tail = &e->next;
+    ruby_native_thread_unlock(&que->lock);
+    return Qtrue;
+}
+
+int
+rb_queue_shift(rb_queue_t *que, void **value)
+{
+    rb_queue_element_t *e;
+
+    if (!que->head) return Qfalse;
+    ruby_native_thread_lock(&que->lock);
+    if ((e = que->head) != 0 && !(que->head = e->next)) {
+	que->tail = &que->head;
+    }
+    ruby_native_thread_unlock(&que->lock);
+    if (!e) return 0;
+    *value = e->value;
+    return Qtrue;
+}
+
 /*
  *  call-seq:
  *     Thread.pass   => nil
@@ -1001,14 +1054,14 @@ rb_thread_execute_interrupts(rb_thread_t *th)
 	enum rb_thread_status status = th->status;
 	int timer_interrupt = th->interrupt_flag & 0x01;
 	int finalizer_interrupt = th->interrupt_flag & 0x04;
+	void *exec_signal;
 
 	th->status = THREAD_RUNNABLE;
 	th->interrupt_flag = 0;
 
 	/* signal handling */
-	if (th->exec_signal) {
-	    int sig = th->exec_signal;
-	    th->exec_signal = 0;
+	while (rb_queue_shift(&th->queue.signal, &exec_signal)) {
+	    int sig = (int)(VALUE)exec_signal;
 	    rb_signal_exec(th, sig);
 	}
 
@@ -2256,20 +2309,28 @@ vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
     return Qtrue;
 }
 
+int
+ruby_vm_send_signal(rb_vm_t *vm, int sig)
+{
+    rb_thread_t *mth;
+    enum rb_thread_status prev_status;
+
+    if (sig <= 0 || sig >= RUBY_NSIG) return -1;
+    mth = vm->main_thread;
+    prev_status = mth->status;
+    thread_debug("main_thread: %s, sig: %d\n",
+		 thread_status_name(prev_status), sig);
+    rb_queue_push(&mth->queue.signal, (void *)(VALUE)sig);
+    if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
+    rb_thread_interrupt(mth);
+    mth->status = prev_status;
+    return sig;
+}
+
 static int
 vm_send_signal(rb_vm_t *vm, void *sig)
 {
-    if (vm->main_thread->exec_signal == 0) {
-	rb_thread_t *mth = vm->main_thread;
-	enum rb_thread_status prev_status = mth->status;
-	mth->exec_signal = (VALUE)sig;
-	thread_debug("main_thread: %s, sig: %d\n",
-		     thread_status_name(prev_status),
-		     vm->main_thread->exec_signal);
-	if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
-	rb_thread_interrupt(mth);
-	mth->status = prev_status;
-    }
+    ruby_vm_send_signal(vm, (int)(VALUE)sig);
     return Qtrue;
 }
 
