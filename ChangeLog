@@ -15,6 +15,24 @@ Sat Aug 30 20:06:24 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* vm.c (th_init2, thread_free): initializes and destroys signal and
 	  message queues.
 
+Sat Aug 30 20:05:41 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_open, rb_w32_read, rb_w32_write): fallback to
+	  MSVCRT if text mode is specified. this case will not be used from
+	  ruby itself.
+
+Sat Aug 30 19:49:38 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_read): EOF is not error.
+	  ref [ruby-dev:36050]
+
+Sat Aug 30 18:17:40 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (struct token_info): constified.
+
+	* parse.y (token_info_get_column, token_info_has_nonspaces),
+	  (token_info_push, token_info_pop): constified.
+
 Sat Aug 30 16:38:23 2008    <nobu@ruby-lang.org>
 
 	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
@@ -32,6 +50,36 @@ Sat Aug 30 16:38:23 2008    <nobu@ruby-lang.org>
 	  signals to each VMs.
 
 	* vm.c (rb_vm_mark): marks trap_list.
+
+Sat Aug 30 15:43:03 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/openssl/ossl_config.c (Init_ossl_config): memory leak fixed.
+	  a patch <shinichiro.hamaji at gmail.com> in [ruby-dev:35880].
+
+	* ext/openssl/ossl_x509ext.c (ossl_x509ext_set_value): ditto.
+
+	* ext/strscan/strscan.c (strscan_do_scan): ditto.
+
+Sat Aug 30 14:58:32 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/openssl/ossl_x509ext.c (ossl_x509ext_initialize): fix for
+	  initialization of r18168.
+
+Sat Aug 30 14:47:30 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/mkcallback.rb: fix continuation line detection.
+
+Sat Aug 30 14:39:51 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/mkcallback.rb (rb_dl_init_callbacks): avoid GC problem which
+	  is caused by 'GC.stress=true; require "dl"'.
+
+Sat Aug 30 11:54:17 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (token_info_push): -w warns indentation level mismatch.
+	  based on a patch from Yukina Yamano presented at RubyKaigi'07.
+	  See <http://jp.rubyist.net/RubyKaigi2007/Log0609-LT06.html> and
+	  <http://www.logic-junction.com/products/rubyend.html> (Japanese).
 
 Sat Aug 30 10:46:44 2008  Koichi Sasada  <ko1@atdot.net>
 

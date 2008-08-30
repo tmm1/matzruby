@@ -6,7 +6,7 @@ File.open($dl_h){|f|
   pre = ""
   f.each{|line|
     line.chop!
-    if( line[-1] == ?\ )
+    if( line[-1] == ?\\ )
       line.chop!
       line.concat(" ")
       pre += line
@@ -135,16 +135,21 @@ $out << (<<EOS)
 static void
 rb_dl_init_callbacks()
 {
+    VALUE tmp;
     cb_call = rb_intern("call");		       
 
-    rb_DLCdeclCallbackProcs = rb_ary_new();
-    rb_DLCdeclCallbackAddrs = rb_ary_new();
-    rb_DLStdcallCallbackProcs = rb_ary_new();
-    rb_DLStdcallCallbackAddrs = rb_ary_new();
-    rb_define_const(rb_mDL, "CdeclCallbackProcs", rb_DLCdeclCallbackProcs);
-    rb_define_const(rb_mDL, "CdeclCallbackAddrs", rb_DLCdeclCallbackAddrs);
-    rb_define_const(rb_mDL, "StdcallCallbackProcs", rb_DLStdcallCallbackProcs);
-    rb_define_const(rb_mDL, "StdcallCallbackAddrs", rb_DLStdcallCallbackAddrs);
+    tmp = rb_DLCdeclCallbackProcs = rb_ary_new();
+    rb_define_const(rb_mDL, "CdeclCallbackProcs", tmp);
+
+    tmp = rb_DLCdeclCallbackAddrs = rb_ary_new();
+    rb_define_const(rb_mDL, "CdeclCallbackAddrs", tmp);
+
+    tmp = rb_DLStdcallCallbackProcs = rb_ary_new();
+    rb_define_const(rb_mDL, "StdcallCallbackProcs", tmp);
+
+    tmp = rb_DLStdcallCallbackAddrs = rb_ary_new();
+    rb_define_const(rb_mDL, "StdcallCallbackAddrs", tmp);
+
 #{
     (0...MAX_DLTYPE).collect{|ty|
       sprintf("    rb_ary_push(rb_DLCdeclCallbackProcs, rb_ary_new3(%d,%s));",
