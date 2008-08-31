@@ -707,7 +707,7 @@ ruby_dirfd(const char *path)
 static void
 dir_chdir(VALUE path)
 {
-    dir_fchdir(ruby_dirfd(RSTRING_PTR(dir)), path);
+    dir_fchdir(ruby_dirfd(RSTRING_PTR(path)), path);
 }
 #define dir_chdir(path, fullpath) dir_chdir(path)
 #else
