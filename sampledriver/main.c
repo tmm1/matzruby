@@ -2,11 +2,23 @@
  * SampleDriver [mruby]
  * This file is a sample driver of MVM.
  *
- * This sample driver [mruby] do:
- *   - creats (argc-1) VMs.
- *   - lets each VM run ruby script specified by argv[i]
- *     in parallel.
- *   - exit sample driver when all VMs are terminated.
+ * $Author$
+ * 
+ *
+ * This sample includes two example of VM treatment.
+ *   - Simple Driver: same as ruby interpreter.
+ *   - MultiVM Driver: Making Multi-VM example.
+ *
+ * Simple Driver do:
+ *   - Simple Ruby interpreter.
+ *   - Make and Run a VM in synchronous.
+ *
+ * MultiVM Driver do:
+ *   - Creats (argc-1) VMs.
+ *   - Set extra initialize options.
+ *   - Invoke VMs in parallel.
+ *     They run scripts specified by argv[i].
+ *   - Exit the driver when all VMs are terminated.
  *
  * Terminology:
  *   - Driver: A generator/controller/manager of VMs with Ruby MVM C API.
@@ -15,63 +27,119 @@
  *     sending events, sending messages and termination.
  */
 
+#include <stdio.h>
 #include <ruby/mvm.h>
 
-/* mruby main */
+/* simple interpreter */
+static int
+simple_driver_example(int argc, const char *argv[])
+{
+    rb_vm_t *vm;
+    int err;
 
-int
-main(int argc, char *argv[])
+    /* create VM with command line options */
+    vm = ruby_vm_new(argc-1, argv+1);
+
+    /* invoke this VM in current thread (synchronous) */
+    err = ruby_vm_run(vm);
+    /* NOTE: VM execution was terminated */
+
+    /* destruct this VM */
+    err = ruby_vm_destruct(vm);
+
+    return err;
+}
+
+/* multivm driver */
+static int
+multivm_driver_example(int argc, const char *argv[])
 {
     int i, n = argc - 1;
     rb_vm_t **vms = alloca(sizeof(rb_vm_t *) * n);
-
-    ruby_sysinit(&argc, &argv); /* process level initialize */
 
     /* mruby a.rb b.rb c.rb */
     /* => run parallel as:
      *    ruby a.rb & ruby b.rb & ruby c.rb
      */
-    
+
     for (i=0; i<n; i++) {
+	int err;
 	rb_vm_t *vm;
-	rb_vm_attr_t *attr;
 	static void IntiVM_mruby(rb_vm_t *vm);
 
-	/* set option */
-	attr = ruby_vm_attr_create(1, &argv[i+1]); /* initaialize with arguments */
+	/* create VM with command line arguments */
+	vm = vms[i] = ruby_vm_new(0, 0);
 
-	ruby_vm_attr_add_initializ_function(attr, InitVM_mruby);
-	ruby_vm_attr_own_timer(attr, 1);
-	ruby_vm_attr_create_thread(attr, 1); /* default */
-	ruby_vm_attr_add_expression(attr, "p true");
-	ruby_vm_attr_add_option(attr, "baz");
-	ruby_vm_attr_set_verbose(attr, 1);
-	ruby_vm_attr_set_debug(attr, 1);
+	/* set options */
+	ruby_vm_init_add_argv(vm, "baz");           /* push an arg to ARGV */
+	ruby_vm_init_add_library(vm, "fileutils");  /* -r fileutils */
+	ruby_vm_init_add_library_path(vm, "./lib"); /* -I ./lib */
+
+	if (1) {
+	    /* NOTE: you can't specify -e and script simultaneously */
+	    ruby_vm_init_add_expression(vm, "p 42"); /* -e 'p 42' */
+	    ruby_vm_init_add_expression(vm, "exit"); /* -e 'exit' */
+	}
+	else {
+	    ruby_vm_init_script(vm, argv[i+1]);      /* script file ($0) */
+	}
+
+	ruby_vm_init_verbose(vm, 1);             /* -v */
+	ruby_vm_init_debug(vm, 1);               /* -d */
+
+	/* set additional options */
+
+	/* ruby_vm_init_compile_option(...); // compile option */
+
+	/* additonal initializer provided by the driver */
+	ruby_vm_init_add_initializer(vm, "mruby", InitVM_mruby);
 
 	/* set stdin, out, err */
-	ruby_vm_attr_set_stdin(attr, 0);  /* default */
-	ruby_vm_attr_set_stdout(attr, 1); /* default */
-	ruby_vm_attr_set_stderr(attr, 2); /* default */
+	ruby_vm_init_stdin(vm, 0);  /* default */
+	ruby_vm_init_stdout(vm, 1); /* default */
+	ruby_vm_init_stderr(vm, 2); /* default */
 
-	/* create and invoke virtual machine instance */
-	vm = vms[i] = ruby_vm_new(attr);
+	/* invoke VM in another thread (asynchronous) */
+	err = ruby_vm_start(vm);
 
-	ruby_vm_attr_destruct(attr);
+	if (err != 0) {
+	    fprintf(stderr, "VM invoke error (%d).\n", err);
+	}
     }
 
     for (i=0; i<n; i++) {
-	int err = rb_vm_join(vms[i]);
-	printf("VM %d was terminated with error code %d.\n", i, err);
+	int err;
+
+	/* wait VM termination and get error code */
+	err = rb_vm_join(vms[i]);
+	fprintf(stderr, "VM %d was terminated with error code %d.\n", i, err);
+
+	/* destruct VM vm */
+	ruby_vm_destruct(vm);
     }
 
     return 0;
 }
 
+int
+main(int argc, char *argv[])
+{
+    RUBY_INITSTACK();
+    ruby_sysinit(&argc, &argv); /* process level initialize */
+
+    if (1) {
+	return simple_driver_example(argc, argv);
+    }
+    else {
+	return multivm_driver_example(argc, argv);
+    }
+}
+
 #include <ruby/ruby.h>
 
+/* executed in each VM context */
 static void
 IntiVM_mruby(rb_vm_t *vm)
 {
-    rb_define_method(...);
+    /* rb_define_method(...); */
 }
-
