@@ -15,6 +15,7 @@
 #include "ruby/io.h"
 #include "ruby/signal.h"
 #include "vm_core.h"
+#include "eval_intern.h"
 #include <ctype.h>
 #include <errno.h>
 
@@ -135,7 +136,8 @@ struct argf {
 };
 
 static int max_file_descriptor = NOFILE;
-static rb_thread_lock_t max_file_descriptor_lock = RB_THREAD_LOCK_INITIALIZER;
+static rb_thread_lock_t max_file_descriptor_lock;
+
 #define UPDATE_MAXFD(fd) \
     do { \
 	ruby_native_thread_lock(&max_file_descriptor_lock); \
@@ -144,8 +146,9 @@ static rb_thread_lock_t max_file_descriptor_lock = RB_THREAD_LOCK_INITIALIZER;
     } while (0)
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
-#define ruby_vm_argf(vm) (*ruby_vm_specific_ptr(vm, rb_vmkey_argf))
-#define ARGF argf_of(ruby_vm_argf(GET_VM()))
+#define ruby_vm_argf(vm) (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_argf)))
+#define rb_vm_argf() ruby_vm_argf(GET_VM())
+#define ARGF argf_of(rb_vm_argf())
 
 #ifdef _STDIO_USES_IOSTREAM  /* GNU libc */
 #  ifdef _IO_fpos_t
@@ -8528,4 +8531,6 @@ Init_IO(void)
     sym_open_args = ID2SYM(rb_intern("open_args"));
     sym_textmode = ID2SYM(rb_intern("textmode"));
     sym_binmode = ID2SYM(rb_intern("binmode"));
+
+    ruby_native_thread_lock_initialize(&max_file_descriptor_lock);
 }

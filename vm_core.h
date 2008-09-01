@@ -554,6 +554,8 @@ struct rb_thread_struct
     int abort_on_exception;
 };
 
+typedef struct rb_thread_struct rb_thread_t;
+
 /* iseq.c */
 VALUE rb_iseq_new(NODE*, VALUE, VALUE, VALUE, VALUE);
 VALUE rb_iseq_new_with_bopt(NODE*, VALUE, VALUE, VALUE, VALUE, VALUE);

@@ -599,6 +599,9 @@ dump_option(const char *str, int len, void *arg)
     rb_warn("don't know how to dump `%.*s', (insns)", len, str);
 }
 
+#define RUBY_VM_OBJECT(vm, name) \
+  (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_##name)))
+
 static int
 proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 {
@@ -629,8 +632,8 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 	    goto reswitch;
 
 	  case 'd':
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+	    RUBY_VM_OBJECT(vm, debug) = Qtrue;
+	    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -647,7 +650,7 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 	    ruby_show_version();
 	    opt->verbose = 1;
 	  case 'w':
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+	    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -664,13 +667,13 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 		}
 		switch (v) {
 		  case 0:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qnil;
+		    RUBY_VM_OBJECT(vm, verbose) = Qnil;
 		    break;
 		  case 1:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qfalse;
+		    RUBY_VM_OBJECT(vm, verbose) = Qfalse;
 		    break;
 		  default:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 		    break;
 		}
 	    }
@@ -850,8 +853,8 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 	    if (strcmp("copyright", s) == 0)
 		opt->copyright = 1;
 	    else if (strcmp("debug", s) == 0) {
-		*ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
-		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		RUBY_VM_OBJECT(vm, debug) = Qtrue;
+		RUBY_VM_OBJECT(vm, verbose) = Qtrue;
             }
 	    else if (strncmp("enable", s, n = 6) == 0 &&
 		     (!s[n] || s[n] == '-' || s[n] == '=')) {
@@ -882,7 +885,7 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt)
 		opt->version = 1;
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
-		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    }
 	    else if (strcmp("yydebug", s) == 0)
 		opt->yydebug = 1;
@@ -952,7 +955,7 @@ opt_enc_index(VALUE enc_name)
     return i;
 }
 
-#define rb_progname (*ruby_vm_specific_ptr(vm, rb_vmkey_progname))
+#define rb_progname (RUBY_VM_OBJECT(vm, progname))
 VALUE rb_argv0;
 
 static VALUE
@@ -1541,7 +1544,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     NODE *tree;
 
     if (argv[0]) {		/* for the time being */
-	*ruby_vm_specific_ptr(vm, rb_vmkey_progname) = rb_tainted_str_new2(argv[0]);
+	RUBY_VM_OBJECT(vm, progname) = rb_tainted_str_new2(argv[0]);
     }
     args.vm = vm;
     args.argc = argc;
@@ -1550,7 +1553,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     opt.ext.enc.index = -1;
     tree = (NODE *)rb_vm_call_cfunc(vm->top_self,
 				    process_options, (VALUE)&args,
-				    0, *ruby_vm_specific_ptr(vm, rb_vmkey_progname));
+				    0, RUBY_VM_OBJECT(vm, progname));
 
     rb_define_readonly_boolean("$-p", opt.do_print);
     rb_define_readonly_boolean("$-l", opt.do_line);
@@ -1563,7 +1566,7 @@ ruby_process_options(int argc, char **argv)
 {
     rb_vm_t *vm = GET_VM();
     VALUE result = ruby_vm_process_options(vm, argc, argv);
-    rb_argv0 = rb_str_new4(*ruby_vm_specific_ptr(vm, rb_vmkey_progname));
+    rb_argv0 = rb_str_new4(RUBY_VM_OBJECT(vm, progname));
     return (void *)result;
 }
 

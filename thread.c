@@ -3841,54 +3841,6 @@ rb_check_deadlock(rb_vm_t *vm)
     }
 }
 
-static struct {
-    rb_thread_lock_t lock;
-    int last;
-} specific_key = {
-    RB_THREAD_LOCK_INITIALIZER,
-    (ruby_builtin_object_count + 8) & ~7,
-};
-
-int
-rb_vm_key_count(void)
-{
-    return specific_key.last;
-}
-
-int
-rb_vm_key_create(void)
-{
-    int key;
-    native_mutex_lock(&specific_key.lock);
-    key = specific_key.last++;
-    native_mutex_unlock(&specific_key.lock);
-    return key;
-}
-
-VALUE *
-ruby_vm_specific_ptr(rb_vm_t *vm, int key)
-{
-    VALUE *ptr;
-    long len;
-
-    ptr = vm->specific_storage.ptr;
-    len = vm->specific_storage.len;
-    if (!ptr || len <= key) {
-	long newlen = (key + 8) & ~7;
-	ptr = realloc(ptr, sizeof(VALUE) * newlen);
-	vm->specific_storage.ptr = ptr;
-	vm->specific_storage.len = newlen;
-	MEMZERO(ptr + len, VALUE, newlen - len);
-    }
-    return &ptr[key];
-}
-
-VALUE *
-rb_vm_specific_ptr(int key)
-{
-    return ruby_vm_specific_ptr(GET_VM(), key);
-}
-
 static void
 update_coverage(rb_event_flag_t event, VALUE proc, VALUE self, ID id, VALUE klass)
 {

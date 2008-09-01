@@ -1,3 +1,15 @@
+Mon Sep  1 11:31:26 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* mvm.c: added.
+
+	* common.mk: ditto.
+
+	* eval.c, eval_intern.h, include/ruby/intern.h, include/ruby/mvm.h,
+	  include/ruby/public_object.h, include/ruby/ruby.h, io.c, main.c,
+	  main.c, pack.c, ruby.c, thread.c, thread_pthread.c,
+	  thread_pthread.h, vm.c, vm_core.h: fix Ruby/MVM API.
+	  On this commit, only miniruby is built, but not working.
+
 Sun Aug 31 12:41:09 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* sampledriver/main.c: update.

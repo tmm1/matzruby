@@ -231,5 +231,19 @@ VALUE rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg, const rb_blo
 void rb_thread_terminate_all(void);
 VALUE rb_vm_top_self();
 VALUE rb_vm_cbase(void);
+void rb_vm_thread_terminate_all(rb_vm_t *vm);
+
+VALUE ruby_vm_argf(rb_vm_t *vm);
+
+void ruby_native_thread_lock_initialize(rb_thread_lock_t *lock);
+void ruby_native_thread_lock_destroy(rb_thread_lock_t *lock);
+void ruby_native_thread_lock(rb_thread_lock_t *lock);
+void ruby_native_thread_unlock(rb_thread_lock_t *lock);
+void ruby_native_thread_yield(void);
+
+VALUE ruby_vm_get_argv(rb_vm_t *vm);
+const char *ruby_vm_get_inplace_mode(rb_vm_t *vm);
+void ruby_vm_set_inplace_mode(rb_vm_t *vm, const char *suffix);
+void ruby_vm_set_argv(rb_vm_t *vm, int argc, char **argv);
 
 #endif /* RUBY_EVAL_INTERN_H */

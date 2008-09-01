@@ -30,8 +30,12 @@ main(int argc, char **argv)
     ruby_sysinit(&argc, &argv);
     {
 	rb_vm_t *vm;
+	int ret;
+
 	RUBY_INIT_STACK;
-	vm = ruby_vm_new();
-	return ruby_vm_run(vm, ruby_vm_parse_options(vm, argc, argv));
+	vm = ruby_vm_new(argc, argv);
+	ret = ruby_vm_run(vm);
+	ruby_vm_destruct(vm);
+	return ret;
     }
 }

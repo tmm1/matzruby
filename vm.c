@@ -1342,73 +1342,6 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
 
 /* vm */
 
-static struct {
-    rb_thread_lock_t lock;
-    st_table *list;
-    rb_vm_t *main;
-} vm_manager = {RB_THREAD_LOCK_INITIALIZER};
-
-static void
-vm_add(rb_vm_t *vm)
-{
-    ruby_native_thread_lock(&vm_manager.lock);
-    st_insert(vm_manager.list, (st_data_t)vm, 0);
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-static void
-vm_del(rb_vm_t *vm)
-{
-    st_data_t key = (st_data_t)vm, val = 0;
-    ruby_native_thread_lock(&vm_manager.lock);
-    st_delete(vm_manager.list, &key, &val);
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-struct each_vm_arg {
-    int (*func)(rb_vm_t *, void *);
-    void *arg;
-};
-
-static int
-each_vm(st_data_t vm, st_data_t val, st_data_t arg)
-{
-    struct each_vm_arg *p = (void *)arg;
-    if ((*p->func)((rb_vm_t *)vm, p->arg)) return ST_CONTINUE;
-    return ST_STOP;
-}
-
-void
-ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
-{
-    struct each_vm_arg args;
-
-    args.func = func;
-    args.arg = arg;
-    ruby_native_thread_lock(&vm_manager.lock);
-    if (vm_manager.list) {
-	st_foreach(vm_manager.list, each_vm, (st_data_t)&args);
-    }
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-static void
-vm_free(void *ptr)
-{
-    RUBY_FREE_ENTER("vm");
-    if (ptr) {
-	rb_vm_t *vmobj = ptr;
-
-	st_free_table(vmobj->living_threads);
-	vmobj->living_threads = 0;
-	vm_del(vmobj);
-	ruby_native_thread_unlock(&vmobj->global_vm_lock);
-	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
-	ruby_xfree(ptr);
-    }
-    RUBY_FREE_LEAVE("vm");
-}
-
 static int
 vm_mark_each_thread_func(st_data_t key, st_data_t value, st_data_t dummy)
 {
@@ -1461,6 +1394,22 @@ rb_vm_mark(void *ptr)
     }
 
     RUBY_MARK_LEAVE("vm");
+}
+
+static void
+vm_free(void *ptr)
+{
+    RUBY_FREE_ENTER("vm");
+    if (ptr) {
+	rb_vm_t *vmobj = ptr;
+
+	st_free_table(vmobj->living_threads);
+	vmobj->living_threads = 0;
+	ruby_native_thread_unlock(&vmobj->global_vm_lock);
+	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
+	ruby_xfree(ptr);
+    }
+    RUBY_FREE_LEAVE("vm");
 }
 
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
@@ -1564,7 +1513,7 @@ thread_free(void *ptr)
 	rb_queue_destroy(&th->queue.message);
 	rb_queue_destroy(&th->queue.signal);
 
-	if (th->vm->main_thread == th && th->vm == vm_manager.main) {
+	if (th->vm->main_thread == th) {
 	    RUBY_GC_INFO("main thread\n");
 	}
 	else {
@@ -1990,19 +1939,8 @@ Init_BareVM(void)
     vm_init2(vm);
     th->vm = vm;
 
-    vm_manager.main = vm;
-    vm_manager.list = st_init_numtable();
-    vm_add(vm);
-
     th_init2(th, 0);
     ruby_thread_init_stack(th);
-}
-
-rb_vm_t *
-ruby_vm_new(void)
-{
-    ruby_init();
-    return GET_VM();
 }
 
 /* top self */
@@ -2026,28 +1964,4 @@ Init_top_self(void)
 
     vm->top_self = rb_obj_alloc(rb_cObject);
     rb_define_singleton_method(rb_vm_top_self(), "to_s", main_to_s, 0);
-}
-
-VALUE *
-ruby_vm_verbose_ptr(rb_vm_t *vm)
-{
-    return ruby_vm_specific_ptr(vm, rb_vmkey_verbose);
-}
-
-VALUE *
-ruby_vm_debug_ptr(rb_vm_t *vm)
-{
-    return ruby_vm_specific_ptr(vm, rb_vmkey_debug);
-}
-
-VALUE *
-rb_ruby_verbose_ptr(void)
-{
-    return ruby_vm_verbose_ptr(GET_VM());
-}
-
-VALUE *
-rb_ruby_debug_ptr(void)
-{
-    return ruby_vm_debug_ptr(GET_VM());
 }

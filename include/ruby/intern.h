@@ -735,6 +735,9 @@ VALUE rb_time_succ(VALUE);
 void rb_frame_pop(void);
 int rb_frame_method_id_and_class(ID *idp, VALUE *klassp);
 
+int rb_vm_key_count(void);
+int rb_vm_key_create(void);
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */

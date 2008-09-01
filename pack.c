@@ -10,6 +10,8 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+#include "eval_intern.h"
+
 #include <sys/types.h>
 #include <ctype.h>
 #include <errno.h>
@@ -1800,7 +1802,9 @@ pack_unpack(VALUE str, VALUE fmt)
 		char *ptr = RSTRING_PTR(buf);
 		int a = -1,b = -1,c = 0,d;
 		static signed char b64_xtable[256];
-		static rb_thread_lock_t b64_xtable_lock = RB_THREAD_LOCK_INITIALIZER;
+		static rb_thread_lock_t b64_xtable_lock;
+
+		ruby_native_thread_lock_initialize(&b64_xtable_lock);
 
 		if (b64_xtable_once(&b64_xtable['/'], &b64_xtable_lock)) {
 		    int i;

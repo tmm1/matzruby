@@ -13,6 +13,7 @@
 
 #include <pthread.h>
 typedef pthread_t rb_thread_id_t;
+typedef pthread_mutex_t rb_thread_lock_t;
 typedef pthread_cond_t rb_thread_cond_t;
 
 typedef struct native_thread_data_struct {

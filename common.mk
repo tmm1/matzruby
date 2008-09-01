@@ -80,6 +80,7 @@ COMMONOBJS    = array.$(OBJEXT) \
 		vm_dump.$(OBJEXT) \
 		thread.$(OBJEXT) \
 		cont.$(OBJEXT) \
+		mvm.$(OBJEXT) \
 		$(BUILTIN_ENCOBJS) \
 		$(BUILTIN_TRANSOBJS) \
 		$(MISSING)
@@ -598,6 +599,8 @@ cont.$(OBJEXT): {$(VPATH)}cont.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}thread_$(THREAD_MODEL).h {$(VPATH)}gc.h \
   {$(VPATH)}eval_intern.h {$(VPATH)}util.h {$(VPATH)}dln.h {$(VPATH)}mvm.h \
   {$(VPATH)}parse.y
+mvm.$(OBJEXT): {$(VPATH)}mvm.c $(RUBY_H_INCLUDES) $(VM_CORE_H_INCLUDES) \
+  {$(VPATH)}st.h {$(VPATH)}thread_$(THREAD_MODEL).h
 time.$(OBJEXT): {$(VPATH)}time.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}encoding.h {$(VPATH)}oniguruma.h
 util.$(OBJEXT): {$(VPATH)}util.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \

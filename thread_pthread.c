@@ -26,8 +26,6 @@
 #include <sys/resource.h>
 #endif
 
-static void native_mutex_lock(pthread_mutex_t *lock);
-static void native_mutex_unlock(pthread_mutex_t *lock);
 static int native_mutex_trylock(pthread_mutex_t *lock);
 
 static void native_cond_signal(pthread_cond_t *cond);
@@ -36,8 +34,11 @@ static void native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
 static void native_cond_initialize(pthread_cond_t *cond);
 static void native_cond_destroy(pthread_cond_t *cond);
 
-static void
-native_mutex_lock(pthread_mutex_t *lock)
+#define native_mutex_lock ruby_native_thread_lock
+#define native_mutex_unlock ruby_native_thread_unlock
+
+void
+ruby_native_thread_lock(pthread_mutex_t *lock)
 {
     int r;
     if ((r = pthread_mutex_lock(lock)) != 0) {
@@ -45,8 +46,8 @@ native_mutex_lock(pthread_mutex_t *lock)
     }
 }
 
-static void
-native_mutex_unlock(pthread_mutex_t *lock)
+void
+ruby_native_thread_unlock(pthread_mutex_t *lock)
 {
     int r;
     if ((r = pthread_mutex_unlock(lock)) != 0) {
@@ -128,12 +129,18 @@ native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 #define native_cleanup_pop  pthread_cleanup_pop
 #define native_thread_yield() ruby_native_thread_yield()
 
+void
+ruby_native_thread_yield(void)
+{
+    sched_yield();
+}
+
 #ifndef __CYGWIN__
 static void add_signal_thread_list(rb_thread_t *th);
 #endif
 static void remove_signal_thread_list(rb_thread_t *th);
 
-static rb_thread_lock_t signal_thread_list_lock = RB_THREAD_LOCK_INITIALIZER;;
+static rb_thread_lock_t signal_thread_list_lock;
 
 static pthread_key_t ruby_native_thread_key;
 

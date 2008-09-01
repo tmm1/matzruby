@@ -908,11 +908,6 @@ VALUE rb_iv_set(VALUE, const char*, VALUE);
 
 VALUE rb_equal(VALUE,VALUE);
 
-VALUE *rb_ruby_verbose_ptr(void);
-VALUE *rb_ruby_debug_ptr(void);
-#define ruby_verbose (*rb_ruby_verbose_ptr())
-#define ruby_debug   (*rb_ruby_debug_ptr())
-
 PRINTF_ARGS(NORETURN(void rb_raise(VALUE, const char*, ...)), 2, 3);
 PRINTF_ARGS(NORETURN(void rb_fatal(const char*, ...)), 1, 2);
 PRINTF_ARGS(NORETURN(void rb_bug(const char*, ...)), 1, 2);
