@@ -232,9 +232,13 @@ module Logging
   @postpone = 0
   @quiet = $extmk
 
-  def self::open
-    @log ||= File::open(@logfile, 'w')
+  def self::log_open
+    @log ||= File::open(@logfile, 'wb')
     @log.sync = true
+  end
+
+  def self::open
+    log_open
     $stderr.reopen(@log)
     $stdout.reopen(@log)
     yield
@@ -244,8 +248,7 @@ module Logging
   end
 
   def self::message(*s)
-    @log ||= File::open(@logfile, 'w')
-    @log.sync = true
+    log_open
     @log.printf(*s)
   end
 
@@ -337,7 +340,21 @@ def create_tmpsrc(src)
   src
 end
 
+def have_devel?
+  unless defined? $have_devel
+    $have_devel = true
+    $have_devel = try_link(MAIN_DOES_NOTHING)
+  end
+  $have_devel
+end
+
 def try_do(src, command, &b)
+  unless have_devel?
+    raise <<MSG
+The complier failed to generate an executable file.
+You have to install development tools first.
+MSG
+  end
   src = create_tmpsrc(src, &b)
   xsystem(command)
 ensure
@@ -445,7 +462,6 @@ end
 def try_static_assert(expr, headers = nil, opt = "", &b)
   headers = cpp_include(headers)
   try_compile(<<SRC, opt, &b)
-#{COMMON_HEADERS}
 #{headers}
 /*top*/
 int conftest_const[(#{expr}) ? 1 : -1];
@@ -484,8 +500,7 @@ def try_constant(const, headers = nil, opt = "", &b)
     upper = -upper if neg
     return upper
   else
-    src = %{#{COMMON_HEADERS}
-#{includes}
+    src = %{#{includes}
 #include <stdio.h>
 /*top*/
 int conftest_const = (int)(#{const});
@@ -503,15 +518,14 @@ end
 def try_func(func, libs, headers = nil, &b)
   headers = cpp_include(headers)
   try_link(<<"SRC", libs, &b) or try_link(<<"SRC", libs, &b)
-#{COMMON_HEADERS}
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { void ((*volatile p)()); p = (void ((*)()))#{func}; return 0; }
 SRC
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { #{func}(); return 0; }
 SRC
 end
@@ -519,10 +533,9 @@ end
 def try_var(var, headers = nil, &b)
   headers = cpp_include(headers)
   try_compile(<<"SRC", &b)
-#{COMMON_HEADERS}
 #{headers}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() { const volatile void *volatile p; p = &(&#{var})[0]; return 0; }
 SRC
 end
@@ -837,10 +850,9 @@ end
 def have_struct_member(type, member, headers = nil, &b)
   checking_for checking_message("#{type}.#{member}", headers) do
     if try_compile(<<"SRC", &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int s = (char *)&((#{type}*)0)->#{member} - (char *)0;
 SRC
       $defs.push(format("-DHAVE_%s_%s", type.tr_cpp, member.tr_cpp))
@@ -854,7 +866,6 @@ end
 
 def try_type(type, headers = nil, opt = "", &b)
   if try_compile(<<"SRC", opt, &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 typedef #{type} conftest_type;
@@ -909,7 +920,6 @@ end
 def try_const(const, headers = nil, opt = "", &b)
   const, type = *const
   if try_compile(<<"SRC", opt, &b)
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 typedef #{type || 'int'} conftest_type;
@@ -974,11 +984,10 @@ end
 # pointer.
 def scalar_ptr_type?(type, member = nil, headers = nil, &b)
   try_compile(<<"SRC", &b)   # pointer
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 volatile #{type} conftestval;
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() {return (int)(1-*(conftestval#{member ? ".#{member}" : ""}));}
 SRC
 end
@@ -987,11 +996,10 @@ end
 # pointer.
 def scalar_type?(type, member = nil, headers = nil, &b)
   try_compile(<<"SRC", &b)   # pointer
-#{COMMON_HEADERS}
 #{cpp_include(headers)}
 /*top*/
 volatile #{type} conftestval;
-int main() { return 0; }
+#{MAIN_DOES_NOTHING}
 int t() {return (int)(1-(conftestval#{member ? ".#{member}" : ""}));}
 SRC
 end
@@ -1875,6 +1883,7 @@ LINK_SO = config_string('LINK_SO') ||
 LIBPATHFLAG = config_string('LIBPATHFLAG') || ' -L"%s"'
 RPATHFLAG = config_string('RPATHFLAG') || ''
 LIBARG = config_string('LIBARG') || '-l%s'
+MAIN_DOES_NOTHING = config_string('MAIN_DOES_NOTHING') || 'int main() {return 0;}'
 
 sep = config_string('BUILD_FILE_SEPARATOR') {|s| ":/=#{s}" if sep != "/"} || ""
 CLEANINGS = "

@@ -2,7 +2,7 @@
 
   mvm.c - Ruby/MVM C API
 
-  $Author:  $
+  $Author$
   created at: Sun Aug 31 22:27:03 2008
 
   Copyright (C) 2008 Koichi Sasada

@@ -1452,7 +1452,7 @@ rb_econv_putback(rb_econv_t *ec, unsigned char *p, int n)
     if (ec->num_trans == 0 || n == 0)
         return;
     tc = ec->elems[0].tc;
-    memcpy(p, TRANSCODING_READBUF(tc) + tc->recognized_len, n);
+    memcpy(p, TRANSCODING_READBUF(tc) + tc->recognized_len + tc->readagain_len - n, n);
     tc->readagain_len -= n;
 }
 
@@ -1647,31 +1647,40 @@ make_econv_exception(rb_econv_t *ec)
         size_t readagain_len = ec->last_error.readagain_len;
         VALUE bytes2 = Qnil;
         VALUE dumped2;
+        int idx;
         if (ec->last_error.result == econv_incomplete_input) {
-            mesg = rb_sprintf("incomplete input: %s on %s",
+            mesg = rb_sprintf("incomplete %s on %s",
                     StringValueCStr(dumped),
                     ec->last_error.source_encoding);
         }
         else if (readagain_len) {
             bytes2 = rb_str_new(err+error_len, readagain_len);
             dumped2 = rb_str_dump(bytes2);
-            mesg = rb_sprintf("invalid byte sequence: %s followed by %s on %s",
+            mesg = rb_sprintf("%s followed by %s on %s",
                     StringValueCStr(dumped),
                     StringValueCStr(dumped2),
                     ec->last_error.source_encoding);
         }
         else {
-            mesg = rb_sprintf("invalid byte sequence: %s on %s",
+            mesg = rb_sprintf("%s on %s",
                     StringValueCStr(dumped),
                     ec->last_error.source_encoding);
         }
 
         exc = rb_exc_new3(rb_eInvalidByteSequence, mesg);
-        rb_ivar_set(exc, rb_intern("source_encoding"), rb_str_new2(ec->last_error.source_encoding));
-        rb_ivar_set(exc, rb_intern("destination_encoding"), rb_str_new2(ec->last_error.destination_encoding));
         rb_ivar_set(exc, rb_intern("error_bytes"), bytes);
         rb_ivar_set(exc, rb_intern("readagain_bytes"), bytes2);
         rb_ivar_set(exc, rb_intern("incomplete_input"), ec->last_error.result == econv_incomplete_input ? Qtrue : Qfalse);
+
+      set_encs:
+        rb_ivar_set(exc, rb_intern("source_encoding_name"), rb_str_new2(ec->last_error.source_encoding));
+        rb_ivar_set(exc, rb_intern("destination_encoding_name"), rb_str_new2(ec->last_error.destination_encoding));
+        idx = rb_enc_find_index(ec->last_error.source_encoding);
+        if (0 <= idx)
+            rb_ivar_set(exc, rb_intern("source_encoding"), rb_enc_from_encoding(rb_enc_from_index(idx)));
+        idx = rb_enc_find_index(ec->last_error.destination_encoding);
+        if (0 <= idx)
+            rb_ivar_set(exc, rb_intern("destination_encoding"), rb_enc_from_encoding(rb_enc_from_index(idx)));
         return exc;
     }
     if (ec->last_error.result == econv_undefined_conversion) {
@@ -1680,19 +1689,16 @@ make_econv_exception(rb_econv_t *ec)
         VALUE dumped;
         int idx;
         dumped = rb_str_dump(bytes);
-        mesg = rb_sprintf("conversion undefined: %s from %s to %s",
+        mesg = rb_sprintf("%s from %s to %s",
                 StringValueCStr(dumped),
                 ec->last_error.source_encoding,
                 ec->last_error.destination_encoding);
         exc = rb_exc_new3(rb_eConversionUndefined, mesg);
         idx = rb_enc_find_index(ec->last_error.source_encoding);
-        rb_ivar_set(exc, rb_intern("source_encoding"), rb_str_new2(ec->last_error.source_encoding));
-        rb_ivar_set(exc, rb_intern("destination_encoding"), rb_str_new2(ec->last_error.destination_encoding));
-        idx = rb_enc_find_index(ec->last_error.source_encoding);
         if (0 <= idx)
             rb_enc_associate_index(bytes, idx);
         rb_ivar_set(exc, rb_intern("error_char"), bytes);
-        return exc;
+        goto set_encs;
     }
     return Qnil;
 }
@@ -2152,7 +2158,9 @@ make_dummy_encoding(const char *name)
  *
  * Encoding::Converter.new creates an instance of Encoding::Converter.
  *
- * source_encoding and destination_encoding should be a string.
+ * source_encoding and destination_encoding should be a string or
+ * Encoding object.
+ *
  * flags should be an integer.
  *
  * example:
@@ -2239,6 +2247,16 @@ econv_init(int argc, VALUE *argv, VALUE self)
     return self;
 }
 
+/*
+ * call-seq:
+ *   ec.inspect         -> string
+ *
+ * Returns a printable version of <i>ec</i>
+ *
+ *   ec = Encoding::Converter.new("iso-8859-1", "utf-8")
+ *   puts ec.inspect    #=> #<Encoding::Converter: ISO-8859-1 to UTF-8>
+ *
+ */
 static VALUE
 econv_inspect(VALUE self)
 {
@@ -2276,9 +2294,9 @@ check_econv(VALUE self)
 
 /*
  * call-seq:
- *   source_encoding -> encoding
+ *   ec.source_encoding -> encoding
  *
- * returns source encoding as Encoding object.
+ * returns the source encoding as an Encoding object.
  */
 static VALUE
 econv_source_encoding(VALUE self)
@@ -2291,9 +2309,9 @@ econv_source_encoding(VALUE self)
 
 /*
  * call-seq:
- *   destination_encoding -> encoding
+ *   ec.destination_encoding -> encoding
  *
- * returns destination encoding as Encoding object.
+ * returns the destination encoding as an Encoding object.
  */
 static VALUE
 econv_destination_encoding(VALUE self)
@@ -2321,8 +2339,10 @@ econv_result_to_symbol(rb_econv_result_t res)
 
 /*
  * call-seq:
- *   primitive_convert(source_buffer, destination_buffer, destination_byteoffset, destination_bytesize) -> symbol
- *   primitive_convert(source_buffer, destination_buffer, destination_byteoffset, destination_bytesize, flags) -> symbol
+ *   ec.primitive_convert(source_buffer, destination_buffer) -> symbol
+ *   ec.primitive_convert(source_buffer, destination_buffer, destination_byteoffset) -> symbol
+ *   ec.primitive_convert(source_buffer, destination_buffer, destination_byteoffset, destination_bytesize) -> symbol
+ *   ec.primitive_convert(source_buffer, destination_buffer, destination_byteoffset, destination_bytesize, flags) -> symbol
  *
  * possible flags:
  *   Encoding::Converter::PARTIAL_INPUT # source buffer may be part of larger source
@@ -2345,11 +2365,18 @@ econv_result_to_symbol(rb_econv_result_t res)
  * destination_buffer should be a string.
  *
  * destination_byteoffset should be an integer or nil.
+ * nil means the end of destination_buffer.
+ * If it is omitted, nil is assumed.
  *
- * destination_bytesize and flags should be an integer or nil.
- * nil means that unlimited.
+ * destination_bytesize should be an integer or nil.
+ * nil means unlimited.
+ * If it is omitted, nil is assumed.
  *
- * primitive_convert convert the content of source_buffer from beginning
+ * flags should be an integer or nil.
+ * nil means no flags.
+ * If it is omitted, nil is assumed.
+ *
+ * primitive_convert converts the content of source_buffer from beginning
  * and store the result into destination_buffer.
  *
  * destination_byteoffset and destination_bytesize specify the region which
@@ -2361,10 +2388,10 @@ econv_result_to_symbol(rb_econv_result_t res)
  * If destination_bytesize is nil,
  * destination size is unlimited.
  * After conversion, destination_buffer is resized to
- * destination_byteoffset + actually converted number of bytes.
+ * destination_byteoffset + actually produced number of bytes.
  * Also destination_buffer's encoding is set to destination_encoding.
  *
- * primitive_convert drops the first part of source_buffer.
+ * primitive_convert drops the converted part of source_buffer.
  * the dropped part is converted in destination_buffer or
  * buffered in Encoding::Converter object.
  *
@@ -2409,7 +2436,7 @@ econv_primitive_convert(int argc, VALUE *argv, VALUE self)
     unsigned long output_byteend;
     int flags;
 
-    rb_scan_args(argc, argv, "41", &input, &output, &output_byteoffset_v, &output_bytesize_v, &flags_v);
+    rb_scan_args(argc, argv, "23", &input, &output, &output_byteoffset_v, &output_bytesize_v, &flags_v);
 
     if (NIL_P(output_byteoffset_v))
         output_byteoffset = 0; /* dummy */
@@ -2494,7 +2521,7 @@ econv_primitive_convert(int argc, VALUE *argv, VALUE self)
 
 /*
  * call-seq:
- *   convert(source_string) -> destination_string
+ *   ec.convert(source_string) -> destination_string
  *
  * convert source_string and return destination_string.
  *
@@ -2563,7 +2590,7 @@ econv_convert(VALUE self, VALUE source_string)
 
 /*
  * call-seq:
- *   finish -> string
+ *   ec.finish -> string
  *
  * finishes the converter.
  * It returns the last part of converted string.
@@ -2607,28 +2634,24 @@ econv_finish(VALUE self)
 
 /*
  * call-seq:
- *   primitive_errinfo -> array
+ *   ec.primitive_errinfo -> array
  *
- * primitive_errinfo returns a precious information of last error result
- * as a 6-elements array:
+ * primitive_errinfo returns a precious information of the last error result
+ * as a 5-elements array:
  *
- *   [result, enc1, enc2, error_bytes, readagain_bytes, partial_input]
+ *   [result, enc1, enc2, error_bytes, readagain_bytes]
  *
  * result is the last result of primitive_convert.
- *
- * partial_input is :partial_input or nil.
- * :partial_input means that Encoding::Converter::PARTIAL_INPUT is specified
- * for primitive_convert.
  *
  * Other elements are only meaningful when result is
  * :invalid_byte_sequence, :incomplete_input or :undefined_conversion.
  *
- * enc1 and enc2 indicats a conversion step as pair of strings.
- * For example, EUC-JP to ISO-8859-1 is
- * converted as EUC-JP -> UTF-8 -> ISO-8859-1.
+ * enc1 and enc2 indicates a conversion step as pair of strings.
+ * For example, a converter from EUC-JP to ISO-8859-1 converters
+ * a string as EUC-JP -> UTF-8 -> ISO-8859-1.
  * So [enc1, enc2] is ["EUC-JP", "UTF-8"] or ["UTF-8", "ISO-8859-1"].
  *
- * error_bytes and readagain_bytes indicats the byte sequences which causes the error.
+ * error_bytes and readagain_bytes indicates the byte sequences which causes the error.
  * error_bytes is discarded portion.
  * readagain_bytes is buffered portion which is read again on next conversion.
  *
@@ -2638,7 +2661,7 @@ econv_finish(VALUE self)
  *   ec = Encoding::Converter.new("EUC-JP", "Shift_JIS")
  *   ec.primitive_convert(src="\xff", dst="", nil, 10)                       
  *   p ec.primitive_errinfo
- *   #=> [:invalid_byte_sequence, "EUC-JP", "UTF-8", "\xFF", "", nil]
+ *   #=> [:invalid_byte_sequence, "EUC-JP", "UTF-8", "\xFF", ""]
  *
  *   # HIRAGANA LETTER A (\xa4\xa2 in EUC-JP) is not representable in ISO-8859-1.
  *   # Since this error is occur in UTF-8 to ISO-8859-1 conversion,
@@ -2646,20 +2669,20 @@ econv_finish(VALUE self)
  *   ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
  *   ec.primitive_convert(src="\xa4\xa2", dst="", nil, 10)
  *   p ec.primitive_errinfo
- *   #=> [:undefined_conversion, "UTF-8", "ISO-8859-1", "\xE3\x81\x82", "", nil]
+ *   #=> [:undefined_conversion, "UTF-8", "ISO-8859-1", "\xE3\x81\x82", ""]
  *
  *   # partial character is invalid
  *   ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
  *   ec.primitive_convert(src="\xa4", dst="", nil, 10)
  *   p ec.primitive_errinfo
- *   #=> [:incomplete_input, "EUC-JP", "UTF-8", "\xA4", "", nil]
+ *   #=> [:incomplete_input, "EUC-JP", "UTF-8", "\xA4", ""]
  *
  *   # Encoding::Converter::PARTIAL_INPUT prevents invalid errors by
  *   # partial characters.
  *   ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
  *   ec.primitive_convert(src="\xa4", dst="", nil, 10, Encoding::Converter::PARTIAL_INPUT)                 
  *   p ec.primitive_errinfo
- *   #=> [:source_buffer_empty, nil, nil, nil, nil, :partial_input]
+ *   #=> [:source_buffer_empty, nil, nil, nil, nil]
  *
  *   # \xd8\x00\x00@ is invalid as UTF-16BE because
  *   # no low surrogate after high surrogate (\xd8\x00).
@@ -2670,7 +2693,7 @@ econv_finish(VALUE self)
  *   ec = Encoding::Converter.new("UTF-16BE", "UTF-8")
  *   ec.primitive_convert(src="\xd8\x00\x00@", dst="", nil, 10)
  *   p ec.primitive_errinfo
- *   #=> [:invalid_byte_sequence, "UTF-16BE", "UTF-8", "\xD8\x00", "\x00", nil]
+ *   #=> [:invalid_byte_sequence, "UTF-16BE", "UTF-8", "\xD8\x00", "\x00"]
  *   p src
  *   #=> "@"
  *
@@ -2679,7 +2702,7 @@ econv_finish(VALUE self)
  *   ec = Encoding::Converter.new("UTF-16LE", "UTF-8")
  *   ec.primitive_convert(src="\x00\xd8@\x00", dst="", nil, 10)
  *   p ec.primitive_errinfo
- *   #=> [:invalid_byte_sequence, "UTF-16LE", "UTF-8", "\x00\xD8", "@\x00", nil]
+ *   #=> [:invalid_byte_sequence, "UTF-16LE", "UTF-8", "\x00\xD8", "@\x00"]
  *   p src
  *   #=> ""
  *
@@ -2691,9 +2714,10 @@ econv_primitive_errinfo(VALUE self)
 
     VALUE ary;
 
-    ary = rb_ary_new2(6);
+    ary = rb_ary_new2(5);
 
     rb_ary_store(ary, 0, econv_result_to_symbol(ec->last_error.result));
+    rb_ary_store(ary, 4, Qnil);
 
     if (ec->last_error.source_encoding)
         rb_ary_store(ary, 1, rb_str_new2(ec->last_error.source_encoding));
@@ -2706,13 +2730,43 @@ econv_primitive_errinfo(VALUE self)
         rb_ary_store(ary, 4, rb_str_new((const char *)ec->last_error.error_bytes_start + ec->last_error.error_bytes_len, ec->last_error.readagain_len));
     }
 
-    rb_ary_store(ary, 5, ec->last_error.partial_input ? ID2SYM(rb_intern("partial_input")) : Qnil);
-
     return ary;
 }
 
+/*
+ * call-seq:
+ *   ec.insert_output(string) -> nil
+ *
+ * inserts string into the encoding converter.
+ * The string will be converted into the destination encoding and
+ * outputed on later conversions.
+ *
+ * If the destination encoding is stateful,
+ * string is converted according to the state and update the state.
+ *
+ * This method should be used only when a conversion error is occur.
+ *
+ *  ec = Encoding::Converter.new("utf-8", "iso-8859-1")
+ *  src = "HIRAGANA LETTER A is \u{3042}."
+ *  dst = ""
+ *  p ec.primitive_convert(src, dst)    #=> :undefined_conversion
+ *  puts "[#{dst.dump}, #{src.dump}]"   #=> ["HIRAGANA LETTER A is ", "."]
+ *  ec.insert_output("<err>")
+ *  p ec.primitive_convert(src, dst)    #=> :finished
+ *  puts "[#{dst.dump}, #{src.dump}]"   #=> ["HIRAGANA LETTER A is <err>.", ""]
+ *
+ *  ec = Encoding::Converter.new("utf-8", "iso-2022-jp")
+ *  src = "\u{306F 3041 3068 2661 3002}" # U+2661 is not representable in iso-2022-jp
+ *  dst = ""
+ *  p ec.primitive_convert(src, dst)    #=> :undefined_conversion
+ *  puts "[#{dst.dump}, #{src.dump}]"   #=> ["\e$B$O$!$H".force_encoding("ISO-2022-JP"), "\xE3\x80\x82"]
+ *  ec.insert_output "?"                # state change required to output "?".
+ *  p ec.primitive_convert(src, dst)    #=> :finished
+ *  puts "[#{dst.dump}, #{src.dump}]"   #=> ["\e$B$O$!$H\e(B?\e$B!#\e(B".force_encoding("ISO-2022-JP"), ""]
+ *
+ */
 static VALUE
-econv_primitive_insert_output(VALUE self, VALUE string)
+econv_insert_output(VALUE self, VALUE string)
 {
     const char *insert_enc;
 
@@ -2725,19 +2779,46 @@ econv_primitive_insert_output(VALUE self, VALUE string)
     string = rb_str_transcode(string, rb_enc_from_encoding(rb_enc_find(insert_enc)), 0);
 
     ret = rb_econv_insert_output(ec, (const unsigned char *)RSTRING_PTR(string), RSTRING_LEN(string), insert_enc);
-    if (ret == -1)
-        return Qfalse;
+    if (ret == -1) {
+	rb_raise(rb_eArgError, "too big string");
+    }
 
-    return Qtrue;
+    return Qnil;
 }
 
+/*
+ * call-seq
+ *   ec.putback                    => string
+ *   ec.putback(max_numbytes)      => string
+ *
+ * put back the bytes which will be converted.
+ *
+ * The bytes are caused by invalid_byte_sequence error.
+ * When invalid_byte_sequence error, some bytes are discarded and
+ * some bytes are buffered to be converted later.
+ * The latter bytes can be put back.
+ * It can be observed by
+ * Encoding::InvalidByteSequence#readagain_bytes and
+ * Encoding::Converter#primitive_errinfo.
+ *
+ *   ec = Encoding::Converter.new("utf-16le", "iso-8859-1")
+ *   src = "\x00\xd8\x61\x00"
+ *   dst = ""
+ *   p ec.primitive_convert(src, dst)   #=> :invalid_byte_sequence
+ *   p ec.primitive_errinfo     #=> [:invalid_byte_sequence, "UTF-16LE", "UTF-8", "\x00\xD8", "a\x00"]
+ *   p ec.putback               #=> "a\x00"
+ *   p ec.putback               #=> ""          # no more bytes to put back
+ *
+ */
 static VALUE
-econv_primitive_putback(VALUE self, VALUE max)
+econv_putback(int argc, VALUE *argv, VALUE self)
 {
     rb_econv_t *ec = check_econv(self);
     int n;
     int putbackable;
-    VALUE str;
+    VALUE str, max;
+
+    rb_scan_args(argc, argv, "01", &max);
 
     if (NIL_P(max))
         n = rb_econv_putbackable(ec);
@@ -2751,7 +2832,43 @@ econv_primitive_putback(VALUE self, VALUE max)
     str = rb_str_new(NULL, n);
     rb_econv_putback(ec, (unsigned char *)RSTRING_PTR(str), n);
 
+    if (ec->source_encoding) {
+        rb_enc_associate(str, ec->source_encoding);
+    }
+
     return str;
+}
+
+/*
+ * call-seq:
+ *   ec.last_error -> exception or nil
+ *
+ * returns an exception object for the last conversion.
+ * It returns nil if the last conversion is not an error. 
+ *
+ * "error" means that
+ * Encoding::InvalidByteSequence and Encoding::ConversionUndefined for
+ * Encoding::Converter#convert and
+ * :invalid_byte_sequence, :incomplete_input and :undefined_conversion for
+ * Encoding::Converter#primitive_convert.
+ *
+ * ec = Encoding::Converter.new("utf-8", "iso-8859-1")
+ * p ec.primitive_convert(src="\xf1abcd", dst="")       #=> :invalid_byte_sequence
+ * p ec.last_error      #=> #<Encoding::InvalidByteSequence: "\xF1" followed by "a" on UTF-8>
+ * p ec.primitive_convert(src, dst, nil, 1)             #=> :destination_buffer_full
+ * p ec.last_error      #=> nil
+ *
+ */
+static VALUE
+econv_last_error(VALUE self)
+{
+    rb_econv_t *ec = check_econv(self);
+    VALUE exc;
+
+    exc = make_econv_exception(ec);
+    if (NIL_P(exc))
+        return Qnil;
+    return exc;
 }
 
 void
@@ -2765,36 +2882,146 @@ rb_econv_check_error(rb_econv_t *ec)
     rb_exc_raise(exc);
 }
 
+/*
+ * call-seq:
+ *   ecerr.source_encoding_name         -> string
+ *
+ * returns the source encoding name as a string.
+ */
+static VALUE
+ecerr_source_encoding_name(VALUE self)
+{
+    return rb_attr_get(self, rb_intern("source_encoding_name"));
+}
+
+/*
+ * call-seq:
+ *   ecerr.source_encoding              -> encoding
+ *
+ * returns the source encoding as an encoding object.
+ *
+ * Note that the result may not be equal to the source encoding of
+ * the encoding converter if the conversion has multiple steps.
+ *
+ *  ec = Encoding::Converter.new("ISO-8859-1", "EUC-JP") # ISO-8859-1 -> UTF-8 -> EUC-JP
+ *  begin
+ *    ec.convert("\xa0") # NO-BREAK SPACE, which is available in UTF-8 but not in EUC-JP.
+ *  rescue Encoding::ConversionUndefined
+ *    p $!.source_encoding              #=> #<Encoding:UTF-8>
+ *    p $!.destination_encoding         #=> #<Encoding:EUC-JP>
+ *    p $!.source_encoding_name         #=> "UTF-8"
+ *    p $!.destination_encoding_name    #=> "EUC-JP"
+ *  end
+ *
+ */
 static VALUE
 ecerr_source_encoding(VALUE self)
 {
     return rb_attr_get(self, rb_intern("source_encoding"));
 }
 
+/*
+ * call-seq:
+ *   ecerr.destination_encoding_name         -> string
+ *
+ * returns the destination encoding name as a string.
+ */
+static VALUE
+ecerr_destination_encoding_name(VALUE self)
+{
+    return rb_attr_get(self, rb_intern("destination_encoding_name"));
+}
+
+/*
+ * call-seq:
+ *   ecerr.destination_encoding         -> string
+ *
+ * returns the destination encoding as an encoding object.
+ */
 static VALUE
 ecerr_destination_encoding(VALUE self)
 {
     return rb_attr_get(self, rb_intern("destination_encoding"));
 }
 
+/*
+ * call-seq:
+ *   ecerr.error_char         -> string
+ *
+ * returns the one-character string which cause Encoding::ConversionUndefined.
+ *
+ *  ec = Encoding::Converter.new("ISO-8859-1", "EUC-JP")
+ *  begin
+ *    ec.convert("\xa0")
+ *  rescue Encoding::ConversionUndefined
+ *    puts $!.error_char.dump   #=> "\xC2\xA0"
+ *    p $!.error_char.encoding  #=> #<Encoding:UTF-8>
+ *  end
+ *
+ */
 static VALUE
 ecerr_error_char(VALUE self)
 {
     return rb_attr_get(self, rb_intern("error_char"));
 }
 
+/*
+ * call-seq:
+ *   ecerr.error_bytes         -> string
+ *
+ * returns the discarded bytes when Encoding::InvalidByteSequence occur.
+ *
+ *  ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
+ *  begin
+ *    ec.convert("abc\xA1\xFFdef")
+ *  rescue Encoding::InvalidByteSequence
+ *    p $!      #=> #<Encoding::InvalidByteSequence: "\xA1" followed by "\xFF" on EUC-JP>
+ *    puts $!.error_bytes.dump          #=> "\xA1"
+ *    puts $!.readagain_bytes.dump      #=> "\xFF"
+ *  end
+ */
 static VALUE
 ecerr_error_bytes(VALUE self)
 {
     return rb_attr_get(self, rb_intern("error_bytes"));
 }
 
+/*
+ * call-seq:
+ *   ecerr.readagain_bytes         -> string
+ *
+ * returns the bytes to be read again when Encoding::InvalidByteSequence occur.
+ */
 static VALUE
 ecerr_readagain_bytes(VALUE self)
 {
     return rb_attr_get(self, rb_intern("readagain_bytes"));
 }
 
+/*
+ * call-seq:
+ *   ecerr.incomplete_input?         -> true or false
+ *
+ * returns true if the invalid byte sequence error is caused by
+ * premature end of string.
+ *
+ *  ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
+ *
+ *  begin
+ *    ec.convert("abc\xA1z")
+ *  rescue Encoding::InvalidByteSequence
+ *    p $!      #=> #<Encoding::InvalidByteSequence: "\xA1" followed by "z" on EUC-JP>
+ *    p $!.incomplete_input?    #=> false
+ *  end
+ *
+ *  begin
+ *    ec.convert("abc\xA1")
+ *    ec.finish
+ *  rescue Encoding::InvalidByteSequence
+ *    p $!      #=> #<Encoding::InvalidByteSequence: incomplete "\xA1" on EUC-JP>
+ *    p $!.incomplete_input?    #=> true
+ *  end
+ */
 static VALUE
 ecerr_incomplete_input(VALUE self)
 {
@@ -2838,8 +3065,9 @@ Init_transcode(void)
     rb_define_method(rb_cEncodingConverter, "convert", econv_convert, 1);
     rb_define_method(rb_cEncodingConverter, "finish", econv_finish, 0);
     rb_define_method(rb_cEncodingConverter, "primitive_errinfo", econv_primitive_errinfo, 0);
-    rb_define_method(rb_cEncodingConverter, "primitive_insert_output", econv_primitive_insert_output, 1);
-    rb_define_method(rb_cEncodingConverter, "primitive_putback", econv_primitive_putback, 1);
+    rb_define_method(rb_cEncodingConverter, "insert_output", econv_insert_output, 1);
+    rb_define_method(rb_cEncodingConverter, "putback", econv_putback, -1);
+    rb_define_method(rb_cEncodingConverter, "last_error", econv_last_error, 0);
     rb_define_const(rb_cEncodingConverter, "INVALID_MASK", INT2FIX(ECONV_INVALID_MASK));
     rb_define_const(rb_cEncodingConverter, "INVALID_IGNORE", INT2FIX(ECONV_INVALID_IGNORE));
     rb_define_const(rb_cEncodingConverter, "INVALID_REPLACE", INT2FIX(ECONV_INVALID_REPLACE));
@@ -2852,10 +3080,14 @@ Init_transcode(void)
     rb_define_const(rb_cEncodingConverter, "CRLF_NEWLINE_ENCODER", INT2FIX(ECONV_CRLF_NEWLINE_ENCODER));
     rb_define_const(rb_cEncodingConverter, "CR_NEWLINE_ENCODER", INT2FIX(ECONV_CR_NEWLINE_ENCODER));
 
+    rb_define_method(rb_eConversionUndefined, "source_encoding_name", ecerr_source_encoding_name, 0);
+    rb_define_method(rb_eConversionUndefined, "destination_encoding_name", ecerr_destination_encoding_name, 0);
     rb_define_method(rb_eConversionUndefined, "source_encoding", ecerr_source_encoding, 0);
     rb_define_method(rb_eConversionUndefined, "destination_encoding", ecerr_destination_encoding, 0);
     rb_define_method(rb_eConversionUndefined, "error_char", ecerr_error_char, 0);
 
+    rb_define_method(rb_eInvalidByteSequence, "source_encoding_name", ecerr_source_encoding_name, 0);
+    rb_define_method(rb_eInvalidByteSequence, "destination_encoding_name", ecerr_destination_encoding_name, 0);
     rb_define_method(rb_eInvalidByteSequence, "source_encoding", ecerr_source_encoding, 0);
     rb_define_method(rb_eInvalidByteSequence, "destination_encoding", ecerr_destination_encoding, 0);
     rb_define_method(rb_eInvalidByteSequence, "error_bytes", ecerr_error_bytes, 0);

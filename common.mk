@@ -9,7 +9,7 @@ RUBYOPT       = -
 
 SPEC_GIT_BASE = git://github.com/rubyspec
 MSPEC_GIT_URL = $(SPEC_GIT_BASE)/mspec.git
-RUBYSPEC_GIT_URL = $(SPEC_GIT_BASE)/rubyspec.git
+RUBYSPEC_GIT_URL = git://github.com/yugui/rubyspec.git
 
 STATIC_RUBY   = static-ruby
 
@@ -741,9 +741,6 @@ prereq: incs srcs preludes
 
 preludes: {$(VPATH)}miniprelude.c
 preludes: {$(srcdir)}golf_prelude.c
-
-docs:
-	$(BASERUBY) -I$(srcdir) $(srcdir)/tool/makedocs.rb $(INSNS2VMOPT)
 
 $(srcdir)/revision.h: $(REVISION_FORCE)
 	@set LC_MESSAGES=C

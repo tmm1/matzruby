@@ -283,12 +283,12 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(Complex(1,1), Complex(1,1).nonzero?)
   end
 
-  def rect
+  def test_rect
     assert_equal([1,2], Complex.rectangular(1,2).rectangular)
     assert_equal([1,2], Complex.rect(1,2).rect)
   end
 
-  def polar
+  def test_polar
     assert_equal([1,2], Complex.polar(1,2).polar)
   end
 
@@ -855,6 +855,11 @@ class Complex_Test < Test::Unit::TestCase
     assert_equal(1, -1.magnitude)
     assert_equal(1, 1.0.magnitude)
     assert_equal(1, -1.0.magnitude)
+
+    assert_equal(4, 2.abs2)
+    assert_equal(4, -2.abs2)
+    assert_equal(4.0, 2.0.abs2)
+    assert_equal(4.0, -2.0.abs2)
 
     assert_equal(0, 1.arg)
     assert_equal(0, 1.angle)

@@ -525,7 +525,7 @@ rb_read_internal(int fd, void *buf, size_t count)
     iis.buf = buf;
     iis.capa = count;
 
-    return rb_thread_blocking_region(internal_read_func, &iis, RB_UBF_DFL, 0);
+    return rb_thread_blocking_region(internal_read_func, &iis, RUBY_UBF_IO, 0);
 }
 
 static int
@@ -536,7 +536,7 @@ rb_write_internal(int fd, void *buf, size_t count)
     iis.buf = buf;
     iis.capa = count;
 
-    return rb_thread_blocking_region(internal_write_func, &iis, RB_UBF_DFL, 0);
+    return rb_thread_blocking_region(internal_write_func, &iis, RUBY_UBF_IO, 0);
 }
 
 static int
@@ -3889,7 +3889,7 @@ rb_io_extract_modeenc(VALUE *mode_p, VALUE opthash,
 
         if (io_extract_encoding_option(opthash, &enc, &enc2)) {
             if (has_enc) {
-                rb_raise(rb_eArgError, "encoding sepecified twice");
+                rb_raise(rb_eArgError, "encoding specified twice");
             }
         }
     }
@@ -3937,7 +3937,7 @@ rb_sysopen_internal(char *fname, int flags, mode_t mode)
     data.fname = fname;
     data.flag = flags;
     data.mode = mode;
-    return (int)rb_thread_blocking_region(sysopen_func, &data, RB_UBF_DFL, 0);
+    return (int)rb_thread_blocking_region(sysopen_func, &data, RUBY_UBF_IO, 0);
 }
 
 static int
@@ -7495,7 +7495,7 @@ copy_stream_body(VALUE arg)
     rb_fd_set(src_fd, &stp->fds);
     rb_fd_set(dst_fd, &stp->fds);
 
-    return rb_thread_blocking_region(copy_stream_func, (void*)stp, RB_UBF_DFL, 0);
+    return rb_thread_blocking_region(copy_stream_func, (void*)stp, RUBY_UBF_IO, 0);
 }
 
 static VALUE

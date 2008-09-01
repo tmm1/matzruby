@@ -1,3 +1,8 @@
+Mon Sep  1 11:31:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/fileutils.rb (copy_stream, fu_copy_stream0, copy_file): use
+	  IO.copy_stream to get rid of extraneous conversion.
+
 Mon Sep  1 11:31:26 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* mvm.c: added.
@@ -10,6 +15,179 @@ Mon Sep  1 11:31:26 2008  Koichi Sasada  <ko1@atdot.net>
 	  thread_pthread.h, vm.c, vm_core.h: fix Ruby/MVM API.
 	  On this commit, only miniruby is built, but not working.
 
+Mon Sep  1 02:55:15 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* strftime.c (rb_strftime): calc timezone offset by myself if system
+	  doesn't provide timezone info.
+
+Mon Sep  1 02:48:28 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: change "illegal" to "invalid".
+
+Mon Sep  1 02:31:16 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (transcode_generated_code): defined for
+	  generating table at once.
+	  (transcode_tblgen): returns an empty string.
+	  (transcode_generate_node): ditto.
+
+	* enc/trans/newline.trans: use transcode_generated_code.
+
+	* enc/trans/iso2022.trans: ditto.
+
+	* enc/trans/single_byte.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+	* enc/trans/japanese.trans: ditto.
+
+	* enc/trans/korean.trans: ditto.
+
+Mon Sep  1 02:10:03 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (citrus_decode_mapsrc): print logging
+	  message on STDERR.
+
+Mon Sep  1 01:24:09 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/eucjp-tbl.rb: replace by previous Citrus maps.
+
+	* enc/trans/sjis-tble.rb: ditto.
+
+Mon Sep  1 01:18:26 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* tool/transcode-tblgen.rb: add table generator from Citrus maps.
+
+	* enc/trans/japanese.trans: use Citrus maps.
+
+	* enc/trans/CP: add maps from Citrus.
+
+	* enc/trans/JIS: ditto.
+
+	* test/ruby/test_transcode.rb: Shift_JIS and EUC-JP doesn't support
+	  IBM extended characters.
+
+Mon Sep  1 00:19:45 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* common.mk (docs): removed a useless make target.
+	  tool/makedoc.rb was removed at revision 13919.
+
+Sun Aug 31 20:49:42 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c (numeric_abs2): new.
+
+Sun Aug 31 18:22:04 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/mkmf.rb (have_devel?): checks if the compiler works.
+
+Sun Aug 31 18:02:41 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* Temporarily uses git://github.com/yugui/rubyspec.git
+	  until specs for 1.9 is merged into
+	  git://github.com/rubyspec/rubyspec.git.
+
+Sun Aug 31 18:06:49 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (transcode.c): set source_encoding and
+	  destination_encoding as encoding object.
+	  (ecerr_source_encoding): new method.
+	  (ecerr_destination_encoding): ditto.
+
+Sun Aug 31 17:58:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/mkmf.rb (Logging.log_open): opens in binary mode to get rid of
+	  extra CR.
+
+	* lib/mkmf.rb (try_func, try_var, have_struct_member),
+	  (scalar_ptr_type?, scalar_type?): use MAIN_DOES_NOTHING.
+
+	* lib/mkmf.rb (MAIN_DOES_NOTHING): defaults to ordinary main.
+
+	* win32/Makefile.sub (config): for MAIN_DOES_NOTHING for wince.
+
+Sun Aug 31 17:30:35 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* spec/README (How to run): added.
+
+Sun Aug 31 17:28:25 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* spec/default.mspec (config): added.
+
+	* spec/default.mspec (target): replaced the built ruby
+	  to runruby.rb.
+	  Improved $LOAD_PATH on running specs.
+
+	* spec/default.mspec (flags): ditto.
+
+Sun Aug 31 17:16:07 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (make_econv_exception): rename instance variable names
+	  for storing encoding names.
+	  (ecerr_source_encoding_name): method renamed.
+	  (ecerr_destination_encoding_name): ditto.
+
+Sun Aug 31 16:57:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_putback): associate encoding to the result.
+
+Sun Aug 31 16:43:56 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* include/ruby/intern.h: rename RB_UBF_DFL to
+	  RUBY_UBF_IO and RUBY_UBF_PROCESS.
+	  Because there is no default (universal) unblocking function.
+
+	* ext/socket/socket.c, file.c, io.c, process.c, thread.c: ditto.
+
+Sun Aug 31 16:42:23 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_insert_output): raise ArgumentError on failure.
+
+Sun Aug 31 16:39:17 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* bootstraptest/test_thread.rb: add a test.
+
+Sun Aug 31 16:34:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/single_byte.trans (us_ascii_map): don't define 8bit bytes.
+
+Sun Aug 31 14:27:27 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_last_error): new method.
+
+Sun Aug 31 14:17:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_primitive_convert): make two arguments,
+	  destination_byteoffset and destination_bytesize, optional.
+
+Sun Aug 31 14:12:06 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (make_econv_exception): error message simplified.
+
+Sun Aug 31 13:47:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/coverage/coverage.c (rb_mCoverage): removed unneeded static variable.
+
+	* ext/socket/socket.c (unix_recv_io): ditto.
+
+	* ext/socket/socket.c (mConst): ditto.
+
+Sun Aug 31 13:45:41 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/openssl/ossl_ocsp.c (ossl_ocspres_initialize): fix for
+	  initialization of r18168.
+
+Sun Aug 31 13:42:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/ripper/eventids2.c (ripper_init_eventids2): use rb_intern_const.
+
+	* ext/ripper/tools/generate.rb (generate_eventids1): ditto.
+
+	* ext/ripper/tools/generate.rb (generate_eventids2_table): ditto.
+
+Sun Aug 31 12:56:00 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/mkcallback.rb (rb_dl_init_callbacks): fix indent.
+
 Sun Aug 31 12:41:09 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* sampledriver/main.c: update.
@@ -17,6 +195,50 @@ Sun Aug 31 12:41:09 2008  Koichi Sasada  <ko1@atdot.net>
 Sun Aug 31 12:32:41 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* dir.c (dir_chdir): fixed typo.
+
+Sun Aug 31 11:39:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/strscan/strscan.c (strscan_do_scan): fix usecnt decrement.
+
+Sun Aug 31 04:38:47 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_putback): make max argument optional.
+
+Sun Aug 31 04:35:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_putback): putback from last byte.
+
+Sun Aug 31 04:27:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_putback): renamed from econv_primitive_putback.
+
+Sun Aug 31 04:22:51 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_insert_output): renamed from
+	  econv_primitive_insert_output.
+
+Sun Aug 31 04:20:46 2008  Tanaka Akira  <akr@fsij.org>
+
+	* test/ruby/test_econv.rb: follow econv_primitive_errinfo change.
+
+Sun Aug 31 03:44:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_primitive_errinfo): 5th element (partial_input)
+	  removed from result.
+
+Sun Aug 31 01:53:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/mkcallback.rb: split callback.h to callback-[0-9].c to reduce
+	  memory consumption on compilation.  [ruby-dev:31898]
+
+	* ext/dl/depend: add dependency for callback-[0-9].[co].
+
+Sun Aug 31 01:27:46 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/mkcallback.rb (foreach_proc_entry): extracted.
+	  (gencallback): ditto.
+	  (gen_push_proc_ary): ditto.
+	  (gen_push_addr_ary): ditto.
 
 Sun Aug 31 00:40:45 2008  Koichi Sasada  <ko1@atdot.net>
 
@@ -32,9 +254,24 @@ Sun Aug 31 00:02:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* file.c (ruby_fd_getcwd): returns path for fd.
 
+Sat Aug 30 23:51:01 2008  Masatoshi SEKI  <m_seki@mva.biglobe.ne.jp>
+
+	* test/rinda/test_tuplebag.rb (test_has_expires_eh): fix failures
+	  [ruby-dev:35937].
+
+Sat Aug 30 23:38:00 2008  Tanaka Akira  <akr@fsij.org>
+
+	* ext/dl/test/test_import.rb: fix character code.
+
+	* ext/dl/test/test_func.rb: ditto.
+
 Sat Aug 30 22:45:00 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_queue_shift): fix memory leak.
+
+Sat Aug 30 22:23:31 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* rational.c: added a static variable for nurat_to_f.
 
 Sat Aug 30 20:06:24 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -346,7 +583,7 @@ Thu Aug 28 21:43:05 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
 	* win32/win32.c, include/ruby/win32.h (rb_w32_pipe): overlapped pipe
 	  I/O support.
 
-	* wn32/win32.c (rb_w32_read, rb_w32_write): overlapped I/O support to
+	* win32/win32.c (rb_w32_read, rb_w32_write): overlapped I/O support to
 	  enable canceling I/O.
 
 	* thread_win32.c (ubf_handle): remove workaround.
@@ -411,7 +648,7 @@ Wed Aug 27 14:45:34 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
 Wed Aug 27 10:34:42 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
-	* lib/cgi.rb (CGI::Cookie): remove delagate.
+	* lib/cgi.rb (CGI::Cookie): remove delegate.
 	  Patch by Takeyuki Fujioka. [ruby-dev:35995]
 
 	* test/cgi/test_cgi_cookie.rb: added for above.
@@ -649,7 +886,7 @@ Mon Aug 25 17:36:26 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 Mon Aug 25 14:22:21 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 
 	* parse.y (YYSTYPE): struct RVarmap has been no longer
-	  defnied.
+	  defined.
 	  see also r11717 by matz.
 
 Mon Aug 25 10:42:18 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
@@ -870,7 +1107,7 @@ Sun Aug 24 10:55:00 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
 Sun Aug 24 08:03:31 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
-	* strftime.c (daylight, timezone): not provied as dllexport on cygwin,
+	* strftime.c (daylight, timezone): not provided as dllexport on cygwin,
 	  right now.
 
 Sun Aug 24 06:39:05 2008  NARUSE, Yui  <naruse@ruby-lang.org>
@@ -1039,7 +1276,7 @@ Fri Aug 22 21:18:40 2008  Tadayoshi Funaba  <tadf@dotrb.org>
 
 	* include/ruby/intern.h: added a declaration.
 
-	* lib/complex.rb: added an obsolate class method.
+	* lib/complex.rb: added an obsolete class method.
 
 	* lib/cmath.rb: use scalar? instead of generic?.
 

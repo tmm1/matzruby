@@ -207,7 +207,7 @@ class ActionMap
         ss.each_firstbyte {|byte, rest|
           h[byte] ||= {}
           if h[byte][rest]
-            raise "ambiguous"
+            raise "ambiguous %s or %s (%02X/%s)" % [h[byte][rest], action, byte, rest]
           end
           h[byte][rest] = action
         }
@@ -389,6 +389,123 @@ End
     code << generate_lookup_node(name_hint, table)
     name_hint
   end
+
+  def gennode(name_hint=nil, valid_encoding=nil)
+    code = ''
+    name = generate_node(code, name_hint, valid_encoding)
+    return name, code
+  end
+end
+
+def citrus_mskanji_cstomb(csid, index)
+  case csid
+  when 0
+    index
+  when 1
+    index + 0x80
+  when 2, 3
+    row = index >> 8
+    raise "invalid byte sequence" if row < 0x21
+    if csid == 3
+      if row <= 0x2F
+        offset = (row == 0x22 || row >= 0x26) ? 0xED : 0xF0
+      elsif row >= 0x4D && row <= 0x7E
+        offset = 0xCE
+      else
+        raise "invalid byte sequence"
+      end
+    else
+      raise "invalid byte sequence" if row > 0x97
+      offset = (row < 0x5F) ? 0x81 : 0xC1
+    end
+    col = index & 0xFF
+    raise "invalid byte sequence" if (col < 0x21 || col > 0x7E)
+
+    row -= 0x21
+    col -= 0x21
+    if (row & 1) == 0
+      col += 0x40
+      col += 1 if (col >= 0x7F)
+    else
+      col += 0x9F;
+    end
+    row = row / 2 + offset
+    (row << 8) | col
+  end.to_s(16)
+end
+
+def citrus_euc_cstomb(csid, index)
+  case csid
+  when 0x0000
+    index
+  when 0x8080
+    index | 0x8080
+  when 0x0080
+    index | 0x8E80
+  when 0x8000
+    index | 0x8F8080
+  end.to_s(16)
+end
+
+def citrus_cstomb(ces, csid, index)
+  case ces
+  when 'mskanji'
+    citrus_mskanji_cstomb(csid, index)
+  when 'euc'
+    citrus_euc_cstomb(csid, index)
+  end
+end
+
+SUBDIR = %w/APPLE AST BIG5 CNS CP EBCDIC GB GEORGIAN ISO646 ISO-8859 JIS KAZAKH KOI KS MISC TCVN/
+
+
+def citrus_decode_mapsrc(ces, csid, mapsrcs)
+  table = []
+  mapsrcs.split(',').each do |mapsrc|
+    path = [$srcdir]
+    mode = nil
+    if mapsrc.start_with?('UCS')
+      mode = :from_ucs
+      from = mapsrc[4..-1]
+      path << SUBDIR.find{|x| from.start_with?(x) }
+    else
+      mode = :to_ucs
+      path << SUBDIR.find{|x| mapsrc.start_with?(x) }
+    end
+    path << mapsrc.gsub(':', '@')
+    path = File.join(*path)
+    path << ".src"
+    path[path.rindex('/')] = '%'
+    STDERR.puts 'load mapsrc %s' % path if VERBOSE_MODE
+    open(path) do |f|
+      f.each_line do |l|
+	break if /^BEGIN_MAP/ =~ l
+      end
+      f.each_line do |l|
+	next if /^\s*(?:#|$)/ =~ l
+	break if /^END_MAP/ =~ l
+	case mode
+	when :from_ucs
+	  case l
+	  when /0x(\w+)\s*-\s*0x(\w+)\s*=\s*INVALID/
+	    #	  table.push << ["{#$1-#$2}", :invalid]
+	  when /(0x\w+)\s*=\s*(0x\w+)/
+	    table.push << [$1.hex, citrus_cstomb(ces, csid, $2.hex)]
+	  else
+	    raise "unknown notation '%s'"% l
+	  end
+	when :to_ucs
+	  case l
+	  when /(0x\w+)\s*=\s*(0x\w+)/
+	    table.push << [citrus_cstomb(ces, csid, $1.hex), $2.hex]
+	  else
+	    raise "unknown notation '%s'"% l
+	  end
+	end
+      end
+    end
+  end
+  return table
 end
 
 def encode_utf8(map)
@@ -418,12 +535,12 @@ def transcode_compile_tree(name, from, map)
     valid_encoding = nil
   end
 
-  code = ''
-  defined_name = am.generate_node(code, name, valid_encoding)
+  defined_name, code = am.gennode(name, valid_encoding)
   return defined_name, code, max_input
 end
 
 TRANSCODERS = []
+TRANSCODE_GENERATED_CODE = ''
 
 def transcode_tblgen(from, to, map)
   STDERR.puts "converter from #{from} to #{to}" if VERBOSE_MODE
@@ -454,14 +571,19 @@ static const rb_transcoder
     NULL, NULL, NULL
 };
 End
-  tree_code + "\n" + transcoder_code
+  TRANSCODE_GENERATED_CODE << tree_code + "\n" + transcoder_code
+  ''
 end
 
 def transcode_generate_node(am, name_hint=nil)
   STDERR.puts "converter for #{name_hint}" if VERBOSE_MODE
-  code = ''
-  am.generate_node(code, name_hint)
-  code
+  name, code = am.gennode(name_hint)
+  TRANSCODE_GENERATED_CODE << code
+  ''
+end
+
+def transcode_generated_code
+  TRANSCODE_GENERATED_CODE
 end
 
 def transcode_register_code
@@ -567,8 +689,8 @@ op.parse!
 VERBOSE_MODE = verbose_mode
 
 arg = ARGV.shift
-dir = File.dirname(arg)
-$:.unshift dir unless $:.include? dir
+$srcdir = File.dirname(arg)
+$:.unshift $srcdir unless $:.include? $srcdir
 src = File.read(arg)
 src.force_encoding("ascii-8bit") if src.respond_to? :force_encoding
 this_script = File.read(__FILE__)
@@ -585,7 +707,7 @@ if !force_mode && output_filename && File.readable?(output_filename)
     if %r{/\* src="([0-9a-z_.-]+)",} =~ line
       name = $1
       next if name == File.basename(arg) || name == File.basename(__FILE__)
-      path = File.join(dir, name)
+      path = File.join($srcdir, name)
       if File.readable? path
         chk_signature << "/* #{make_signature(name, File.read(path))} */\n"
       end
@@ -613,7 +735,7 @@ libs = libs2 - libs1
 lib_sigs = ''
 libs.each {|lib|
   lib = File.basename(lib)
-  path = File.join(dir, lib)
+  path = File.join($srcdir, lib)
   if File.readable? path
     lib_sigs << "/* #{make_signature(lib, File.read(path))} */\n"
   end
