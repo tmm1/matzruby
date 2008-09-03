@@ -1,3 +1,11 @@
+Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* include/ruby/mvm.h, include/ruby/ruby.h, main.c: 
+	  main.c doesn't need "ruby.h" any more.
+
+	* thread_pthread.c, thread_win32.c (ruby_init_stack):
+	  change parameter type "VALUE *" to "void *".
+
 Wed Sep  3 10:04:46 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* mvm.c, eval.c, ruby.c, vm.c, vm_core.h: pass "make test".

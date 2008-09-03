@@ -281,7 +281,7 @@ extern void *STACK_END_ADDRESS;
 
 #undef ruby_init_stack
 void
-ruby_init_stack(VALUE *addr
+ruby_init_stack(void *addr
 #ifdef __ia64
     , void *bsp
 #endif

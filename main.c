@@ -10,7 +10,9 @@
 **********************************************************************/
 
 #undef RUBY_EXPORT
-#include "ruby.h"
+
+#include "ruby/mvm.h"
+
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif

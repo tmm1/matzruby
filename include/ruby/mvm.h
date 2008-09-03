@@ -41,4 +41,26 @@ int ruby_vm_init_stderr(rb_vm_t *vm, int fd);
 void ruby_vm_foreach(int (*)(rb_vm_t *, void *), void *); /* returning false stops iteration */
 void *ruby_vm_specific_ptr(rb_vm_t *, int);
 
+
+/* system level initializer */
+
+#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__)
+/* to link startup code with ObjC support */
+#define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend();}
+#else
+#define RUBY_GLOBAL_SETUP
+#endif
+
+void ruby_sysinit(int *, char ***);
+
+#ifdef __ia64
+void ruby_init_stack(void *, void *);
+#define ruby_init_stack(addr) ruby_init_stack(addr, rb_ia64_bsp())
+#else
+void ruby_init_stack(void *);
+#endif
+#define RUBY_INIT_STACK \
+    void *variable_in_this_stack_frame; \
+    ruby_init_stack(&variable_in_this_stack_frame);
+
 #endif /* RUBY_MVM_H */

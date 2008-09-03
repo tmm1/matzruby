@@ -945,15 +945,7 @@ NORETURN(void rb_throw_obj(VALUE,VALUE));
 
 VALUE rb_require(const char*);
 
-#ifdef __ia64
-void ruby_init_stack(VALUE*, void*);
-#define ruby_init_stack(addr) ruby_init_stack(addr, rb_ia64_bsp())
-#else
-void ruby_init_stack(VALUE*);
-#endif
-#define RUBY_INIT_STACK \
-    VALUE variable_in_this_stack_frame; \
-    ruby_init_stack(&variable_in_this_stack_frame);
+/* obsolete */
 void ruby_init(void);
 void *ruby_options(int, char**);
 int ruby_run_node(void *);
@@ -1005,15 +997,6 @@ rb_special_const_p(VALUE obj)
 /* hook for external modules */
 static char *dln_libs_to_be_linked[] = { EXTLIB, 0 };
 #endif
-
-#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__)
-/* to link startup code with ObjC support */
-#define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend();}
-#else
-#define RUBY_GLOBAL_SETUP
-#endif
-
-void ruby_sysinit(int *, char ***);
 
 #define RUBY_VM 1 /* YARV */
 #define HAVE_NATIVETHREAD
