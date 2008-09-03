@@ -93,7 +93,8 @@ OBJS          = dln.$(OBJEXT) \
 GOLFOBJS      = goruby.$(OBJEXT) golf_prelude.$(OBJEXT)
 
 PRELUDE_SCRIPTS = $(srcdir)/prelude.rb $(srcdir)/enc/prelude.rb $(srcdir)/gem_prelude.rb
-PRELUDES      = prelude.c miniprelude.c golf_prelude.c
+PRELUDES      = prelude.c miniprelude.c
+GOLFPRELUDES = golf_prelude.c
 
 SCRIPT_ARGS   =	--dest-dir="$(DESTDIR)" \
 		--extout="$(EXTOUT)" \
@@ -326,16 +327,18 @@ install-prereq: $(CLEAR_INSTALLED_LIST)
 clear-installed-list:
 	@exit > $(INSTALLED_LIST)
 
-clean: clean-ext clean-local clean-enc
+clean: clean-ext clean-local clean-enc clean-golf
 clean-local::
 	@$(RM) $(OBJS) $(MINIOBJS) $(MAINOBJ) $(LIBRUBY_A) $(LIBRUBY_SO) $(LIBRUBY) $(LIBRUBY_ALIASES)
 	@$(RM) $(PROGRAM) $(WPROGRAM) miniruby$(EXEEXT) dmyext.$(OBJEXT) $(ARCHFILE) .*.time
-	@$(RM) *.inc $(GOLFOBJS) y.tab.c y.output encdb.h transdb.h
+	@$(RM) *.inc y.tab.c y.output encdb.h transdb.h
 clean-ext::
 clean-enc:
 	@-$(MAKE) -f enc.mk $(MFLAGS) clean
+clean-golf:
+	@$(RM) $(GORUBY)$(EXEEXT) $(GOLFOBJS)
 
-distclean: distclean-ext distclean-local distclean-enc
+distclean: distclean-ext distclean-local distclean-enc distclean-golf
 distclean-local:: clean-local
 	@$(RM) $(MKFILES) $(arch_hdrdir)/ruby/config.h rbconfig.rb yasmdata.rb encdb.h
 	@$(RM) config.cache config.log config.status config.status.lineno $(PRELUDES)
@@ -343,12 +346,15 @@ distclean-local:: clean-local
 distclean-ext::
 distclean-enc: clean-enc
 	@-$(MAKE) -f enc.mk $(MFLAGS) distclean
+distclean-golf: clean-golf
+	@$(RM) $(GOLFPRELUDES)
 
-realclean:: realclean-ext realclean-local realclean-enc
+realclean:: realclean-ext realclean-local realclean-enc realclean-golf
 realclean-local:: distclean-local
-	@$(RM) parse.c parse.h lex.c revision.h
+	@$(RM) parse.c parse.h lex.c newline.c revision.h
 realclean-ext::
 realclean-enc:: distclean-enc
+realclean-golf: distclean-golf
 
 check: test test-all
 

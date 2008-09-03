@@ -1,6 +1,6 @@
 Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
 
-	* include/ruby/mvm.h, include/ruby/ruby.h, main.c: 
+	* include/ruby/mvm.h, include/ruby/ruby.h, main.c:
 	  main.c doesn't need "ruby.h" any more.
 
 	* thread_pthread.c, thread_win32.c (ruby_init_stack):
@@ -9,6 +9,300 @@ Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
 Wed Sep  3 10:04:46 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* mvm.c, eval.c, ruby.c, vm.c, vm_core.h: pass "make test".
+
+Wed Sep  3 00:23:25 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* vm_insnhelper.c (vm_method_missing): copy arguments to allocated
+	  memory from machine stack.  [ruby-dev:36064]
+
+Tue Sep  2 22:20:26 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (base_element): removed.
+	  (BYTE_LOOKUP): removed.
+	  (BYTE_LOOKUP_BASE): don't cast.
+	  (BYTE_LOOKUP_INFO): ditto.
+	  (PType): unsigned int, instead of uintptr_t.
+	  (rb_transcoding): change type of next_field, conv_tree_start and
+	  word_array.
+
+	* tool/transcode-tblgen.rb: generate word_array as array of unsigned
+	  int.
+
+	* transcode.c (transcode_restartable0): follow the above type change.
+
+Tue Sep  2 21:22:22 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: add prefix for byte_array and word_array.
+
+Tue Sep  2 20:57:14 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/make_transdb.rb: check foo.c only if foo.trans exists.
+
+Tue Sep  2 19:19:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/make_transdb.rb: error message improved.
+
+Tue Sep  2 14:05:50 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* enc/trans/utf_16_32.trans (from_UTF_8): rename from to_UTF_16BE
+	  because it was not collect.
+
+Tue Sep  2 14:00:54 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* enc/emacs_mule.c (svn:executable): dropped executable bit.
+
+	* enc/make_encdb.rb (svn:executable): ditto.
+
+Tue Sep  2 12:58:58 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/Makefile.sub (COMPILERFLAG): new compiler flag to compile
+	  enc/trans/japanese*.c.
+
+Tue Sep  2 12:37:10 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/japanese_euc.trans: splitted from japanese.trans to avoid
+	  compiler limitation.  reported by usa.
+
+	* enc/trans/japanese_sjis.trans: ditto.
+
+Tue Sep  2 12:31:24 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/Makefile.sub (miniruby): new target.
+
+Tue Sep  2 11:47:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* marshal.c (struct load_arg): data is now st_table.
+
+	* marshal.c (mark_load_arg): marks data and compat_tbl.
+
+	* marshal.c (r_object0): no need to check if reentered.
+
+	* marshal.c (marshal_load): make the wrapper with mark_load_arg.
+
+Tue Sep  2 10:49:18 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (gettimeofday): easier calculation. use the definition
+	  of the Gregorian calendar.
+
+Tue Sep  2 10:33:12 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* common.mk (distclean-golf): moved golf_prelude.c here from
+	    distclean-local.
+	  (GOLFPRELUDE): added.
+	  (distclean-local): moved golf_prelude.c into distclean-golf.
+
+Tue Sep  2 10:09:17 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (gettimeofday): calc tv_sec and tv_usec from system
+	  time by myself. [ruby-dev:36084]
+
+Tue Sep  2 04:00:37 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (o3): prevent sign extension on 64bit environment.
+	  (o4): ditto.
+
+Tue Sep  2 03:26:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: comment removed in generated code.
+
+Tue Sep  2 03:16:42 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: define TRANSCODE_TABLE_INFO in generated
+	  code.  use it in rb_transcoder.
+
+	* enc/trans/newline.trans: use TRANSCODE_TABLE_INFO.
+
+	* enc/trans/iso2022.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+Tue Sep  2 03:04:33 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: record infos and BYTE_LOOKUPs as index of
+	  word_array to avoid relocation.
+
+	* transcode.c (transcode_restartable0): add word_array to get infos
+	  and BYTE_LOOKUPs.
+
+	* transcode_data.h (BYTE_LOOKUP_INFO): change return type to
+	  uintptr_t.
+
+Tue Sep  2 02:48:30 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: don't need to cast offsets array.
+
+Tue Sep  2 02:36:20 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: record offsets array as index of
+	  byte_array to avoid relocation.
+
+	* transcode.c (transcode_restartable0): add byte_array to get offsets
+	  array.
+
+	* transcode_data.h (BYTE_LOOKUP_BASE): change return type to
+	  uintptr_t.
+	  (rb_transcoder): add fields: byte_array, word_array and word_size.
+
+	* enc/trans/newline.trans: follow rb_transcoder change.
+
+	* enc/trans/iso2022.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+Tue Sep  2 02:05:14 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: make infos arrays and BYTE_LOOKUPs into
+	  single array.
+
+Tue Sep  2 01:47:44 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* common.mk (clean-golf): added.
+	  (distclean-golf): added.
+	  (realclean-golf): added.
+	  (clean): added clean-golf.
+	  (distclean): added distclean-golf.
+	  (realclean): added realclean-golf.
+
+Tue Sep  2 01:31:45 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* common.mk (realclean-local): added newline.c.
+
+Tue Sep  2 01:19:15 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (BYTE_LOOKUP): change to uintptr_t array.
+	  (BYTE_LOOKUP_BASE): follow the type change.
+	  (BYTE_LOOKUP_INFO): ditto.
+	  (PType): ditto.
+	  (rb_transcoding): ditto.
+
+	* tool/transcode-tblgen.rb: follow the type change.
+
+	* transcode.c: ditto.
+
+	* enc/trans/newline.trans: ditto.
+
+	* enc/trans/iso2022.trans: ditto.
+
+	* enc/trans/utf_16_32.trans: ditto.
+
+Mon Sep  1 23:32:46 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (BYTE_LOOKUP_BASE): abstract accessor for
+	  BYTE_LOOKUP.
+	  (BYTE_LOOKUP_INFO): ditto.
+
+	* transcode.c (transcode_restartable0): use BYTE_LOOKUP_BASE and
+	  BYTE_LOOKUP_INFO.
+
+Mon Sep  1 23:14:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: gather infos arrays and BYTE_LOOKUPs.
+
+Mon Sep  1 22:42:54 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* lib/mkmf.rb (distclean): added RM_RF conftest.dSYM.
+	  Fixes distclean-ext problem on Mac OS X.
+	  (RM_RF): added.
+
+Mon Sep  1 22:37:06 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* lib/rexml/document.rb: limit entity expansion.  Thanks, Luka
+	  Treiber, Mitja Kolsek, and Michael Koziarski.
+
+	* lib/rexml/entity.rb: ditto.
+
+	* test/rexml/test_document.rb: ditto.
+
+Mon Sep  1 22:20:22 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: make offsets arrays into single array.
+
+Mon Sep  1 21:46:18 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: gather offsets arrays at top.
+
+Mon Sep  1 21:09:04 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* ./: removed rubyspec from svn:ignore subversion property.
+	  rubyspec directory is no longer used.
+
+	* spec: added mspec and rubyspec to svn:ignore.
+
+Mon Sep  1 19:37:19 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: ValidEncoding['eucJP-ms'] defined.
+	  "\xA2\xAF".encode("utf-8", "eucJP-ms") should raise
+	  Encoding::ConversionUndefined, not Encoding::InvalidByteSequence.
+
+Mon Sep  1 18:27:51 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (gettimeofday): shouldn't use mktime(3) because it's
+	  buggy about handling summer time.
+	  reported by Yoshikawa <yoshixool AT gmail.com> at [ruby-dev:36071]
+
+Mon Sep  1 17:07:23 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/euc_jp.c (euc-jp-ms): euc-jp-ms is not an alias of EUC-JP
+	  but eucJP-ms.
+
+	* enc/trans/japanese.trans (eucJP-ms): eucJP-ms is the correct
+	  name of the encoding in Ruby. [ruby-dev:36070]
+
+Mon Sep  1 16:48:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/digest/md5/md5init.c (md5), ext/digest/rmd160/rmd160init.c
+	  (rmd160) ext/digest/sha1/sha1init.c (sha1),
+	  ext/digest/sha2/sha2init.c (sha256, sha384, sha512): constified.
+
+Mon Sep  1 15:15:40 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/japanese.trans: fix mapping priority.
+	  IBM extended is prior than NEC selected IBM.
+
+Mon Sep  1 14:44:22 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* tool/transcode-tblgen.rb (transcode_compile_tree): use the first
+	  mapping when some mappings are given for a character.
+	  [ruby-dev:36068]
+
+	* tool/transcode-tblgen.rb: expandtab.
+
+Mon Sep  1 14:40:18 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* README.EXT (Appendix A): fixed the name of class
+	  Enumerator. Enumerable::Enumerator was renamed just
+	  Enumerator at revision 18564.
+
+	* README.EXT (Appendix A): ditto.
+
+Mon Sep  1 14:37:58 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* tool/transcode-tblgen.rb: set ERB source filename for error message.
+
+Mon Sep  1 14:37:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/depend: transdb.c may not present.
+
+Mon Sep  1 14:25:26 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/japanese.trans: fix Ruby 1.8 compatibility.
+
+	* enc/trans/japanese.trans: fix mapping priority. [ruby-dev:36068]
+
+Mon Sep  1 14:24:14 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* test/ruby/test_transcode.rb (test_windows_31j): added.
+
+Mon Sep  1 14:00:04 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* README.EXT (Data-types): fixed for current status.
+	  (Manipulating Ruby data): mentioned some more functions.
+	  (Class/module definition): ditto.
+	  (Global variables shared between C and Ruby):
+	    fixed prototypes for the getter/setter's of global variables.
+	  (Appendix A): mentioned some more files.
+
+	* README.EXT.ja: ditto.
 
 Mon Sep  1 11:31:49 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
@@ -9320,7 +9614,7 @@ Fri Apr 11 08:05:12 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 
 	* marshal.c (w_object): add volatile to avoid potential GC bug.  a
 	  patch from Tomoyuki Chikanaga <chikanag at nippon-control-system.co.jp>
-	  in [ruby-dev:34311].
+	  in [ruby-dev:34312].
 
 Thu Apr 10 23:08:52 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 

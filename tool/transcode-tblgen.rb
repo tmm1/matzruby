@@ -2,6 +2,8 @@ require 'optparse'
 require 'erb'
 require 'fileutils'
 
+NUM_ELEM_BYTELOOKUP = 2
+
 C_ESC = {
   "\\" => "\\\\",
   '"' => '\"',
@@ -236,7 +238,7 @@ class ActionMap
 
   def format_offsets(min, max, offsets)
     offsets = offsets[min..max]
-    code = "{ %d, %d,\n" % [min, max]
+    code = "%d, %d,\n" % [min, max]
     0.step(offsets.length-1,16) {|i|
       code << "    "
       code << offsets[i,8].map {|off| "%3d," % off.to_s }.join('')
@@ -246,7 +248,6 @@ class ActionMap
       end
       code << "\n"
     }
-    code << '}'
     code
   end
 
@@ -274,8 +275,8 @@ class ActionMap
       "o3(0x#$1,0x#$2,0x#$3)"
     when /\A([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])\z/i
       "o4(0x#$1,0x#$2,0x#$3,0x#$4)"
-    when /\A&/ # pointer to BYTE_LOOKUP structure
-      info.to_s
+    when /\A\/\*BYTE_LOOKUP\*\// # pointer to BYTE_LOOKUP structure
+      $'.to_s
     else
       raise "unexpected action: #{info.inspect}"
     end
@@ -285,7 +286,7 @@ class ActionMap
     infos = infos.map {|info| generate_info(info) }
     maxlen = infos.map {|info| info.length }.max
     columns = maxlen <= 16 ? 4 : 2
-    code = "{\n"
+    code = ""
     0.step(infos.length-1, columns) {|i|
       code << "    "
       is = infos[i,columns]
@@ -294,11 +295,10 @@ class ActionMap
       }
       code << "\n"
     }
-    code << "}"
     code
   end
 
-  def generate_lookup_node(name, table)
+  def generate_lookup_node(bytes_code, words_code, name, table)
     offsets = []
     infos = []
     infomap = {}
@@ -322,44 +322,67 @@ class ActionMap
     offsets_key = [min, max, offsets[min..max]]
     if n = OffsetsMemo[offsets_key]
       offsets_name = n
-      offsets_code = ''
     else
       offsets_name = "#{name}_offsets"
-      offsets_code = <<"End"
-static const unsigned char
-#{offsets_name}[#{2+max-min+1}] = #{format_offsets(min,max,offsets)};
-End
       OffsetsMemo[offsets_key] = offsets_name
+      if bytes_code.empty?
+        bytes_code << <<"End"
+static const unsigned char
+#{OUTPUT_PREFIX}byte_array[0] = {
+};
+End
+      end
+      size = bytes_code[/\[\d+\]/][1...-1].to_i
+      bytes_code.sub!(/^(\};\n\z)/) {
+        "\#define #{offsets_name} #{size}\n" +
+        format_offsets(min,max,offsets) + "\n" +
+        $1
+      }
+      size += 2+max-min+1
+      bytes_code.sub!(/\[\d+\]/) { "[#{size}]" }
+    end
+
+    if words_code.empty?
+      words_code << <<"End"
+static const unsigned int
+#{OUTPUT_PREFIX}word_array[0] = {
+};
+End
     end
 
     if n = InfosMemo[infos]
       infos_name = n
-      infos_code = ''
     else
       infos_name = "#{name}_infos"
-      infos_code = <<"End"
-static const struct byte_lookup* const
-#{infos_name}[#{infos.length}] = #{format_infos(infos)};
-End
       InfosMemo[infos] = infos_name
+
+      size = words_code[/\[\d+\]/][1...-1].to_i
+      words_code.sub!(/^(\};\n\z)/) {
+        "\#define #{infos_name} (sizeof(unsigned int)*#{size})\n" +
+        format_infos(infos) + "\n" +
+        $1
+      }
+      size += infos.length
+      words_code.sub!(/\[\d+\]/) { "[#{size}]" }
     end
 
-    r = offsets_code + infos_code + <<"End"
-static const BYTE_LOOKUP
-#{name} = {
+    size = words_code[/\[\d+\]/][1...-1].to_i
+    words_code.sub!(/^(\};\n\z)/) {
+      "\#define #{name} (sizeof(unsigned int)*#{size})\n" +
+      <<"End" + "\n" + $1
     #{offsets_name},
-    #{infos_name}
-};
-
+    #{infos_name},
 End
-    r
+    }
+    size += NUM_ELEM_BYTELOOKUP
+    words_code.sub!(/\[\d+\]/) { "[#{size}]" }
   end
 
   PreMemo = {}
   PostMemo = {}
   NextName = "a"
 
-  def generate_node(code, name_hint=nil, valid_encoding=nil)
+  def generate_node(bytes_code, words_code, name_hint=nil, valid_encoding=nil)
     if n = PreMemo[[self,valid_encoding]]
       return n
     end
@@ -371,7 +394,7 @@ End
       else
         name_hint2 = nil
         name_hint2 = "#{name_hint}_#{'%02X' % byte}" if name_hint
-        table[byte] = "&" + rest.generate_node(code, name_hint2, rest_valid_encoding)
+        table[byte] = "/*BYTE_LOOKUP*/" + rest.generate_node(bytes_code, words_code, name_hint2, rest_valid_encoding)
       end
     }
 
@@ -386,14 +409,13 @@ End
 
     PreMemo[[self,valid_encoding]] = PostMemo[table] = name_hint
 
-    code << generate_lookup_node(name_hint, table)
+    generate_lookup_node(bytes_code, words_code, name_hint, table)
     name_hint
   end
 
-  def gennode(name_hint=nil, valid_encoding=nil)
-    code = ''
-    name = generate_node(code, name_hint, valid_encoding)
-    return name, code
+  def gennode(bytes_code, words_code, name_hint=nil, valid_encoding=nil)
+    name = generate_node(bytes_code, words_code, name_hint, valid_encoding)
+    return name
   end
 end
 
@@ -479,29 +501,29 @@ def citrus_decode_mapsrc(ces, csid, mapsrcs)
     STDERR.puts 'load mapsrc %s' % path if VERBOSE_MODE
     open(path) do |f|
       f.each_line do |l|
-	break if /^BEGIN_MAP/ =~ l
+        break if /^BEGIN_MAP/ =~ l
       end
       f.each_line do |l|
-	next if /^\s*(?:#|$)/ =~ l
-	break if /^END_MAP/ =~ l
-	case mode
-	when :from_ucs
-	  case l
-	  when /0x(\w+)\s*-\s*0x(\w+)\s*=\s*INVALID/
-	    #	  table.push << ["{#$1-#$2}", :invalid]
-	  when /(0x\w+)\s*=\s*(0x\w+)/
-	    table.push << [$1.hex, citrus_cstomb(ces, csid, $2.hex)]
-	  else
-	    raise "unknown notation '%s'"% l
-	  end
-	when :to_ucs
-	  case l
-	  when /(0x\w+)\s*=\s*(0x\w+)/
-	    table.push << [citrus_cstomb(ces, csid, $1.hex), $2.hex]
-	  else
-	    raise "unknown notation '%s'"% l
-	  end
-	end
+        next if /^\s*(?:#|$)/ =~ l
+          break if /^END_MAP/ =~ l
+        case mode
+        when :from_ucs
+          case l
+          when /0x(\w+)\s*-\s*0x(\w+)\s*=\s*INVALID/
+            # Citrus OOB_MODE
+          when /(0x\w+)\s*=\s*(0x\w+)/
+            table.push << [$1.hex, citrus_cstomb(ces, csid, $2.hex)]
+          else
+            raise "unknown notation '%s'"% l
+          end
+        when :to_ucs
+          case l
+          when /(0x\w+)\s*=\s*(0x\w+)/
+            table.push << [citrus_cstomb(ces, csid, $1.hex), $2.hex]
+          else
+            raise "unknown notation '%s'"% l
+          end
+        end
       end
     end
   end
@@ -523,7 +545,7 @@ def transcode_compile_tree(name, from, map)
   map = encode_utf8(map)
   h = {}
   map.each {|k, v|
-    h[k] = v
+    h[k] = v unless h[k] # use first mapping
   }
   am = ActionMap.parse(h)
 
@@ -535,12 +557,14 @@ def transcode_compile_tree(name, from, map)
     valid_encoding = nil
   end
 
-  defined_name, code = am.gennode(name, valid_encoding)
-  return defined_name, code, max_input
+  defined_name = am.gennode(TRANSCODE_GENERATED_BYTES_CODE, TRANSCODE_GENERATED_WORDS_CODE, name, valid_encoding)
+  return defined_name, max_input
 end
 
 TRANSCODERS = []
-TRANSCODE_GENERATED_CODE = ''
+TRANSCODE_GENERATED_BYTES_CODE = ''
+TRANSCODE_GENERATED_WORDS_CODE = ''
+TRANSCODE_GENERATED_TRANSCODER_CODE = ''
 
 def transcode_tblgen(from, to, map)
   STDERR.puts "converter from #{from} to #{to}" if VERBOSE_MODE
@@ -554,7 +578,7 @@ def transcode_tblgen(from, to, map)
     tree_name = "from_#{id_from}_to_#{id_to}"
   end
   map = encode_utf8(map)
-  real_tree_name, tree_code, max_input = transcode_compile_tree(tree_name, from, map)
+  real_tree_name, max_input = transcode_compile_tree(tree_name, from, map)
   transcoder_name = "rb_#{tree_name}"
   TRANSCODERS << transcoder_name
   input_unit_length = UnitLength[from]
@@ -562,7 +586,8 @@ def transcode_tblgen(from, to, map)
   transcoder_code = <<"End"
 static const rb_transcoder
 #{transcoder_name} = {
-    #{c_esc from}, #{c_esc to}, &#{real_tree_name},
+    #{c_esc from}, #{c_esc to}, #{real_tree_name},
+    TRANSCODE_TABLE_INFO,
     #{input_unit_length}, /* input_unit_length */
     #{max_input}, /* max_input */
     #{max_output}, /* max_output */
@@ -571,19 +596,21 @@ static const rb_transcoder
     NULL, NULL, NULL
 };
 End
-  TRANSCODE_GENERATED_CODE << tree_code + "\n" + transcoder_code
+  TRANSCODE_GENERATED_TRANSCODER_CODE << transcoder_code
   ''
 end
 
 def transcode_generate_node(am, name_hint=nil)
   STDERR.puts "converter for #{name_hint}" if VERBOSE_MODE
-  name, code = am.gennode(name_hint)
-  TRANSCODE_GENERATED_CODE << code
+  name = am.gennode(TRANSCODE_GENERATED_BYTES_CODE, TRANSCODE_GENERATED_WORDS_CODE, name_hint)
   ''
 end
 
 def transcode_generated_code
-  TRANSCODE_GENERATED_CODE
+  TRANSCODE_GENERATED_BYTES_CODE +
+    TRANSCODE_GENERATED_WORDS_CODE +
+    "\#define TRANSCODE_TABLE_INFO #{OUTPUT_PREFIX}byte_array, #{OUTPUT_PREFIX}word_array, sizeof(unsigned int)\n" +
+    TRANSCODE_GENERATED_TRANSCODER_CODE
 end
 
 def transcode_register_code
@@ -667,6 +694,7 @@ ValidEncoding = {
   'ISO-8859-14' => '1byte',
   'ISO-8859-15' => '1byte',
   'Windows-31J' => 'Shift_JIS',
+  'eucJP-ms'    => 'EUC-JP'
 }.each {|k, v|
   ValidEncoding[k] = ValidEncoding.fetch(v)
 }
@@ -687,6 +715,11 @@ op.def_option("--output=FILE", "specify output file") {|arg| output_filename = a
 op.parse!
 
 VERBOSE_MODE = verbose_mode
+
+OUTPUT_FILENAME = output_filename
+OUTPUT_PREFIX = output_filename ? File.basename(output_filename)[/\A[A-Za-z0-9_]*/] : ""
+OUTPUT_PREFIX.sub!(/\A_+/, '')
+OUTPUT_PREFIX.sub!(/_*\z/, '_')
 
 arg = ARGV.shift
 $srcdir = File.dirname(arg)
@@ -728,7 +761,9 @@ if VERBOSE_MODE
 end
 
 libs1 = $".dup
-erb_result = ERB.new(src, nil, '%').result(binding)
+erb = ERB.new(src, nil, '%')
+erb.filename = arg
+erb_result = erb.result(binding)
 libs2 = $".dup
 
 libs = libs2 - libs1

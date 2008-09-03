@@ -493,11 +493,15 @@ transcode_restartable0(const unsigned char **in_pos, unsigned char **out_pos,
 
 	next_byte = (unsigned char)*in_p++;
       follow_byte:
-        if (next_byte < next_table->base[0] || next_table->base[1] < next_byte)
+#define BL_BASE(next_table) \
+        (tr->byte_array + BYTE_LOOKUP_BASE(tr->word_array + next_table/sizeof(*tr->word_array)))
+        if (next_byte < BL_BASE(next_table)[0] || BL_BASE(next_table)[1] < next_byte)
             next_info = INVALID;
         else {
-            unsigned int next_offset = next_table->base[2+next_byte-next_table->base[0]];
-            next_info = (VALUE)next_table->info[next_offset];
+            unsigned int next_offset = BL_BASE(next_table)[2+next_byte-BL_BASE(next_table)[0]];
+#define BL_INFO(next_table) \
+            (tr->word_array + BYTE_LOOKUP_INFO(tr->word_array + next_table/sizeof(*tr->word_array))/sizeof(*tr->word_array))
+            next_info = (VALUE)BL_INFO(next_table)[next_offset];
         }
       follow_info:
 	switch (next_info & 0x1F) {
@@ -513,7 +517,7 @@ transcode_restartable0(const unsigned char **in_pos, unsigned char **out_pos,
                 SUSPEND(econv_source_buffer_empty, 5);
 	    }
 	    next_byte = (unsigned char)*in_p++;
-	    next_table = (const BYTE_LOOKUP *)next_info;
+	    next_table = next_info;
 	    goto follow_byte;
 	  case ZERObt: /* drop input */
 	    continue;

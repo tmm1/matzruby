@@ -11,24 +11,38 @@ converters = {}
 transdirs = ARGV.dup
 outhdr = transdirs.shift || 'transdb.h'
 transdirs << 'enc/trans' if transdirs.empty?
+
+transdirs = transdirs.sort_by {|td|
+  td.length
+}.inject([]) {|tds, td|
+  next tds unless File.directory?(td)
+  tds << td if tds.all? {|td2| !File.identical?(td2, td) }
+  tds
+}
+
 files = {}
 transdirs.each do |transdir|
-  next unless File.directory?(transdir)
-  Dir.open(transdir) {|d| d.grep(/.+\.[ch]\z/) }.sort_by {|e|
+  names = Dir.entries(transdir)
+  names_t = names.map {|n| /(?!\A)\.trans\z/ =~ n ? $` : nil }.compact
+  names_c = names.map {|n| /(?!\A)\.c\z/ =~ n ? $` : nil }.compact
+  (names_t & names_c).map {|n|
+    "#{n}.c"
+  }.sort_by {|e|
     e.scan(/(\d+)|(\D+)/).map {|n,a| a||[n.size,n.to_i]}.flatten
   }.each do |fn|
     next if files[fn]
     files[fn] = true
-    open(File.join(transdir,fn)) do |f|
+    path = File.join(transdir,fn)
+    open(path) do |f|
       f.each_line do |line|
         if (/^static const rb_transcoder/ =~ line)..(/"(.*?)"\s*,\s*"(.*?)"/ =~ line)
           if $1 && $2
             from_to = "%s to %s" % [$1, $2]
             if converters[from_to]
-              raise ArgumentError, '%s:%d: transcode "%s" is already registered (%s:%d)' %
-              [fn, $., from_to, *converters[from_to].values_at(2, 3)]
+              raise ArgumentError, '%s:%d: transcode "%s" is already registered at %s:%d' %
+              [path, $., from_to, *converters[from_to].values_at(3, 4)]
             else
-              converters[from_to] = [$1, $2, fn[0..-3], $.]
+              converters[from_to] = [$1, $2, fn[0..-3], path, $.]
             end
           end
         end

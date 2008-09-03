@@ -365,6 +365,14 @@ class TestTranscode < Test::Unit::TestCase
     check_both_ways("\u795E\u6797\u7FA9\u535A", "\x90\x5F\x97\xD1\x8B\x60\x94\x8E", 'shift_jis') # 神林義博
   end
 
+  def test_windows_31j
+    check_both_ways("\u222A", "\x81\xBE", 'Windows-31J') # Union
+    check_both_ways("\uFFE2", "\x81\xCA", 'Windows-31J') # Fullwidth Not Sign
+    check_both_ways("\u2235", "\x81\xE6", 'Windows-31J') # Because
+    check_both_ways("\u2160", "\x87\x54", 'Windows-31J') # Roman Numeral One
+    check_both_ways("\u2170", "\xFA\x40", 'Windows-31J') # Small Roman Numeral One
+  end
+
   def test_euc_jp
     check_both_ways("\u3000", "\xA1\xA1", 'euc-jp') # full-width space
     check_both_ways("\u00D7", "\xA1\xDF", 'euc-jp') # ×
@@ -417,6 +425,13 @@ class TestTranscode < Test::Unit::TestCase
     check_both_ways("\u677E\u672C\u884C\u5F18", "\xBE\xBE\xCB\xDC\xB9\xD4\xB9\xB0", 'euc-jp') # 松本行弘
     check_both_ways("\u9752\u5C71\u5B66\u9662\u5927\u5B66", "\xC0\xC4\xBB\xB3\xB3\xD8\xB1\xA1\xC2\xE7\xB3\xD8", 'euc-jp') # 青山学院大学
     check_both_ways("\u795E\u6797\u7FA9\u535A", "\xBF\xC0\xCE\xD3\xB5\xC1\xC7\xEE", 'euc-jp') # 神林義博
+  end
+
+  def test_eucjp_ms
+    check_both_ways("\u2116", "\xAD\xE2", 'eucJP-ms') # NUMERO SIGN
+    check_both_ways("\u221A", "\xA2\xE5", 'eucJP-ms') # SQUARE ROOT
+    check_both_ways("\u3231", "\xAD\xEA", 'eucJP-ms') # PARENTHESIZED IDEOGRAPH STOCK
+    check_both_ways("\uFF5E", "\xA1\xC1", 'eucJP-ms') # WAVE DASH
   end
 
   def test_iso_2022_jp
