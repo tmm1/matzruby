@@ -17,7 +17,7 @@
 static void vmmgr_add(rb_vm_t *vm);
 static void vmmgr_del(rb_vm_t *vm);
 static rb_vm_t *vm_new(int argc, char *argv[]);
-static void vm_cleanup();
+static void vm_cleanup(rb_vm_t *vm);
 
 /* core API */
 
@@ -28,12 +28,6 @@ ruby_vm_new(int argc, char *argv[])
     vmmgr_add(vm);
 
     return vm;
-}
-
-int
-ruby_vm_run(rb_vm_t *vm)
-{
-    return 0;
 }
 
 int
@@ -236,25 +230,24 @@ vmmgr_add(rb_vm_t *vm)
 static void
 vmmgr_del(rb_vm_t *vm)
 {
-    struct vm_list_struct *entry, *prev = 0;
+    struct vm_list_struct *entry = vm_manager.list, *prev = 0;
 
-    for (entry = vm_manager.list;
-	 entry && entry->vm != vm;
-	 prev = entry, entry = entry->next) {
-	/* nop */
-    }
+    MVM_CRITICAL(vm_manager.lock, {
+	while (entry && entry->vm != vm) {
+	    prev = entry;
+	    entry = entry->next;
+	}
 
-    if (entry) {
-	MVM_CRITICAL(vm_manager.lock, {
-	    if (entry == vm_manager.list) {
-		vm_manager.list = entry->next;
-	    }
-	    else {
+	if (entry) {
+	    if (prev) {
 		prev->next = entry->next;
 	    }
-	});
-    }
-    free(entry);
+	    else {
+		vm_manager.list = entry->next;
+	    }
+	    free(entry);
+	}
+    });
 }
 
 void
@@ -266,22 +259,42 @@ ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
 
 	    while (entry) {
 		if (func(entry->vm, arg) == 0) {
+		    printf("ruby_vm_foreach: break\n");
 		    break;
 		}
+		entry = entry->next;
 	    }
 	});
     }
 }
 
+rb_vm_t *ruby_make_bare_vm();
+
 static rb_vm_t *
 vm_new(int argc, char *argv[])
 {
-    /* place holder */
-    return 0;
+    rb_vm_t *vm = ruby_make_bare_vm();
+    vm->argc = argc;
+    vm->argv = argv;
+    return vm;
 }
 
 static void
-vm_cleanup()
+vm_free(void *ptr)
 {
-    /* place holder */
+    if (ptr) {
+	rb_vm_t *vmobj = ptr;
+
+	st_free_table(vmobj->living_threads);
+	vmobj->living_threads = 0;
+	ruby_native_thread_unlock(&vmobj->global_vm_lock);
+	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
+	ruby_xfree(ptr);
+    }
+}
+
+static void
+vm_cleanup(rb_vm_t *vm)
+{
+    vm_free(vm);
 }

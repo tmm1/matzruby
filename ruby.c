@@ -1541,7 +1541,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
 {
     struct cmdline_arguments args;
     struct cmdline_options opt;
-    NODE *tree;
+    VALUE tree;
 
     if (argv[0]) {		/* for the time being */
 	RUBY_VM_OBJECT(vm, progname) = rb_tainted_str_new2(argv[0]);
@@ -1551,14 +1551,14 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     args.argv = argv;
     args.opt = cmdline_options_init(&opt);
     opt.ext.enc.index = -1;
-    tree = (NODE *)rb_vm_call_cfunc(vm->top_self,
+    tree = rb_vm_call_cfunc(vm->top_self,
 				    process_options, (VALUE)&args,
 				    0, RUBY_VM_OBJECT(vm, progname));
 
     rb_define_readonly_boolean("$-p", opt.do_print);
     rb_define_readonly_boolean("$-l", opt.do_line);
     rb_define_readonly_boolean("$-a", opt.do_split);
-    return (VALUE)tree;
+    return tree;
 }
 
 void *

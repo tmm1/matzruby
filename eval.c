@@ -13,19 +13,11 @@
 
 #include "eval_intern.h"
 
-VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
-VALUE rb_binding_new(void);
-NORETURN(void rb_raise_jump(VALUE));
-
-ID rb_frame_callee(void);
-
 #define exception_error rb_errReenterError
 
 #include "eval_error.c"
 #include "eval_safe.c"
 #include "eval_jump.c"
-
-/* initialize ruby */
 
 #if defined(__APPLE__)
 #define environ (*_NSGetEnviron())
@@ -34,13 +26,21 @@ extern char **environ;
 #endif
 char **rb_origenviron;
 
-void rb_clear_trace_func(void);
 void rb_thread_stop_timer_thread(void);
+void rb_vm_clear_trace_func(rb_vm_t *vm);
 
 void rb_call_inits(void);
 void Init_heap(void);
 void Init_ext(void);
 void Init_BareVM(void);
+
+VALUE ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv);
+
+VALUE rb_binding_new(void);
+ID rb_frame_callee(void);
+NORETURN(void rb_raise_jump(VALUE));
+
+static int ruby_vm_cleanup(rb_vm_t *vm, int ex);
 
 void
 ruby_init(void)
@@ -84,7 +84,69 @@ ruby_init(void)
     GET_VM()->running = 1;
 }
 
-extern void rb_clear_trace_func(void);
+static VALUE
+vm_parse_options(rb_vm_t *vm)
+{
+    int state;
+    VALUE code = 0;
+
+    Init_stack((void *)&state);
+    PUSH_TAG();
+    if ((state = EXEC_TAG()) == 0) {
+	SAVE_ROOT_JMPBUF(vm->main_thread,
+			 code = ruby_vm_process_options(vm, vm->argc, vm->argv));
+    }
+    else {
+	rb_vm_clear_trace_func(vm);
+	state = error_handle(state);
+	code = INT2FIX(state);
+    }
+    POP_TAG();
+    return code;
+}
+
+static int
+th_exec_iseq(rb_thread_t *th, VALUE iseq)
+{
+    int state;
+
+    if (!iseq) return 0;
+
+    PUSH_TAG();
+    if ((state = EXEC_TAG()) == 0) {
+	SAVE_ROOT_JMPBUF(th, {
+	    th->base_block = 0;
+	    rb_iseq_eval(iseq);
+	});
+    }
+    POP_TAG();
+    return state;
+}
+
+int
+ruby_vm_run(rb_vm_t *vm)
+{
+    VALUE iseq;
+    int status;
+
+    Init_stack((void *)&vm);
+    rb_thread_set_current_raw(vm->main_thread);
+
+    ruby_init();
+    iseq = vm_parse_options(vm);
+
+    switch (iseq) {
+      case Qtrue:  return EXIT_SUCCESS; /* -v */
+      case Qfalse: return EXIT_FAILURE;
+    }
+
+    if (FIXNUM_P(iseq)) {
+	return FIX2INT(iseq);
+    }
+
+    status = th_exec_iseq(vm->main_thread, iseq);
+    return ruby_vm_cleanup(vm, status);
+}
 
 static void
 ruby_finalize_0(rb_vm_t *vm)
@@ -95,7 +157,7 @@ ruby_finalize_0(rb_vm_t *vm)
     }
     POP_TAG();
     rb_exec_end_proc(vm->end_procs);
-    rb_clear_trace_func();
+    rb_vm_clear_trace_func(vm);
 }
 
 static void
@@ -116,7 +178,7 @@ ruby_finalize(void)
 
 void rb_thread_stop_timer_thread(void);
 
-int
+static int
 ruby_vm_cleanup(rb_vm_t *vm, int ex)
 {
     int state;
