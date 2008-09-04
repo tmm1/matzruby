@@ -14,6 +14,9 @@
 #ifndef RUBY_TRANSCODE_DATA_H
 #define RUBY_TRANSCODE_DATA_H 1
 
+#define WORDINDEX_SHIFT_BITS 2
+#define WORDINDEX2INFO(widx)      ((widx) << WORDINDEX_SHIFT_BITS)
+#define INFO2WORDINDEX(info)      ((info) >> WORDINDEX_SHIFT_BITS)
 #define BYTE_LOOKUP_BASE(bl) ((bl)[0])
 #define BYTE_LOOKUP_INFO(bl) ((bl)[1])
 
@@ -61,62 +64,30 @@ typedef enum {
 
 typedef struct rb_transcoder rb_transcoder;
 
-/* dynamic structure, one per conversion (similar to iconv_t) */
-/* may carry conversion state (e.g. for iso-2022-jp) */
-typedef struct rb_transcoding {
-    const rb_transcoder *transcoder;
-
-    int flags;
-
-    int resume_position;
-    unsigned int next_table;
-    VALUE next_info;
-    unsigned char next_byte;
-
-    int recognized_len; /* already interpreted */
-    int readagain_len; /* not yet interpreted */
-    union {
-        unsigned char ary[8]; /* max_input <= sizeof(ary) */
-        unsigned char *ptr; /* length: max_input */
-    } readbuf; /* recognized_len + readagain_len used */
-
-    int writebuf_off;
-    int writebuf_len;
-    union {
-        unsigned char ary[8]; /* max_output <= sizeof(ary) */
-        unsigned char *ptr; /* length: max_output */
-    } writebuf;
-
-    unsigned char stateful[256]; /* opaque data for stateful encoding */
-} rb_transcoding;
-#define TRANSCODING_READBUF(tc) \
-    ((tc)->transcoder->max_input <= sizeof((tc)->readbuf.ary) ? \
-     (tc)->readbuf.ary : \
-     (tc)->readbuf.ptr)
-#define TRANSCODING_WRITEBUF(tc) \
-    ((tc)->transcoder->max_output <= sizeof((tc)->writebuf.ary) ? \
-     (tc)->writebuf.ary : \
-     (tc)->writebuf.ptr)
-
 /* static structure, one per supported encoding pair */
 struct rb_transcoder {
     const char *from_encoding;
     const char *to_encoding;
     unsigned int conv_tree_start;
     const unsigned char *byte_array;
+    unsigned int byte_array_length;
     const unsigned int *word_array;
+    unsigned int word_array_length;
     int word_size;
     int input_unit_length;
     int max_input;
     int max_output;
     rb_transcoder_stateful_type_t stateful_type;
-    VALUE (*func_ii)(rb_transcoding*, VALUE); /* info  -> info   */
-    VALUE (*func_si)(rb_transcoding*, const unsigned char*, size_t); /* start -> info   */
-    int (*func_io)(rb_transcoding*, VALUE, const unsigned char*); /* info  -> output */
-    int (*func_so)(rb_transcoding*, const unsigned char*, size_t, unsigned char*); /* start -> output */
-    int (*finish_func)(rb_transcoding*, unsigned char*); /* -> output */
-    int (*resetsize_func)(rb_transcoding*); /* -> len */
-    int (*resetstate_func)(rb_transcoding*, unsigned char*); /* -> output */
+    size_t state_size;
+    int (*state_init_func)(void*); /* ret==0:success ret!=0:failure(errno) */
+    int (*state_fini_func)(void*); /* ret==0:success ret!=0:failure(errno) */
+    VALUE (*func_ii)(void*, VALUE); /* info  -> info   */
+    VALUE (*func_si)(void*, const unsigned char*, size_t); /* start -> info   */
+    int (*func_io)(void*, VALUE, const unsigned char*); /* info  -> output */
+    int (*func_so)(void*, const unsigned char*, size_t, unsigned char*); /* start -> output */
+    int (*finish_func)(void*, unsigned char*); /* -> output */
+    int (*resetsize_func)(void*); /* -> len */
+    int (*resetstate_func)(void*, unsigned char*); /* -> output */
 };
 
 void rb_declare_transcoder(const char *enc1, const char *enc2, const char *lib);

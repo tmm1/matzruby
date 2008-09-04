@@ -155,6 +155,32 @@ class StrSet
   end
 end
 
+class ArrayCode
+  def initialize(type, name)
+    @code = <<"End"
+static const #{type}
+#{name}[0] = {
+};
+End
+  end
+
+  def length
+    @code[/\[\d+\]/][1...-1].to_i
+  end
+
+  def insert_at_last(num, str)
+    newnum = self.length + num
+    @code.sub!(/^(\};\n\z)/) {
+      str + $1
+    }
+    @code.sub!(/\[\d+\]/) { "[#{newnum}]" }
+  end
+
+  def to_s
+    @code.dup
+  end
+end
+
 class ActionMap
   def self.parse(hash)
     h = {}
@@ -325,29 +351,10 @@ class ActionMap
     else
       offsets_name = "#{name}_offsets"
       OffsetsMemo[offsets_key] = offsets_name
-      if bytes_code.empty?
-        bytes_code << <<"End"
-static const unsigned char
-#{OUTPUT_PREFIX}byte_array[0] = {
-};
-End
-      end
-      size = bytes_code[/\[\d+\]/][1...-1].to_i
-      bytes_code.sub!(/^(\};\n\z)/) {
+      size = bytes_code.length
+      bytes_code.insert_at_last(2+max-min+1,
         "\#define #{offsets_name} #{size}\n" +
-        format_offsets(min,max,offsets) + "\n" +
-        $1
-      }
-      size += 2+max-min+1
-      bytes_code.sub!(/\[\d+\]/) { "[#{size}]" }
-    end
-
-    if words_code.empty?
-      words_code << <<"End"
-static const unsigned int
-#{OUTPUT_PREFIX}word_array[0] = {
-};
-End
+        format_offsets(min,max,offsets) + "\n")
     end
 
     if n = InfosMemo[infos]
@@ -356,26 +363,19 @@ End
       infos_name = "#{name}_infos"
       InfosMemo[infos] = infos_name
 
-      size = words_code[/\[\d+\]/][1...-1].to_i
-      words_code.sub!(/^(\};\n\z)/) {
-        "\#define #{infos_name} (sizeof(unsigned int)*#{size})\n" +
-        format_infos(infos) + "\n" +
-        $1
-      }
-      size += infos.length
-      words_code.sub!(/\[\d+\]/) { "[#{size}]" }
+      size = words_code.length
+      words_code.insert_at_last(infos.length,
+        "\#define #{infos_name} WORDINDEX2INFO(#{size})\n" +
+        format_infos(infos) + "\n")
     end
 
-    size = words_code[/\[\d+\]/][1...-1].to_i
-    words_code.sub!(/^(\};\n\z)/) {
-      "\#define #{name} (sizeof(unsigned int)*#{size})\n" +
-      <<"End" + "\n" + $1
+    size = words_code.length
+    words_code.insert_at_last(NUM_ELEM_BYTELOOKUP,
+      "\#define #{name} WORDINDEX2INFO(#{size})\n" +
+      <<"End" + "\n")
     #{offsets_name},
     #{infos_name},
 End
-    }
-    size += NUM_ELEM_BYTELOOKUP
-    words_code.sub!(/\[\d+\]/) { "[#{size}]" }
   end
 
   PreMemo = {}
@@ -486,13 +486,13 @@ def citrus_decode_mapsrc(ces, csid, mapsrcs)
   mapsrcs.split(',').each do |mapsrc|
     path = [$srcdir]
     mode = nil
-    if mapsrc.start_with?('UCS')
+    if mapsrc.rindex('UCS', 0)
       mode = :from_ucs
       from = mapsrc[4..-1]
-      path << SUBDIR.find{|x| from.start_with?(x) }
+      path << SUBDIR.find{|x| from.rindex(x, 0) }
     else
       mode = :to_ucs
-      path << SUBDIR.find{|x| mapsrc.start_with?(x) }
+      path << SUBDIR.find{|x| mapsrc.rindex(x, 0) }
     end
     path << mapsrc.gsub(':', '@')
     path = File.join(*path)
@@ -562,8 +562,6 @@ def transcode_compile_tree(name, from, map)
 end
 
 TRANSCODERS = []
-TRANSCODE_GENERATED_BYTES_CODE = ''
-TRANSCODE_GENERATED_WORDS_CODE = ''
 TRANSCODE_GENERATED_TRANSCODER_CODE = ''
 
 def transcode_tblgen(from, to, map)
@@ -592,6 +590,7 @@ static const rb_transcoder
     #{max_input}, /* max_input */
     #{max_output}, /* max_output */
     stateless_converter, /* stateful_type */
+    0, NULL, NULL, /* state_size, state_init, state_fini */
     NULL, NULL, NULL, NULL,
     NULL, NULL, NULL
 };
@@ -607,9 +606,12 @@ def transcode_generate_node(am, name_hint=nil)
 end
 
 def transcode_generated_code
-  TRANSCODE_GENERATED_BYTES_CODE +
-    TRANSCODE_GENERATED_WORDS_CODE +
-    "\#define TRANSCODE_TABLE_INFO #{OUTPUT_PREFIX}byte_array, #{OUTPUT_PREFIX}word_array, sizeof(unsigned int)\n" +
+  TRANSCODE_GENERATED_BYTES_CODE.to_s +
+    TRANSCODE_GENERATED_WORDS_CODE.to_s +
+    "\#define TRANSCODE_TABLE_INFO " +
+    "#{OUTPUT_PREFIX}byte_array, #{TRANSCODE_GENERATED_BYTES_CODE.length}, " +
+    "#{OUTPUT_PREFIX}word_array, #{TRANSCODE_GENERATED_WORDS_CODE.length}, " +
+    "sizeof(unsigned int)\n" +
     TRANSCODE_GENERATED_TRANSCODER_CODE
 end
 
@@ -720,6 +722,9 @@ OUTPUT_FILENAME = output_filename
 OUTPUT_PREFIX = output_filename ? File.basename(output_filename)[/\A[A-Za-z0-9_]*/] : ""
 OUTPUT_PREFIX.sub!(/\A_+/, '')
 OUTPUT_PREFIX.sub!(/_*\z/, '_')
+
+TRANSCODE_GENERATED_BYTES_CODE = ArrayCode.new("unsigned char", "#{OUTPUT_PREFIX}byte_array")
+TRANSCODE_GENERATED_WORDS_CODE = ArrayCode.new("unsigned int", "#{OUTPUT_PREFIX}word_array")
 
 arg = ARGV.shift
 $srcdir = File.dirname(arg)

@@ -18,7 +18,6 @@
 
 #include "ruby/ruby.h"
 #include "ruby/mvm.h"
-#include "ruby/signal.h"
 #include "ruby/st.h"
 #include "ruby/node.h"
 #include "private_object.h"

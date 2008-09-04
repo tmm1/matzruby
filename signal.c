@@ -12,12 +12,28 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "ruby/signal.h"
 #include "ruby/node.h"
 #include "vm_core.h"
 #include "eval_intern.h"
 #include <signal.h>
 #include <stdio.h>
+
+#ifdef _WIN32
+typedef LONG rb_atomic_t;
+
+# define ATOMIC_TEST(var) InterlockedExchange(&(var), 0)
+# define ATOMIC_SET(var, val) InterlockedExchange(&(var), (val))
+# define ATOMIC_INC(var) InterlockedIncrement(&(var))
+# define ATOMIC_DEC(var) InterlockedDecrement(&(var))
+
+#else
+typedef int rb_atomic_t;
+
+# define ATOMIC_TEST(var) ((var) ? ((var) = 0, 1) : 0)
+# define ATOMIC_SET(var, val) ((var) = (val))
+# define ATOMIC_INC(var) (++(var))
+# define ATOMIC_DEC(var) (--(var))
+#endif
 
 #ifdef __BEOS__
 #undef SIGBUS
@@ -394,12 +410,6 @@ struct {
     rb_atomic_t cnt[RUBY_NSIG];
     rb_atomic_t size;
 } signal_buff;
-
-#if 0
-static char rb_trap_accept_nativethreads[NSIG];
-#endif
-rb_atomic_t rb_trap_immediate;
-int rb_prohibit_interrupt = 1;
 
 #ifdef __dietlibc__
 #define sighandler_t sh_t

@@ -15,7 +15,6 @@
 #include "ruby/ruby.h"
 #include "ruby/node.h"
 #include "ruby/util.h"
-#include "ruby/signal.h"
 #include "vm_core.h"
 
 #ifdef HAVE_STDLIB_H
@@ -232,6 +231,7 @@ void rb_thread_terminate_all(void);
 VALUE rb_vm_top_self();
 VALUE rb_vm_cbase(void);
 void rb_vm_thread_terminate_all(rb_vm_t *vm);
+void rb_trap_restore_mask(void);
 
 VALUE ruby_vm_argf(rb_vm_t *vm);
 

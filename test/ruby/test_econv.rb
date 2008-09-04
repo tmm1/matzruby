@@ -385,6 +385,12 @@ class TestEncodingConverter < Test::Unit::TestCase
   def test_errinfo_invalid_euc_jp
     ec = Encoding::Converter.new("EUC-JP", "Shift_JIS")
     ec.primitive_convert(src="\xff", dst="", nil, 10)                       
+    assert_errinfo(:invalid_byte_sequence, "EUC-JP", "Shift_JIS", "\xFF", "", ec)
+  end
+
+  def test_errinfo_invalid_euc_jp2
+    ec = Encoding::Converter.new("EUC-JP", "ISO-8859-1")
+    ec.primitive_convert(src="\xff", dst="", nil, 10)                       
     assert_errinfo(:invalid_byte_sequence, "EUC-JP", "UTF-8", "\xFF", "", ec)
   end
 
@@ -633,5 +639,26 @@ class TestEncodingConverter < Test::Unit::TestCase
     err = ec.last_error
     assert_kind_of(Encoding::ConversionUndefined, err)
     assert_equal("\u{3042}", err.error_char)
+  end
+
+  def test_get_replacement
+    ec = Encoding::Converter.new("euc-jp", "iso-8859-1")
+    assert_equal("?", ec.replacement)
+
+    ec = Encoding::Converter.new("euc-jp", "utf-8")
+    assert_equal("\uFFFD", ec.replacement)
+  end
+
+  def test_set_replacement
+    ec = Encoding::Converter.new("utf-8", "us-ascii", Encoding::Converter::UNDEF_REPLACE)
+    ec.replacement = "<undef>"
+    assert_equal("a <undef> b", ec.convert("a \u3042 b"))
+  end
+
+  def test_econv_new_hash
+    ec = Encoding::Converter.new("utf-8", "us-ascii", :undef => :replace)  
+    assert_equal("a ? b", ec.convert("a \u3042 b"))
+    ec = Encoding::Converter.new("utf-8", "us-ascii", :undef => :replace, :replace => "X")  
+    assert_equal("a X b", ec.convert("a \u3042 b"))
   end
 end

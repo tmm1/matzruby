@@ -1,3 +1,249 @@
+Thu Sep  4 13:22:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
+	  staff.
+
+	* signal.c (signal_buff): per process resouce now.
+
+	* signal.c (trap_list): moved to VM.
+
+	* signal.c (rb_get_next_signal): reverted.
+
+	* signal.c (rb_trap_exit): trap_pending_list was no longer used.
+
+	* thread.c (timer_thread_function): delivers buffered per-process
+	  signals to each VMs.
+
+	* vm.c (rb_vm_mark): marks trap_list.
+
+Thu Sep  4 13:01:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (struct sysopen_struct, rb_sysopen_internal, rb_sysopen):
+	  constified.
+
+	* io.c: expanded ARGF members macros.
+
+Thu Sep  4 10:43:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/transcode-tblgen.rb (citrus_decode_mapsrc): support older 1.8.
+
+Thu Sep  4 10:33:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (argf_next_argv, argf_set_encoding): copy struct wise.
+
+Thu Sep  4 09:46:18 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (rb_scan_open_args): follow rb_str_transcode change.
+
+Thu Sep  4 08:59:29 2008  Tanaka Akira  <akr@fsij.org>
+
+	* file.c (rb_find_file): fix GC problem on Debian GNU/Linux (IA64)
+	  with gcc (GCC) 4.1.2 20061115 (prerelease) (Debian 4.1.1-21).
+	  There is no register/memory to contain load_path.  A register (r35)
+	  contains &RARRAY_PTR(load_path), (char*)load_path + 32.
+
+Thu Sep  4 03:10:05 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/io.h (rb_io_t): new fields: encs.ecopts and
+	  writeconv_pre_ecopts.
+	  (MakeOpenFile): initialize them.
+
+	* include/ruby/encoding.h (rb_str_transcode): take ecopts argument.
+	  (rb_econv_flags): removed.
+	  (rb_econv_prepare_opts): declared.
+	  (rb_econv_open_opts): declared.
+
+	* io.c (make_writeconv): use rb_econv_open_opts.
+	  (make_readconv): ditto.
+	  (io_fwrite): follow rb_str_transcode change.
+	  (rb_io_extract_modeenc): use rb_econv_prepare_opts.
+	  (rb_file_open_generic): initialize encs.ecopts.
+	  (rb_file_open_internal): ditto.
+	  (rb_io_reopen): ditto.
+	  (argf_ecopts): defined.
+	  (argf_next_argv): set encs.ecopts.
+	  (io_encoding_set): use rb_econv_prepare_opts.
+	  (argf_set_encoding): set argf_ecopts.
+
+	* gc.c (gc_mark_children): mark encs.ecopts and writeconv_pre_ecopts
+	  in T_FILE.
+
+	* transcode.c (transcode_loop): take ecopts argument. use
+	  rb_econv_open_opts.
+	  (rb_econv_flags): removed.
+	  (rb_econv_prepare_opts): defined.
+	  (rb_econv_open_opts): defined.
+	  (str_transcode0): take ecopts.
+	  (str_transcode): use rb_econv_prepare_opts.
+	  (rb_str_transcode): take ecopts.
+	  (econv_init): accept hash argument.
+	  (econv_insert_output): follow rb_str_transcode change.
+
+Thu Sep  4 01:30:26 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_set_replacemenet): declared.
+
+	* transcode.c (rb_econv_t): new fields: replacement_str,
+	  replacement_len, replacement_enc and replacement_allocated.
+	  (get_replacement_character): make len as size_t.
+	  (rb_econv_open_by_transcoder_entries): initialize the new fields.
+	  (rb_econv_close): deallocate replacement_str if it allocated.
+	  (make_replacement): new function.
+	  (output_replacement_character): use make_replacement.
+	  (rb_econv_set_replacemenet): defined.
+	  (econv_get_replacement): new method.
+	  (econv_set_replacement): new method.
+
+Thu Sep  4 01:12:03 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (filetime_to_timeval): new function, split from
+	  gettimeofday().
+
+	* win32/win32.c (gettimeofday): use above function.
+
+	* win32/win32.c (filetime_to_unixtime): ditto. [ruby-dev:36135]
+
+Thu Sep  4 01:00:57 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* transcode.c (transcode_restartable0): avoid VC++6's bug.
+
+Thu Sep  4 00:26:27 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* io.c (make_writeconv): follow akr's previous commit.
+
+Thu Sep  4 00:09:05 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_option_t): removed.  Since
+	  rb_econv_option_t has only one field, int flags, rb_econv_option_t is
+	  replaced by int.
+
+	* include/ruby/io.h: follow the above change.
+
+	* io.c: ditto.
+
+	* transcode.c: ditto.
+
+Thu Sep  4 00:04:59 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* win32/win32.c: fix ruby/signal.h depending codes.
+
+Thu Sep  4 00:01:45 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/etc/test_etc.rb (test_getpwuid, test_getgrgid): use
+	  Process.euid and egid instead of Etc.getlogin to identify current
+	  user which may be different from a login one (e.g., su command).
+
+Wed Sep  3 23:52:47 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/etc/test_etc.rb: check only typical use of
+	  setpwent/getpwent/endpwent and setgrent/getgrent/endgrent.
+
+Wed Sep  3 23:33:09 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_transcoding): moved from transcode_data.h.
+	  (TRANSCODING_READBUF): ditto.
+	  (TRANSCODING_WRITEBUF): ditto.
+	  (TRANSCODING_STATE_EMBED_MAX): ditto.
+	  (TRANSCODING_STATE): ditto.
+
+Wed Sep  3 23:03:37 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoding): remove stateful field.
+	  add state field.
+	  (TRANSCODING_STATE): defined.
+	  (rb_transcoder): add fields: state_size, state_init_func,
+	  state_fini_func.
+	  change rb_transcoding* argument to void*.
+
+	* transcode.c (transcode_restartable0): use TRANSCODING_STATE for
+	  first arguments of transcoder functions.
+	  (rb_transcoding_open_by_transcoder): initialize state field.
+	  (rb_transcoding_close): finalize state field.
+
+	* tool/transcode-tblgen.rb: provide state size/init/fini.
+
+	* enc/trans/newline.trans (universal_newline_init): defined.
+	  (fun_so_universal_newline): take void* as a state pointer.
+	  (rb_universal_newline): provide state size/init/fini.
+	  (rb_crlf_newline): ditto.
+	  (rb_cr_newline): ditto.
+
+	* enc/trans/iso2022.trans (iso2022jp_init): defined.
+	  (fun_si_iso2022jp_to_eucjp): take void* as a state pointer.
+	  (fun_so_iso2022jp_to_eucjp): ditto.
+	  (fun_so_eucjp_to_iso2022jp): ditto.
+	  (iso2022jp_reset_sequence_size): ditto.
+	  (finish_eucjp_to_iso2022jp): ditto.
+	  (rb_ISO_2022_JP_to_EUC_JP): provide state size/init/fini.
+	  (rb_EUC_JP_to_ISO_2022_JP): ditto.
+
+	* enc/trans/utf_16_32.trans (fun_so_from_utf_16be): take void* as a
+	  state pointer.
+	  (fun_so_to_utf_16be): ditto.
+	  (fun_so_from_utf_16le): ditto.
+	  (fun_so_to_utf_16le): ditto.
+	  (fun_so_from_utf_32be): ditto.
+	  (fun_so_to_utf_32be): ditto.
+	  (fun_so_from_utf_32le): ditto.
+	  (fun_so_to_utf_32le): ditto.
+	  (rb_from_UTF_16BE): provide state size/init/fini.
+	  (rb_to_UTF_16BE): ditto.
+	  (rb_from_UTF_16LE): ditto.
+	  (rb_to_UTF_16LE): ditto.
+	  (rb_from_UTF_32BE): ditto.
+	  (rb_to_UTF_32BE): ditto.
+	  (rb_from_UTF_32LE): ditto.
+	  (rb_to_UTF_32LE): ditto.
+
+	* enc/trans/japanese.trans (fun_so_eucjp2sjis): take void* as a state
+	  pointer.
+	  (fun_so_sjis2eucjp): ditto.
+	  (rb_eucjp2sjis): provide state size/init/fini.
+	  (rb_sjis2eucjp): provide state size/init/fini.
+
+Wed Sep  3 22:31:11 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* lib/mathn.rb (Integer): moved into prime.rb.
+	  (Prime): ditto.
+
+	* lib/prime.rb (Integer): moved from mathn.rb.
+	  (Integer.each_prime): added.
+	  (Integer#prime?): added.
+	  (Prime): moved from mathn.rb.
+	    Its implmentation was rewritten. see [ruby-dev:35863].
+	    And patched by Keiju ISHITSUKA <keiju@ishitsuka.com>,
+	    see [ruby-dev:36128].
+	  (Prime.new):                     obsolete.
+	  (Prime.instance):                added.
+	  (Prime.each):                    added.
+	  (Prime.int_from_prime_division): added.
+	  (Prime.prime_division):          added.
+	  (Prime.prime?):                  added.
+	    Patch by TOYOFUKU Chikanobu
+	    <nobu_toyofuku at nifty.com> in [ruby-dev:36067].
+	  (Prime.cache):                   removed.
+	  (Prime.primes):                  removed.
+	  (Prime.primes_so_far):           removed.
+	  (Prime#int_from_prime_division): added.
+	  (Prime#prime_division):          added.
+	  (Prime#prime?):                  added.
+	  (Prime#primes):                  removed.
+	  (Prime#primes_so_far):           removed.
+	  (Prime::PseudoPrmeGenerator):    added.
+	  (Prime::EratosthenesGenerator):  added.
+	  (Prime::TrialDivisionGenerator): added.
+	  (Prime::Generator23):            added.
+	  (Prime::TrialDivision):          added.
+	    Extracted from the previous implementation of Prime
+	    by Keiju ISHITSUKA.
+	  (Prime::EratosthenesSieve):      added.
+
+	* lib/.document (prime.rb): added
+
+	* lib/README (prime.rb): added
+
+	* test/test_prime.rb: added.
+
 Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* include/ruby/mvm.h, include/ruby/ruby.h, main.c:
@@ -614,7 +860,7 @@ Sat Aug 30 18:17:40 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* parse.y (token_info_get_column, token_info_has_nonspaces),
 	  (token_info_push, token_info_pop): constified.
 
-Sat Aug 30 16:38:23 2008    <nobu@ruby-lang.org>
+Sat Aug 30 16:38:23 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
 	  staff.
@@ -30890,7 +31136,7 @@ Wed May 17 17:55:26 2006  Yukihiro Matsumoto  <matz@ruby-lang.org>
 	* dir.c (sys_warning): should not call a vararg function
 	  rb_sys_warning() indirectly.	[ruby-core:07886]
 
-Tue May 16 17:23:19 2006    <sinara@blade.nagaokaut.ac.jp>
+Tue May 16 17:23:19 2006  Shin-ichiro HARA  <sinara@blade.nagaokaut.ac.jp>
 
 	* numeric.c (flo_divmod): the first element of Float#divmod should
 	  be an integer. [ruby-dev:28589]

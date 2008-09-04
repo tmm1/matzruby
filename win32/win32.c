@@ -11,7 +11,6 @@
  */
 
 #include "ruby/ruby.h"
-#include "ruby/signal.h"
 #include "dln.h"
 #include <fcntl.h>
 #include <process.h>
@@ -73,6 +72,8 @@ static int rb_w32_open_osfhandle(intptr_t osfhandle, int flags);
 #else
 #define rb_w32_open_osfhandle(osfhandle, flags) _open_osfhandle(osfhandle, flags)
 #endif
+
+#define RUBY_CRITICAL(expr) do { expr; } while (0)
 
 /* errno mapping */
 static struct {
@@ -3085,27 +3086,36 @@ waitpid(rb_pid_t pid, int *stat_loc, int options)
 
 #include <sys/timeb.h>
 
-int _cdecl
-gettimeofday(struct timeval *tv, struct timezone *tz)
+static int
+filetime_to_timeval(const FILETIME* ft, struct timeval *tv)
 {
-    FILETIME ft;
     ULARGE_INTEGER tmp;
     unsigned LONG_LONG lt;
 
-    GetSystemTimeAsFileTime(&ft);
-    tmp.LowPart = ft.dwLowDateTime;
-    tmp.HighPart = ft.dwHighDateTime;
+    tmp.LowPart = ft->dwLowDateTime;
+    tmp.HighPart = ft->dwHighDateTime;
     lt = tmp.QuadPart;
 
     /* lt is now 100-nanosec intervals since 1601/01/01 00:00:00 UTC,
        convert it into UNIX time (since 1970/01/01 00:00:00 UTC).
        the first leap second is at 1972/06/30, so we doesn't need to think
        about it. */
-    lt /= 10000;	/* to msec */
-    lt -= (LONG_LONG)((1970-1601)*365.2425) * 24 * 60 * 60 * 1000;
+    lt /= 10;	/* to usec */
+    lt -= (LONG_LONG)((1970-1601)*365.2425) * 24 * 60 * 60 * 1000 * 1000;
 
-    tv->tv_sec = lt / 1000;
-    tv->tv_usec = lt % 1000;
+    tv->tv_sec = lt / (1000 * 1000);
+    tv->tv_usec = lt % (1000 * 1000);
+
+    return tv->tv_sec > 0 ? 0 : -1;
+}
+
+int _cdecl
+gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+    FILETIME ft;
+
+    GetSystemTimeAsFileTime(&ft);
+    filetime_to_timeval(&ft, tv);
 
     return 0;
 }
@@ -3431,26 +3441,12 @@ static time_t
 filetime_to_unixtime(const FILETIME *ft)
 {
     FILETIME loc;
-    SYSTEMTIME st;
-    struct tm tm;
-    time_t t;
+    struct timeval tv;
 
-    if (!FileTimeToLocalFileTime(ft, &loc)) {
+    if (filetime_to_timeval(ft, &tv) == (time_t)-1)
 	return 0;
-    }
-    if (!FileTimeToSystemTime(&loc, &st)) {
-	return 0;
-    }
-    memset(&tm, 0, sizeof(tm));
-    tm.tm_year = st.wYear - 1900;
-    tm.tm_mon = st.wMonth - 1;
-    tm.tm_mday = st.wDay;
-    tm.tm_hour = st.wHour;
-    tm.tm_min = st.wMinute;
-    tm.tm_sec = st.wSecond;
-    tm.tm_isdst = -1;
-    t = mktime(&tm);
-    return t == -1 ? 0 : t;
+    else
+	return tv.tv_sec;
 }
 
 static unsigned
@@ -3766,13 +3762,11 @@ catch_interrupt(void)
 int
 read(int fd, void *buf, size_t size)
 {
-    int trap_immediate = rb_trap_immediate;
     int ret = _read(fd, buf, size);
     if ((ret < 0) && (errno == EPIPE)) {
 	errno = 0;
 	ret = 0;
     }
-    rb_trap_immediate = trap_immediate;
     catch_interrupt();
     return ret;
 }
@@ -3782,11 +3776,10 @@ read(int fd, void *buf, size_t size)
 int
 rb_w32_getc(FILE* stream)
 {
-    int c, trap_immediate = rb_trap_immediate;
+    int c;
 #ifndef _WIN32_WCE
     if (enough_to_get(stream->FILE_COUNT)) {
 	c = (unsigned char)*stream->FILE_READPTR++;
-	rb_trap_immediate = trap_immediate;
     }
     else 
 #endif
@@ -3797,7 +3790,6 @@ rb_w32_getc(FILE* stream)
 	    clearerr(stream);
         }
 #endif
-	rb_trap_immediate = trap_immediate;
 	catch_interrupt();
     }
     return c;
@@ -3807,17 +3799,14 @@ rb_w32_getc(FILE* stream)
 int
 rb_w32_putc(int c, FILE* stream)
 {
-    int trap_immediate = rb_trap_immediate;
 #ifndef _WIN32_WCE
     if (enough_to_put(stream->FILE_COUNT)) {
 	c = (unsigned char)(*stream->FILE_READPTR++ = (char)c);
-	rb_trap_immediate = trap_immediate;
     }
     else 
 #endif
     {
 	c = _flsbuf(c, stream);
-	rb_trap_immediate = trap_immediate;
 	catch_interrupt();
     }
     return c;
