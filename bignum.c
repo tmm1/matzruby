@@ -1244,7 +1244,7 @@ rb_big2dbl(VALUE x)
 static VALUE
 rb_big_to_f(VALUE x)
 {
-    return DOUBLE2NUM(rb_big2dbl(x));
+    return DBL2NUM(rb_big2dbl(x));
 }
 
 /*
@@ -1506,7 +1506,7 @@ rb_big_plus(VALUE x, VALUE y)
 	return bignorm(bigadd(x, y, 1));
 
       case T_FLOAT:
-	return DOUBLE2NUM(rb_big2dbl(x) + RFLOAT_VALUE(y));
+	return DBL2NUM(rb_big2dbl(x) + RFLOAT_VALUE(y));
 
       default:
 	return rb_num_coerce_bin(x, y, '+');
@@ -1531,7 +1531,7 @@ rb_big_minus(VALUE x, VALUE y)
 	return bignorm(bigadd(x, y, 0));
 
       case T_FLOAT:
-	return DOUBLE2NUM(rb_big2dbl(x) - RFLOAT_VALUE(y));
+	return DBL2NUM(rb_big2dbl(x) - RFLOAT_VALUE(y));
 
       default:
 	return rb_num_coerce_bin(x, y, '-');
@@ -1595,7 +1595,7 @@ rb_big_mul0(VALUE x, VALUE y)
 	break;
 
       case T_FLOAT:
-	return DOUBLE2NUM(rb_big2dbl(x) * RFLOAT_VALUE(y));
+	return DBL2NUM(rb_big2dbl(x) * RFLOAT_VALUE(y));
 
       default:
 	return rb_num_coerce_bin(x, y, '*');
@@ -1640,19 +1640,20 @@ bigdivrem1(void *ptr)
 {
     struct big_div_struct *bds = (struct big_div_struct*)ptr;
     long nx = bds->nx, ny = bds->ny;
-    long i, j;
+    long i, j, nyzero;
     BDIGIT *yds = bds->yds, *zds = bds->zds;
     BDIGIT_DBL t2;
     BDIGIT_DBL_SIGNED num;
     BDIGIT q;
 
     j = nx==ny?nx+1:nx;
+    for (nyzero = 0; !yds[nyzero]; nyzero++);
     do {
 	if (bds->stop) return Qnil;
 	if (zds[j] ==  yds[ny-1]) q = BIGRAD-1;
 	else q = (BDIGIT)((BIGUP(zds[j]) + zds[j-1])/yds[ny-1]);
 	if (q) {
-	    i = 0; num = 0; t2 = 0;
+           i = nyzero; num = 0; t2 = 0;
 	    do {			/* multiply and subtract */
 		BDIGIT_DBL ee;
 		t2 += (BDIGIT_DBL)yds[i] * q;
@@ -1824,7 +1825,7 @@ rb_big_divide(VALUE x, VALUE y, ID op)
 	{
 	    double div = rb_big2dbl(x) / RFLOAT_VALUE(y);
 	    if (op == '/') {
-		return DOUBLE2NUM(div);
+		return DBL2NUM(div);
 	    }
 	    else {
 		return rb_dbl2big(div);
@@ -2017,7 +2018,7 @@ rb_big_fdiv(VALUE x, VALUE y)
 	    if (ey) y = big_shift(y, ey);
 	  bignum:
 	    bigdivrem(x, y, &z, 0);
-	    return DOUBLE2NUM(ldexp(big2dbl(z), ex - ey));
+	    return DBL2NUM(ldexp(big2dbl(z), ex - ey));
 	  }
 	  case T_FLOAT:
 	    if (isnan(RFLOAT_VALUE(y))) return y;
@@ -2042,7 +2043,7 @@ rb_big_fdiv(VALUE x, VALUE y)
       default:
 	return rb_num_coerce_bin(x, y, rb_intern("fdiv"));
     }
-    return DOUBLE2NUM(dx / dy);
+    return DBL2NUM(dx / dy);
 }
 
 static VALUE
@@ -2155,7 +2156,7 @@ rb_big_pow(VALUE x, VALUE y)
       default:
 	return rb_num_coerce_bin(x, y, rb_intern("**"));
     }
-    return DOUBLE2NUM(pow(rb_big2dbl(x), d));
+    return DBL2NUM(pow(rb_big2dbl(x), d));
 }
 
 static VALUE

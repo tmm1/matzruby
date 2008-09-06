@@ -909,6 +909,16 @@ rb_thread_check_ints(void)
     RUBY_VM_CHECK_INTS();
 }
 
+/*
+ * Hidden API for tcl/tk wrapper.
+ * There is no guarantee to perpetuate it.
+ */
+int
+rb_thread_check_trap_pending(void)
+{
+    return GET_THREAD()->exec_signal != 0;
+}
+
 struct timeval rb_time_timeval();
 
 void
@@ -939,8 +949,6 @@ rb_thread_schedule(void)
 	RUBY_VM_CHECK_INTS();
     }
 }
-
-int rb_thread_critical; /* TODO: dummy variable */
 
 VALUE
 rb_thread_blocking_region(
@@ -2564,7 +2572,7 @@ thgroup_list(VALUE group)
  *     ThreadError: can't move from the enclosed thread group
  */
 
-VALUE
+static VALUE
 thgroup_enclose(VALUE group)
 {
     struct thgroup *data;

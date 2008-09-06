@@ -557,6 +557,7 @@ iseq_inspect(VALUE self)
 		      RSTRING_PTR(iseq->name), RSTRING_PTR(iseq->filename));
 }
 
+static
 VALUE iseq_data_to_ary(rb_iseq_t *iseq);
 
 static VALUE
@@ -978,7 +979,7 @@ cdhash_each(VALUE key, VALUE value, VALUE ary)
     return ST_CONTINUE;
 }
 
-VALUE
+static VALUE
 iseq_data_to_ary(rb_iseq_t *iseq)
 {
     int i, pos, line = 0;

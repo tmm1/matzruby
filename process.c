@@ -1315,7 +1315,7 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
         if (NIL_P(flags))
             flags = INT2NUM(O_RDONLY);
         else if (TYPE(flags) == T_STRING)
-            flags = INT2NUM(rb_io_mode_modenum(StringValueCStr(flags)));
+            flags = INT2NUM(rb_io_modestr_oflags(StringValueCStr(flags)));
         else
             flags = rb_to_int(flags);
         perm = rb_ary_entry(val, 2);
@@ -5050,10 +5050,10 @@ rb_proc_times(VALUE obj)
 
     times(&buf);
     return rb_struct_new(rb_cProcessTms,
-			 utime = DOUBLE2NUM(buf.tms_utime / hertz),
-			 stime = DOUBLE2NUM(buf.tms_stime / hertz),
-			 cutime = DOUBLE2NUM(buf.tms_cutime / hertz),
-			 sctime = DOUBLE2NUM(buf.tms_cstime / hertz));
+			 utime = DBL2NUM(buf.tms_utime / hertz),
+			 stime = DBL2NUM(buf.tms_stime / hertz),
+			 cutime = DBL2NUM(buf.tms_cutime / hertz),
+			 sctime = DBL2NUM(buf.tms_cstime / hertz));
 #else
     rb_notimplement();
 #endif

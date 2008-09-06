@@ -20,10 +20,7 @@
 #define BYTE_LOOKUP_BASE(bl) ((bl)[0])
 #define BYTE_LOOKUP_INFO(bl) ((bl)[1])
 
-#ifndef PType
-/* data file needs to treat this as a pointer, to remove warnings */
 #define PType (unsigned int)
-#endif
 
 #define NOMAP	(PType 0x01)	/* single byte direct map */
 #define ONEbt	(0x02)		/* one byte payload */
@@ -66,8 +63,8 @@ typedef struct rb_transcoder rb_transcoder;
 
 /* static structure, one per supported encoding pair */
 struct rb_transcoder {
-    const char *from_encoding;
-    const char *to_encoding;
+    const char *src_encoding;
+    const char *dst_encoding;
     unsigned int conv_tree_start;
     const unsigned char *byte_array;
     unsigned int byte_array_length;

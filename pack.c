@@ -1011,7 +1011,7 @@ static const char b64_table[] =
 static void
 encodes(VALUE str, const char *s, long len, int type)
 {
-    char *buff = ALLOCA_N(char, len * 4 / 3 + 6);
+    char buff[4096];
     long i = 0;
     const char *trans = type == 'u' ? uu_table : b64_table;
     int padding;
@@ -1024,13 +1024,20 @@ encodes(VALUE str, const char *s, long len, int type)
 	padding = '=';
     }
     while (len >= 3) {
-	buff[i++] = trans[077 & (*s >> 2)];
-	buff[i++] = trans[077 & (((*s << 4) & 060) | ((s[1] >> 4) & 017))];
-	buff[i++] = trans[077 & (((s[1] << 2) & 074) | ((s[2] >> 6) & 03))];
-	buff[i++] = trans[077 & s[2]];
-	s += 3;
-	len -= 3;
+        while (len >= 3 && sizeof(buff)-i >= 4) {
+            buff[i++] = trans[077 & (*s >> 2)];
+            buff[i++] = trans[077 & (((*s << 4) & 060) | ((s[1] >> 4) & 017))];
+            buff[i++] = trans[077 & (((s[1] << 2) & 074) | ((s[2] >> 6) & 03))];
+            buff[i++] = trans[077 & s[2]];
+            s += 3;
+            len -= 3;
+        }
+        if (sizeof(buff)-i < 4) {
+            rb_str_buf_cat(str, buff, i);
+            i = 0;
+        }
     }
+
     if (len == 2) {
 	buff[i++] = trans[077 & (*s >> 2)];
 	buff[i++] = trans[077 & (((*s << 4) & 060) | ((s[1] >> 4) & 017))];
@@ -1656,7 +1663,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		float tmp;
 		memcpy(&tmp, s, sizeof(float));
 		s += sizeof(float);
-		UNPACK_PUSH(DOUBLE2NUM((double)tmp));
+		UNPACK_PUSH(DBL2NUM((double)tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
@@ -1670,7 +1677,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		memcpy(&tmp, s, sizeof(float));
 		s += sizeof(float);
 		tmp = VTOHF(tmp,ftmp);
-		UNPACK_PUSH(DOUBLE2NUM((double)tmp));
+		UNPACK_PUSH(DBL2NUM((double)tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
@@ -1684,7 +1691,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		memcpy(&tmp, s, sizeof(double));
 		s += sizeof(double);
 		tmp = VTOHD(tmp,dtmp);
-		UNPACK_PUSH(DOUBLE2NUM(tmp));
+		UNPACK_PUSH(DBL2NUM(tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
@@ -1696,7 +1703,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		double tmp;
 		memcpy(&tmp, s, sizeof(double));
 		s += sizeof(double);
-		UNPACK_PUSH(DOUBLE2NUM(tmp));
+		UNPACK_PUSH(DBL2NUM(tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
@@ -1710,7 +1717,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		memcpy(&tmp, s, sizeof(float));
 		s += sizeof(float);
 		tmp = NTOHF(tmp,ftmp);
-		UNPACK_PUSH(DOUBLE2NUM((double)tmp));
+		UNPACK_PUSH(DBL2NUM((double)tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;
@@ -1724,7 +1731,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		memcpy(&tmp, s, sizeof(double));
 		s += sizeof(double);
 		tmp = NTOHD(tmp,dtmp);
-		UNPACK_PUSH(DOUBLE2NUM(tmp));
+		UNPACK_PUSH(DBL2NUM(tmp));
 	    }
 	    PACK_ITEM_ADJUST();
 	    break;

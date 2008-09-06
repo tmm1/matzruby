@@ -853,6 +853,7 @@ EOT
 
   def test_read_stateful
     with_pipe("euc-jp:iso-2022-jp") {|r, w|
+      r.binmode
       w << "\xA4\xA2"
       w.close
       assert_equal("\e$B$\"\e(B".force_encoding("iso-2022-jp"), r.read)
@@ -1227,10 +1228,34 @@ EOT
 
   def test_textmode_read_ascii_incompat_internal
     with_tmpdir {
+      # ascii incompatible internal encoding needs binmode.
+      assert_raise(ArgumentError) {
+        open("t.utf8.crlf", "rt:utf-8:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf8.crlf", "r:utf-8:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf16.crlf", "rt:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf16.crlf", "r:utf-16be") {|f| }
+      }
+    }
+  end
+
+  def test_binmode_read_ascii_incompat_internal
+    with_tmpdir {
       generate_file("t.utf8.crlf", "a\r\nb\r\n")
-      open("t.utf8.crlf", "rt:utf-8:utf-16be") {|f|
+      generate_file("t.utf16.crlf", "\0a\0\r\0\n\0b\0\r\0\n")
+      # ascii incompatible internal encoding needs binmode.
+      open("t.utf8.crlf", "rb:utf-8:utf-16be") {|f|
         content = f.read
-        # textmode doesn't affect for ascii incompatible internal encoding.
+        assert_equal("\0a\0\r\0\n\0b\0\r\0\n".force_encoding("UTF-16BE"),
+                     content)
+      }
+      open("t.utf16.crlf", "rb:utf-16be") {|f|
+        content = f.read
         assert_equal("\0a\0\r\0\n\0b\0\r\0\n".force_encoding("UTF-16BE"),
                      content)
       }
@@ -1239,12 +1264,38 @@ EOT
 
   def test_textmode_write_ascii_incompat_internal
     with_tmpdir {
-      open("t.utf8.lf", "wt:utf-8:utf-16be") {|f|
+      # ascii incompatible internal encoding needs binmode.
+      assert_raise(ArgumentError) {
+        open("t.utf8", "wt:utf-8:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf8", "w:utf-8:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf8", "w:utf-8:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf16", "wt:utf-16be") {|f| }
+      }
+      assert_raise(ArgumentError) {
+        open("t.utf16", "w:utf-16be") {|f| }
+      }
+    }
+  end
+
+  def test_binmode_write_ascii_incompat_internal
+    with_tmpdir {
+      open("t.utf8.lf", "wb:utf-8:utf-16be") {|f|
         f.print "\0a\0\n\0b\0\n".force_encoding("UTF-16BE")
       }
       content = File.read("t.utf8.lf", :mode=>"rb:ascii-8bit")
-      # textmode doesn't affect for ascii incompatible internal encoding.
       assert_equal("a\nb\n", content)
+
+      open("t.utf8.lf", "wb:utf-16be") {|f|
+        f.print "\0a\0\n\0b\0\n".force_encoding("UTF-16BE")
+      }
+      content = File.read("t.utf8.lf", :mode=>"rb:ascii-8bit")
+      assert_equal("\0a\0\n\0b\0\n", content)
     }
   end
 
@@ -1312,14 +1363,14 @@ EOT
       open("t.txt", "r:utf-8:euc-jp", :invalid => :replace) {|f|
         assert_equal("a?b", f.read)
       }
-      open("t.txt", "r:utf-8:euc-jp", :invalid => :ignore) {|f|
+      open("t.txt", "r:utf-8:euc-jp", :invalid => :replace, :replace => "") {|f|
         assert_equal("ab", f.read)
       }
       open("t.txt", "r:utf-8:euc-jp", :undef => :replace) {|f|
         assert_raise(Encoding::InvalidByteSequence) { f.read }
         assert_equal("b", f.read)
       }
-      open("t.txt", "r:utf-8:euc-jp", :undef => :ignore) {|f|
+      open("t.txt", "r:utf-8:euc-jp", :undef => :replace, :replace => "") {|f|
         assert_raise(Encoding::InvalidByteSequence) { f.read }
         assert_equal("b", f.read)
       }
@@ -1332,14 +1383,14 @@ EOT
       open("t.txt", "r:utf-8:euc-jp", :undef => :replace) {|f|
         assert_equal("a?b", f.read)
       }
-      open("t.txt", "r:utf-8:euc-jp", :undef => :ignore) {|f|
+      open("t.txt", "r:utf-8:euc-jp", :undef => :replace, :replace => "") {|f|
         assert_equal("ab", f.read)
       }
       open("t.txt", "r:utf-8:euc-jp", :invalid => :replace) {|f|
         assert_raise(Encoding::ConversionUndefined) { f.read }
         assert_equal("b", f.read)
       }
-      open("t.txt", "r:utf-8:euc-jp", :invalid => :ignore) {|f|
+      open("t.txt", "r:utf-8:euc-jp", :invalid => :replace, :replace => "") {|f|
         assert_raise(Encoding::ConversionUndefined) { f.read }
         assert_equal("b", f.read)
       }
@@ -1354,7 +1405,7 @@ EOT
       }
       assert_equal("a?b", File.read("t.txt"))
 
-      open("t.txt", "w:euc-jp", :invalid => :ignore) {|f|
+      open("t.txt", "w:euc-jp", :invalid => :replace, :replace => "") {|f|
         assert_nothing_raised { f.write invalid_utf8 }
       }
       assert_equal("ab", File.read("t.txt"))
@@ -1362,7 +1413,7 @@ EOT
       open("t.txt", "w:euc-jp", :undef => :replace) {|f|
         assert_raise(Encoding::InvalidByteSequence) { f.write invalid_utf8 }
       }
-      open("t.txt", "w:euc-jp", :undef => :ignore) {|f|
+      open("t.txt", "w:euc-jp", :undef => :replace, :replace => "") {|f|
         assert_raise(Encoding::InvalidByteSequence) { f.write invalid_utf8 }
       }
     }
@@ -1375,14 +1426,14 @@ EOT
         assert_nothing_raised { f.write "a\uFFFDb" }
       }
       assert_equal("a?b", File.read("t.txt"))
-      open("t.txt", "w:euc-jp:utf-8", :undef => :ignore) {|f|
+      open("t.txt", "w:euc-jp:utf-8", :undef => :replace, :replace => "") {|f|
         assert_nothing_raised { f.write "a\uFFFDb" }
       }
       assert_equal("ab", File.read("t.txt"))
       open("t.txt", "w:euc-jp:utf-8", :invalid => :replace) {|f|
         assert_raise(Encoding::ConversionUndefined) { f.write "a\uFFFDb" }
       }
-      open("t.txt", "w:euc-jp:utf-8", :invalid => :ignore) {|f|
+      open("t.txt", "w:euc-jp:utf-8", :invalid => :replace, :replace => "") {|f|
         assert_raise(Encoding::ConversionUndefined) { f.write "a\uFFFDb" }
       }
     }
@@ -1395,14 +1446,14 @@ EOT
         assert_nothing_raised { f.write "a\uFFFDb" }
       }
       assert_equal("a?b", File.read("t.txt"))
-      open("t.txt", "w:iso-2022-jp:utf-8", :undef => :ignore) {|f|
+      open("t.txt", "w:iso-2022-jp:utf-8", :undef => :replace, :replace => "") {|f|
         assert_nothing_raised { f.write "a\uFFFDb" }
       }
       assert_equal("ab", File.read("t.txt"))
       open("t.txt", "w:iso-2022-jp:utf-8", :invalid => :replace) {|f|
         assert_raise(Encoding::ConversionUndefined) { f.write "a\uFFFDb" }
       }
-      open("t.txt", "w:iso-2022-jp:utf-8", :invalid => :ignore) {|f|
+      open("t.txt", "w:iso-2022-jp:utf-8", :invalid => :replace, :replace => "") {|f|
         assert_raise(Encoding::ConversionUndefined) { f.write "a\uFFFDb" }
       }
     }

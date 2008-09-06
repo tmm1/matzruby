@@ -1,3 +1,312 @@
+<<<<<<< .working
+=======
+Sat Sep  6 15:06:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (sym_html): new variable.
+	  (sym_text): ditto.
+	  (sym_attr): ditto.
+	  (econv_opts): check :html=>:text and :html=>:attr.
+	  (Init_transcode): initialize the above variables.
+
+Sat Sep  6 14:46:12 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_HTML_TEXT_ENCODER): new constant.
+	  (ECONV_HTML_ATTR_ENCODER): ditto.
+
+	* transcode.c (rb_econv_open): check ECONV_HTML_TEXT_ENCODER and
+	  ECONV_HTML_ATTR_ENCODER.
+	  (Init_transcode): Encoding::Converter::HTML_TEXT_ENCODER and
+	  Encoding::Converter::HTML_ATTR_ENCODER defined.
+
+Sat Sep  6 14:15:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (struct trans_open_t): defined to pass num_additional.
+	  (trans_open_i): use struct trans_open_t.
+	  (rb_econv_open): ditto.
+
+Sat Sep  6 13:43:20 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/escape.trans (fun_so_escape_html_attr): fix return type.
+
+Sat Sep  6 12:43:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_open): needless branch removed.
+
+Sat Sep  6 12:38:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_open): test condition simplified.
+
+Sat Sep  6 12:25:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (stateless_encoding_i): ignore supplemental conversions.
+	  Encoding::Converter.stateless_encoding("html-attr-escaped") should be
+	  nil.
+
+Sat Sep  6 12:19:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/escape.trans (escape_html_attr_init): new function.
+	  (fun_so_escape_html_attr): new function.
+	  (escape_html_attr_finish): new function.
+	  (rb_escape_html_attr): use them to quote the converted result.
+
+Sat Sep  6 07:54:36 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c: uses f_real_p macro.
+
+Sat Sep  6 07:27:00 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_open): fail for ASCII incompatible with
+	  newline conversion.
+
+Sat Sep  6 07:24:49 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (rb_io_extract_modeenc): raise an error for ASCII incompatible
+	  encoding without binmode.
+
+Sat Sep  6 07:12:42 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* bignum.c (bigdivrem1): optimization by skipping zeros at the
+	  tail of digits.  a patch from TOYOFUKU Chikanobu
+	  <nobu_toyofuku at nifty.com> in [ruby-dev:36169].
+
+Sat Sep  6 06:28:46 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/escape.trans: new file.
+
+Sat Sep  6 06:23:27 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (StrSet.parse): accept upper case
+	  hexadecimal digits.
+
+Sat Sep  6 05:37:08 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (output_hex_charref): upcase hexadecimal digits.
+
+Sat Sep  6 05:22:29 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_UNDEF_HEX_CHARREF): defined.
+
+	* transcode.c (output_hex_charref): new function.
+	  (rb_econv_convert): call output_hex_charref if
+	  ECONV_UNDEF_HEX_CHARREF.
+	  (Init_transcode): Encoding::Converter::UNDEF_HEX_CHARREF added.
+	  
+Sat Sep  6 03:52:47 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_convert): use ECONV_INVALID_MASK and
+	  ECONV_UNDEF_MASK.
+
+Sat Sep  6 06:05:09 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* include/ruby/ruby.h (DBL2NUM): renamed from DOUBLE2NUM.
+	  a patch from Tadashi Saito <shiba at mail2.accsnet.ne.jp>
+	  in [ruby-dev:36102].
+
+Sat Sep  6 03:18:17 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (allocate_converted_string): add arguments for a buffer
+	  allocated by caller.
+	  (rb_econv_insert_output): provide caller allocated buffer to
+	  allocate_converted_string.
+
+Sat Sep  6 02:58:53 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (str_transcode_enc_args): local variables renamed.
+	  (str_transcode0): ditto.
+
+Sat Sep  6 02:23:18 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_s_stateless_encoding): new method.
+
+Sat Sep  6 02:01:59 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (enc_arg): extracted from str_transcode_enc_args.
+	  (str_transcode_enc_args): use enc_arg.
+
+Fri Sep  5 20:27:17 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/io.h (rb_io_modestr_fmode): renamed from
+	  rb_io_mode_flags.
+	  (rb_io_modestr_oflags): renamed from rb_io_mode_modenum.
+	  (rb_io_oflags_fmode): renamed from rb_io_modenum_flags.
+	  (rb_io_mode_flags): defined as a macro.
+	  (rb_io_modenum_flags): ditto.
+
+	* io.c: follow the renaming with consistency.
+
+	* process.c (check_exec_redirect): call rb_io_modestr_oflags.
+
+	* ext/pty/depend: pty.o depends on io.h.
+
+Fri Sep  5 20:12:23 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/newline.trans (universal_newline_finish): new function.
+
+Fri Sep  5 20:07:37 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/io.h (rb_io_mode_modenum): moved from
+	  include/ruby/intern.h.
+
+Fri Sep  5 19:59:26 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (MODENUM_MAX): removed.
+
+Fri Sep  5 18:37:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (copy_stream_fallback_body): use read method unless readpartial
+	  is available.  [ruby-dev:36124]
+
+Fri Sep  5 18:16:31 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/iconv/iconv.c (iconv_create): strips glibc style option before
+	  charset mapping.  retris without options if they seemed causing
+	  error, and warns.  [ruby-dev:36147]
+
+Fri Sep  5 03:09:48 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* iseq.c (iseq_data_to_ary): make it static.
+
+	* thread.c (thgroup_enclose): ditto.
+
+Fri Sep  5 02:56:37 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* vm.c (thread_recycle_stack_slot, thread_recycle_stack_count): 
+	  make it static.
+
+Fri Sep  5 02:40:38 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* thread.c (rb_thread_critical): removed.
+
+Fri Sep  5 01:22:23 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (argf_mark): mark p->encs.ecopts.
+
+Fri Sep  5 00:45:07 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder): rename fields:
+	  from_encoding -> src_encoding, to_encoding -> dst_encoding.
+
+	* transcode.c: follow the renaming.
+
+Fri Sep  5 00:22:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c: variables renamed for consistency.
+
+Fri Sep  5 00:05:27 2008  Tanaka Akira  <akr@fsij.org>
+
+	* pack.c (encodes): make buff fixed length to avoid SEGV by
+	  ruby -e '["a"*10000000].pack("m1000000000")'
+
+Thu Sep  4 23:47:05 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_mode): set exception mode
+	  correctly.  In spite of BigDecimal.mode(BigDecimal::EXCEPTION_ALL,
+	  true), BigDecimal.new("NaN") did not raise an exception previously.
+
+Thu Sep  4 23:42:42 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/intern.h (rb_file_open_str): declared.
+
+	* io.c (rb_file_open_str): defined.
+
+	* ext/zlib/zlib.c (gzfile_s_open): use rb_file_open_str instead of
+	  rb_file_open.
+
+Thu Sep  4 23:18:55 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/newline.trans: record newline types met in universal
+	  newline decoder.
+
+Thu Sep  4 23:05:54 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* lib/prime.rb (Prime::OldCompatibility#each): added compatibility to 
+	    Ruby 1.8.7.
+	  (Prime#each): added more rdocs.
+	  (Prime#each): remembers the last value of the given block.
+
+Thu Sep  4 21:53:58 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_init): accept an integer as 3rd argument as well.
+
+Thu Sep  4 21:46:21 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (sym_partial_input): new variable.
+	  (econv_primitive_convert): accept a hash as 5th argument as well.
+
+Thu Sep  4 21:04:27 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (sym_universal_newline_decoder): new variable.
+	  (sym_crlf_newline_encoder): ditto.
+	  (sym_cr_newline_encoder): ditto.
+	  (econv_opts): check newline converter options.
+	  (econv_init): make 3rd argument hash/nil only.
+
+Thu Sep  4 21:03:28 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* vm_dump.c: rename some debug functions.
+
+Thu Sep  4 20:57:54 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* thread.c (rb_thread_check_trap_pending): added for compatibility.
+
+	* ext/tk/tcltklib.c, ext/tk/tkutil/tkutil.c: remove ruby/signal.h
+	  dependency.
+
+Thu Sep  4 20:30:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (PType): defined unconditionaly.
+
+	* transcode.c (PType): don't define here.
+
+Thu Sep  4 20:19:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c: variables renamed for consistency.
+
+Thu Sep  4 19:40:50 2008  Narihiro Nakamura  <authorNari@gmail.com>
+
+	* gc.c (gc_profile_record_get): to static function.
+	(gc_profile_result): ditto.
+	(gc_profile_report): ditto.
+
+Thu Sep  4 19:20:24 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/io.h (rb_io_enc_t): rename flags to ecflags.
+	  (rb_io_t): rename writeconv_pre_flags to writeconv_pre_ecflags.
+	  (MakeOpenFile): follow the renaming.
+
+	* io.c: follow the renaming.
+
+Thu Sep  4 19:10:27 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_INVALID_IGNORE): removed because
+	  it tend to cause security problem.  If the behaviour is really
+	  required, ECONV_INVALID_REPLACE with empty string can be used.
+	  For example, CVE-2006-2313, CVE-2008-1036, [ruby-core:15645]
+	  (ECONV_UNDEF_IGNORE): ditto.
+
+	* transcode.c (rb_econv_convert): follow the above change.
+	  (econv_opts): ditto.
+	  (Init_transcode): ditto.
+
+Thu Sep  4 13:22:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
+	  staff.
+
+	* signal.c (signal_buff): per process resouce now.
+
+	* signal.c (trap_list): moved to VM.
+
+	* signal.c (rb_get_next_signal): reverted.
+
+	* signal.c (rb_trap_exit): trap_pending_list was no longer used.
+
+	* thread.c (timer_thread_function): delivers buffered per-process
+	  signals to each VMs.
+
+	* vm.c (rb_vm_mark): marks trap_list.
+
+>>>>>>> .merge-right.r19180
 Thu Sep  4 13:01:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* io.c (struct sysopen_struct, rb_sysopen_internal, rb_sysopen):
