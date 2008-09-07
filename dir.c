@@ -1951,6 +1951,7 @@ to_fullpath(volatile VALUE *fname, VALUE base)
     return RSTRING_PTR(fullpath);
 }
 
+VALUE rb_io_yield(VALUE io);
 VALUE rb_openat(int argc, VALUE *argv, int base, const char *path);
 
 /*
@@ -1969,7 +1970,7 @@ rb_dir_open(int argc, VALUE *argv, VALUE dir)
 #if USE_OPENAT
     base = dirfd(dp->dir);
 #endif
-    return rb_openat(argc, argv, base, RSTRING_PTR(dp->path));
+    return rb_io_yield(rb_openat(argc, argv, base, RSTRING_PTR(dp->path)));
 }
 
 static long

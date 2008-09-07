@@ -3197,6 +3197,16 @@ io_close(VALUE io)
     return rb_rescue(io_call_close, io, 0, 0);
 }
 
+VALUE
+rb_io_yield(VALUE io)
+{
+    if (rb_block_given_p()) {
+	return rb_ensure(rb_yield, io, io_close, io);
+    }
+    return io;
+}
+
+
 /*
  *  call-seq:
  *     ios.closed?    => true or false
@@ -3915,9 +3925,18 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE opthash,
     convconfig_p->ecopts = ecopts;
 }
 
+#if USE_OPENAT
+#define DEFAULT_BASE_FD GET_THREAD()->cwd.fd
+#define BASE_FD_ARG(type) , type base
+#else
+#define BASE_FD_ARG(type) /*, type base*/
+#endif
+
 struct sysopen_struct {
 #if USE_OPENAT
     int base;
+#else
+    VALUE fullpath;
 #endif
     const char *fname;
     int oflags;
@@ -3935,55 +3954,73 @@ sysopen_func(void *ptr)
 #endif
 }
 
-static int
-rb_sysopen_internal(const char *fname, int oflags, mode_t perm)
+static inline int
+rb_sysopen_internal(struct sysopen_struct *data)
 {
-    struct sysopen_struct data;
-
-#if USE_OPENAT
-    data.base = GET_THREAD()->cwd.fd;
-#endif
-    data.fname = fname;
-    data.oflags = oflags;
-    data.perm = perm;
-    return (int)rb_thread_blocking_region(sysopen_func, &data, RUBY_UBF_IO, 0);
+    return (int)rb_thread_blocking_region(sysopen_func, data, RUBY_UBF_IO, 0);
 }
 
+struct openat_args {
+    int fd;
+    const char *path;
+};
+
 static int
-rb_sysopen(const char *fname, int oflags, mode_t perm)
+rb_sysopenat(const char *fname, const struct openat_args *base, int oflags, mode_t perm)
 {
     int fd;
-#if !USE_OPENAT
-    volatile VALUE fullpath;
-#endif
+    struct sysopen_struct data;
 
 #ifdef O_BINARY
     oflags |= O_BINARY;
 #endif
 
-#if !USE_OPENAT
-    if (!ruby_absolute_path_p(fname)) {
-	fullpath = rb_file_absolute_path(rb_str_new2(fname), Qnil);
+#if USE_OPENAT
+    data.base = (base && base->fd != -1) ? base->fd : DEFAULT_BASE_FD;
+#else
+    if (base && !ruby_absolute_path_p(fname)) {
+	VALUE fullpath = Qnil;
+	if (base->fd != -1) {
+	    char *basecwd;
+	    if (base->path) {
+		fullpath = rb_str_new_cstr(base->path);
+	    }
+	    else if ((basecwd = ruby_fd_getcwd(base->fd)) != 0) {
+		fullpath = rb_str_wrap_cstr(basecwd);
+	    }
+	    else {
+		rb_raise(rb_eIOError,
+			 "failed to get directory path for fd %d", base->fd);
+	    }
+	}
+	fullpath = rb_file_absolute_path(rb_str_new2(fname), fullpath);
 	fname = RSTRING_PTR(fullpath);
+	data.fullpath = fullpath;
     }
 #endif
+    data.fname = fname;
+    data.oflags = oflags;
+    data.perm = perm;
 
-    fd = rb_sysopen_internal(fname, oflags, perm);
+    fd = rb_sysopen_internal(&data);
     if (fd < 0) {
 	if (errno == EMFILE || errno == ENFILE) {
 	    rb_gc();
-	    fd = rb_sysopen_internal(fname, oflags, perm);
+	    fd = rb_sysopen_internal(&data);
 	}
 	if (fd < 0) {
 	    rb_sys_fail(fname);
 	}
     }
 
-#if !USE_OPENAT
-    RB_GC_GUARD(fullpath);
-#endif
     UPDATE_MAXFD(fd);
     return fd;
+}
+
+static int
+rb_sysopen(const char *fname, int oflags, mode_t perm)
+{
+    return rb_sysopenat(fname, NULL, oflags, perm);
 }
 
 FILE *
@@ -4033,7 +4070,8 @@ io_check_tty(rb_io_t *fptr)
 }
 
 static VALUE
-rb_file_open_generic(VALUE io, VALUE filename, int oflags, int fmode, convconfig_t *convconfig, mode_t perm)
+rb_file_open_generic(VALUE io, VALUE filename, const struct openat_args *base,
+		     int oflags, int fmode, convconfig_t *convconfig, mode_t perm)
 {
     rb_io_t *fptr;
 
@@ -4049,14 +4087,14 @@ rb_file_open_generic(VALUE io, VALUE filename, int oflags, int fmode, convconfig
         fptr->encs.ecopts = Qnil;
     }
     fptr->pathv = rb_str_new_frozen(filename);
-    fptr->fd = rb_sysopen(RSTRING_PTR(fptr->pathv), oflags, perm);
+    fptr->fd = rb_sysopenat(RSTRING_PTR(fptr->pathv), base, oflags, perm);
     io_check_tty(fptr);
 
     return io;
 }
 
 static VALUE
-rb_file_open_internal(VALUE io, VALUE filename, const char *modestr)
+rb_file_openat_internal(VALUE io, VALUE filename, struct openat_args *oargs, const char *modestr)
 {
     int fmode;
 
@@ -4073,11 +4111,18 @@ rb_file_open_internal(VALUE io, VALUE filename, const char *modestr)
     }
 
     fmode = rb_io_modestr_fmode(modestr);
-    return rb_file_open_generic(io, filename,
+    return rb_file_open_generic(io, filename, oargs,
             rb_io_fmode_oflags(fmode),
             fmode,
             &convconfig,
             0666);
+}
+
+static VALUE
+rb_file_open_internal(VALUE io, VALUE filename, const char *modestr)
+{
+    return rb_file_openat_internal(io, filename, NULL, modestr);
+
 }
 
 VALUE
@@ -4087,70 +4132,24 @@ rb_file_open_str(VALUE fname, const char *modestr)
 }
 
 VALUE
-rb_openat(int argc, VALUE *argv, int base, const char *path)
-{
-    VALUE fname, vmode, perm, newio;
-    volatile VALUE full;
-    int flags = O_RDONLY, fmode = 0666, fd;
-    const char *fullpath;
-#ifdef AT_FDCWD
-    const char *name;
-#endif
-    rb_io_t *fptr;
-
-    rb_secure(2);
-    rb_scan_args(argc, argv, "12", &fname, &vmode, &perm);
-    FilePathValue(fname);
-
-    if (!NIL_P(vmode)) {
-	if (FIXNUM_P(vmode)) {
-	    flags = FIX2INT(vmode);
-	}
-	else {
-	    SafeStringValue(vmode);
-	    flags = rb_io_mode_modenum(RSTRING_PTR(vmode));
-	}
-    }
-    if (!NIL_P(perm)) {
-	fmode = NUM2INT(perm);
-    }
-    newio = io_alloc(rb_cFile);
-    MakeOpenFile(newio, fptr);
-    fptr->mode = rb_io_modenum_flags(flags);
-#ifdef AT_FDCWD
-    name = RSTRING_PTR(fname);
-#define RB_DO_OPENAT() ((base == -1) ?			\
-			open(fullpath, flags, fmode) :	\
-			openat(base, name, flags, fmode))
-#else
-#define RB_DO_OPENAT() open(fullpath, flags, fmode)
-#endif
-    full = fname = rb_file_expand_path(fname, rb_str_new2(path));
-    RBASIC(fname)->klass = 0;
-    OBJ_FREEZE(fname);
-    fullpath = RSTRING_PTR(fname);
-    if ((fd = RB_DO_OPENAT()) < 0) {
-	if (errno == EMFILE || errno == ENFILE) {
-	    rb_gc();
-	    fd = RB_DO_OPENAT();
-	}
-	if (fd < 0) {
-	    rb_sys_fail(fullpath);
-	}
-    }
-#undef RB_DO_OPENAT
-    fptr->fd = fd;
-    fptr->pathv = fname;
-    if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, newio, io_close, newio);
-    }
-    return newio;
-}
-
-VALUE
 rb_file_open(const char *fname, const char *modestr)
 {
     return rb_file_open_internal(io_alloc(rb_cFile), rb_str_new_cstr(fname), modestr);
+}
+
+VALUE
+rb_file_openat_str(VALUE fname, int basefd, const char *basepath, const char *modestr)
+{
+    struct openat_args base;
+    base.fd = basefd;
+    base.path = basepath;
+    return rb_file_openat_internal(io_alloc(rb_cFile), fname, &base, modestr);
+}
+
+VALUE
+rb_file_openat(const char *fname, int basefd, const char *basepath, const char *modestr)
+{
+    return rb_file_openat_str(rb_str_new_cstr(fname), basefd, basepath, modestr);
 }
 
 #if defined(__CYGWIN__) || !defined(HAVE_FORK)
@@ -4671,10 +4670,7 @@ rb_io_s_popen(int argc, VALUE *argv, VALUE klass)
 	return Qnil;
     }
     RBASIC(port)->klass = klass;
-    if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, port, io_close, port);
-    }
-    return port;
+    return rb_io_yield(port);
 }
 
 static void
@@ -4721,7 +4717,7 @@ rb_scan_open_args(int argc, VALUE *argv,
 }
 
 static VALUE
-rb_open_file(int argc, VALUE *argv, VALUE io)
+rb_openat_file(int argc, VALUE *argv, VALUE io, const struct openat_args *base)
 {
     VALUE fname;
     int oflags, fmode;
@@ -4729,9 +4725,24 @@ rb_open_file(int argc, VALUE *argv, VALUE io)
     mode_t perm;
 
     rb_scan_open_args(argc, argv, &fname, &oflags, &fmode, &convconfig, &perm);
-    rb_file_open_generic(io, fname, oflags, fmode, &convconfig, perm);
+    rb_file_open_generic(io, fname, base, oflags, fmode, &convconfig, perm);
 
     return io;
+}
+
+static VALUE
+rb_open_file(int argc, VALUE *argv, VALUE io)
+{
+    return rb_openat_file(argc, argv, io, NULL);
+}
+
+VALUE
+rb_openat(int argc, VALUE *argv, int basefd, const char *basepath)
+{
+    struct openat_args base;
+    base.fd = basefd;
+    base.path = basepath;
+    return rb_openat_file(argc, argv, io_alloc(rb_cFile), &base);
 }
 
 /*
@@ -4752,11 +4763,7 @@ rb_io_s_open(int argc, VALUE *argv, VALUE klass)
 {
     VALUE io = rb_class_new_instance(argc, argv, klass);
 
-    if (rb_block_given_p()) {
-	return rb_ensure(rb_yield, io, io_close, io);
-    }
-
-    return io;
+    return rb_io_yield(io);
 }
 
 /*
@@ -4951,10 +4958,7 @@ rb_f_open(int argc, VALUE *argv)
     if (redirect) {
 	VALUE io = rb_funcall2(argv[0], to_open, argc-1, argv+1);
 
-	if (rb_block_given_p()) {
-	    return rb_ensure(rb_yield, io, io_close, io);
-	}
-	return io;
+	return rb_io_yield(io);
     }
     return rb_io_s_open(argc, argv, rb_cFile);
 }
@@ -4974,7 +4978,7 @@ rb_io_open(VALUE filename, VALUE vmode, VALUE vperm, VALUE opt)
 	return pipe_open_s(cmd, rb_io_oflags_modestr(oflags), fmode, &convconfig);
     }
     else {
-        return rb_file_open_generic(io_alloc(rb_cFile), filename,
+        return rb_file_open_generic(io_alloc(rb_cFile), filename, NULL,
                 oflags, fmode, &convconfig, perm);
     }
 }
@@ -5771,12 +5775,9 @@ argf_mark(void *ptr)
     rb_gc_mark(p->current_file);
     rb_gc_mark(p->lineno);
     rb_gc_mark(p->argv);
-<<<<<<< .working
     rb_gc_mark(p->defin);
     rb_gc_mark(p->defout);
-=======
     rb_gc_mark(p->encs.ecopts);
->>>>>>> .merge-right.r19180
 }
 
 static void

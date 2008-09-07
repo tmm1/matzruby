@@ -1,3 +1,8 @@
+Mon Sep  8 05:54:56 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* dir.c (rb_dir_open), io.c (rb_sysopenat, rb_openat): resolved
+	  conflicts.
+
 <<<<<<< .working
 =======
 Sat Sep  6 15:06:21 2008  Tanaka Akira  <akr@fsij.org>
