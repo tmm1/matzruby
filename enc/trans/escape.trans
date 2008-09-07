@@ -1,93 +1,42 @@
 #include "transcode_data.h"
 
-static int
-fun_so_escape_html_chref(void *statep, const unsigned char *s, size_t l, unsigned char *o)
-{
-    switch (*s) {
-      case '&':
-        o[0] = '&';
-        o[1] = 'a';
-        o[2] = 'm';
-        o[3] = 'p';
-        o[4] = ';';
-        return 5;
-
-      case '<':
-        o[0] = '&';
-        o[1] = 'l';
-        o[2] = 't';
-        o[3] = ';';
-        return 4;
-
-      case '>':
-        o[0] = '&';
-        o[1] = 'g';
-        o[2] = 't';
-        o[3] = ';';
-        return 4;
-
-      case '"':
-        o[0] = '&';
-        o[1] = 'q';
-        o[2] = 'u';
-        o[3] = 'o';
-        o[4] = 't';
-        o[5] = ';';
-        return 6;
-
-      default:
-        rb_bug("unexpected char");
-    }
-} 
 <%
-  map_amp = {}
-  map_amp["{00-25,27-FF}"] = :nomap
-  map_amp["26"] = :func_so
-  transcode_generate_node(ActionMap.parse(map_amp), "escape_amp_as_chref")
+  def hexstr(str)
+    str.unpack("H*")[0]
+  end
 
-  map_html_text = {}
-  map_html_text["{00-25,27-3B,3D,3F-FF}"] = :nomap
-  map_html_text["26"] = :func_so
-  map_html_text["3C"] = :func_so
-  map_html_text["3E"] = :func_so
-  transcode_generate_node(ActionMap.parse(map_html_text), "escape_html_text")
+  transcode_tblgen("", "amp-escaped", [
+    ["{00-25,27-FF}", :nomap], 
+    ["26", hexstr("&amp;")]
+  ])
 
-  map_html_attr = {}
-  map_html_attr["{00-FF}"] = :func_so
-  transcode_generate_node(ActionMap.parse(map_html_attr), "escape_html_attr")
+  transcode_tblgen("", "xml-text-escaped", [
+    ["{00-25,27-3B,3D,3F-FF}", :nomap], 
+    ["26", hexstr("&amp;")],
+    ["3C", hexstr("&lt;")],
+    ["3E", hexstr("&gt;")]
+  ])
+
+  transcode_tblgen("", "xml-attr-content-escaped", [
+    ["{00-21,23-25,27-3B,3D,3F-FF}", :nomap], 
+    ["22", hexstr("&quot;")],
+    ["26", hexstr("&amp;")],
+    ["3C", hexstr("&lt;")],
+    ["3E", hexstr("&gt;")]
+  ])
+
+  map_xml_attr_quote = {}
+  map_xml_attr_quote["{00-FF}"] = :func_so
+  transcode_generate_node(ActionMap.parse(map_xml_attr_quote), "escape_xml_attr_quote")
 %>
 
 <%= transcode_generated_code %>
-
-static const rb_transcoder
-rb_escape_amp_as_chref = {
-    "", "amp-escaped", escape_amp_as_chref,
-    TRANSCODE_TABLE_INFO,
-    1, /* input_unit_length */
-    1, /* max_input */
-    5, /* max_output */
-    stateless_converter, /* stateful_type */
-    0, NULL, NULL,
-    NULL, NULL, NULL, &fun_so_escape_html_chref
-};
-
-static const rb_transcoder
-rb_escape_html_text = {
-    "", "html-text-escaped", escape_html_text,
-    TRANSCODE_TABLE_INFO,
-    1, /* input_unit_length */
-    1, /* max_input */
-    5, /* max_output */
-    stateless_converter, /* stateful_type */
-    0, NULL, NULL,
-    NULL, NULL, NULL, &fun_so_escape_html_chref
-};
 
 #define END 0
 #define NORMAL  1
 
 static int
-escape_html_attr_init(void *statep)
+escape_xml_attr_quote_init(void *statep)
 {
     unsigned char *sp = statep;
     *sp = END;
@@ -95,7 +44,7 @@ escape_html_attr_init(void *statep)
 }
 
 static int
-fun_so_escape_html_attr(void *statep, const unsigned char *s, size_t l, unsigned char *o)
+fun_so_escape_xml_attr_quote(void *statep, const unsigned char *s, size_t l, unsigned char *o)
 {
     unsigned char *sp = statep;
     int n = 0;
@@ -103,23 +52,12 @@ fun_so_escape_html_attr(void *statep, const unsigned char *s, size_t l, unsigned
         *sp = NORMAL;
         o[n++] = '"';
     }
-    switch (s[0]) {
-      case '&':
-      case '<':
-      case '>':
-      case '"':
-        n += fun_so_escape_html_chref(statep, s, l, o+n);
-        break;
-
-      default:
-        o[n++] = s[0];
-        break;
-    }
+    o[n++] = s[0];
     return n;
 }
 
 static int
-escape_html_attr_finish(void *statep, unsigned char *o)
+escape_xml_attr_quote_finish(void *statep, unsigned char *o)
 {
     unsigned char *sp = statep;
     int n = 0;
@@ -135,23 +73,22 @@ escape_html_attr_finish(void *statep, unsigned char *o)
 }
 
 static const rb_transcoder
-rb_escape_html_attr = {
-    "", "html-attr-escaped", escape_html_attr,
+rb_escape_xml_attr_quote = {
+    "", "xml-attr-quoted", escape_xml_attr_quote,
     TRANSCODE_TABLE_INFO,
     1, /* input_unit_length */
     1, /* max_input */
     7, /* max_output */
     stateful_encoder, /* stateful_type */
-    1, escape_html_attr_init, escape_html_attr_init,
-    NULL, NULL, NULL, fun_so_escape_html_attr,
-    escape_html_attr_finish
+    1, escape_xml_attr_quote_init, escape_xml_attr_quote_init,
+    NULL, NULL, NULL, fun_so_escape_xml_attr_quote,
+    escape_xml_attr_quote_finish
 };
 
 void
 Init_escape(void)
 {
-    rb_register_transcoder(&rb_escape_amp_as_chref);
-    rb_register_transcoder(&rb_escape_html_text);
-    rb_register_transcoder(&rb_escape_html_attr);
+<%= transcode_register_code %>
+    rb_register_transcoder(&rb_escape_xml_attr_quote);
 }
 
