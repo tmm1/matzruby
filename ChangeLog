@@ -1,4 +1,4 @@
-Mon Sep  8 06:04:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Mon Sep  8 06:38:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* configure.in (XLDFLAGS): added --enable-auto-import for cygwin and
 	  mingw.
@@ -7,6 +7,12 @@ Mon Sep  8 06:04:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	  conflicts.
 
 	* thread_pthread.c (get_stack): defines only if possible.
+
+	* thread.c (rb_thread_check_trap_pending): fix for MVM.
+
+	* thread.c (rb_queue_empty_p): added.
+
+	* vm_core.h (rb_thread_set_current_raw): fixed typo.
 
 Sat Sep  6 15:06:21 2008  Tanaka Akira  <akr@fsij.org>
 

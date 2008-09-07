@@ -916,7 +916,7 @@ rb_thread_check_ints(void)
 int
 rb_thread_check_trap_pending(void)
 {
-    return GET_THREAD()->exec_signal != 0;
+    return !rb_queue_empty_p(&GET_THREAD()->queue.signal);
 }
 
 struct timeval rb_time_timeval();
@@ -1022,6 +1022,13 @@ rb_queue_shift(rb_queue_t *que, void **value)
     *value = e->value;
     free(e);
     return Qtrue;
+}
+
+int
+rb_queue_empty_p(const rb_queue_t *que)
+{
+    if (!que->head) return Qtrue;
+    return Qfalse;
 }
 
 /*

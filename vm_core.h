@@ -442,6 +442,7 @@ void rb_queue_initialize(rb_queue_t *);
 void rb_queue_destroy(rb_queue_t *);
 int rb_queue_push(rb_queue_t *, void *);
 int rb_queue_shift(rb_queue_t *, void **);
+int rb_queue_empty_p(const rb_queue_t *);
 
 struct rb_thread_struct
 {
@@ -740,7 +741,7 @@ extern THREAD_SPECIFIC rb_thread_t *ruby_current_thread;
 #define rb_thread_set_current_raw(th) (void)(ruby_current_thread = (th))
 #else
 #define ruby_current_thread ruby_thread_from_native()
-#define rb_thread_set_current_raw(th) (void)ruby_thread_from_native(th)
+#define rb_thread_set_current_raw(th) (void)ruby_thread_set_native(th)
 #endif
 
 rb_thread_t * ruby_thread_from_native(void);
