@@ -1,4 +1,7 @@
-Mon Sep  8 05:54:56 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Mon Sep  8 05:56:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (XLDFLAGS): added --enable-auto-import for cygwin and
+	  mingw.
 
 	* dir.c (rb_dir_open), io.c (rb_sysopenat, rb_openat): resolved
 	  conflicts.
