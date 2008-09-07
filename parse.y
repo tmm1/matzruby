@@ -673,6 +673,7 @@ static void token_info_pop(struct parser_params*, const char *token);
 %type <node> paren_args opt_paren_args
 %type <node> command_args aref_args opt_block_arg block_arg var_ref var_lhs
 %type <node> mrhs superclass block_call block_command
+%type <node> f_block_optarg f_block_opt
 %type <node> f_arglist f_args f_arg f_arg_item f_optarg f_marg f_marg_list f_margs
 %type <node> assoc_list assocs assoc undef_list backref string_dvar for_var
 %type <node> block_param opt_block_param block_param_def f_opt
@@ -3206,7 +3207,39 @@ f_margs		: f_marg_list
 		    }
 		;
 
-block_param	: f_arg ',' f_rest_arg opt_f_block_arg
+block_param	: f_arg ',' f_block_optarg ',' f_rest_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, 0, $6);
+		    /*%
+			$$ = params_new($1, $3, $5, Qnil, escape_Qundef($6));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, $7, $8);
+		    /*%
+			$$ = params_new($1, $3, $5, $7, escape_Qundef($8));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, 0, $4);
+		    /*%
+			$$ = params_new($1, $3, Qnil, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_arg ',' f_block_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, $5, $6);
+		    /*%
+			$$ = params_new($1, $3, Qnil, $5, escape_Qundef($6));
+		    %*/
+		    }
+                | f_arg ',' f_rest_arg opt_f_block_arg
 		    {
 		    /*%%%*/
 			$$ = new_args($1, 0, $3, 0, $4);
@@ -3237,6 +3270,38 @@ block_param	: f_arg ',' f_rest_arg opt_f_block_arg
 			$$ = new_args($1, 0, 0, 0, $2);
 		    /*%
 			$$ = params_new($1, Qnil,Qnil, Qnil, escape_Qundef($2));
+		    %*/
+		    }
+		| f_block_optarg ',' f_rest_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, 0, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, $5, $6);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, $5, escape_Qundef($6));
+		    %*/
+		    }
+		| f_block_optarg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, Qnil,escape_Qundef($2));
+		    %*/
+		    }
+		| f_block_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, $3, escape_Qundef($4));
 		    %*/
 		    }
 		| f_rest_arg opt_f_block_arg
@@ -3955,10 +4020,10 @@ string_dvar	: tGVAR
 symbol		: tSYMBEG sym
 		    {
 		    /*%%%*/
-			lex_state = EXPR_ENDARG;
+			lex_state = EXPR_END;
 			$$ = $2;
 		    /*%
-			lex_state = EXPR_ENDARG;
+			lex_state = EXPR_END;
 			$$ = dispatch1(symbol, $2);
 		    %*/
 		    }
@@ -3973,7 +4038,7 @@ sym		: fname
 dsym		: tSYMBEG xstring_contents tSTRING_END
 		    {
 		    /*%%%*/
-			lex_state = EXPR_ENDARG;
+			lex_state = EXPR_END;
 			if (!($$ = $2)) {
 			    $$ = NEW_LIT(ID2SYM(rb_intern("")));
 			}
@@ -3995,7 +4060,7 @@ dsym		: tSYMBEG xstring_contents tSTRING_END
 			    }
 			}
 		    /*%
-			lex_state = EXPR_ENDARG;
+			lex_state = EXPR_END;
 			$$ = dispatch1(dyna_symbol, $2);
 		    %*/
 		    }
@@ -4335,6 +4400,44 @@ f_opt		: tIDENTIFIER '=' arg_value
 			$$ = NEW_OPT_ARG(0, assignable($1, $3));
 		    /*%
 			$$ = rb_assoc_new($1, $3);
+		    %*/
+		    }
+		;
+
+f_block_opt	: tIDENTIFIER '=' primary_value
+		    {
+		    /*%%%*/
+			if (!is_local_id($1))
+			    yyerror("formal argument must be local variable");
+			shadowing_lvar($1);
+			arg_var($1);
+			$$ = NEW_OPT_ARG(0, assignable($1, $3));
+		    /*%
+			$$ = rb_assoc_new($1, $3);
+		    %*/
+		    }
+		;
+
+f_block_optarg	: f_block_opt
+		    {
+		    /*%%%*/
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_new3(1, $1);
+		    %*/
+		    }
+		| f_block_optarg ',' f_block_opt
+		    {
+		    /*%%%*/
+			NODE *opts = $1;
+
+			while (opts->nd_next) {
+			    opts = opts->nd_next;
+			}
+			opts->nd_next = $3;
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_push($1, $3);
 		    %*/
 		    }
 		;
@@ -6191,7 +6294,7 @@ parser_yylex(struct parser_params *parser)
 	    token = here_document(lex_strterm);
 	    if (token == tSTRING_END) {
 		lex_strterm = 0;
-		lex_state = EXPR_ENDARG;
+		lex_state = EXPR_END;
 	    }
 	}
 	else {
@@ -6199,7 +6302,7 @@ parser_yylex(struct parser_params *parser)
 	    if (token == tSTRING_END || token == tREGEXP_END) {
 		rb_gc_force_recycle((VALUE)lex_strterm);
 		lex_strterm = 0;
-		lex_state = EXPR_ENDARG;
+		lex_state = EXPR_END;
 	    }
 	}
 	return token;
@@ -6493,8 +6596,7 @@ parser_yylex(struct parser_params *parser)
 	return tSTRING_BEG;
 
       case '?':
-	if (lex_state == EXPR_END ||
-	    lex_state == EXPR_ENDARG) {
+	if (lex_state == EXPR_END || lex_state == EXPR_ENDARG) {
 	    lex_state = EXPR_VALUE;
 	    return '?';
 	}
@@ -6565,7 +6667,7 @@ parser_yylex(struct parser_params *parser)
         }
 	tokfix();
 	set_yylval_str(STR_NEW3(tok(), toklen(), enc, 0));
-	lex_state = EXPR_ENDARG;
+	lex_state = EXPR_END;
 	return tCHAR;
 
       case '&':
@@ -6714,7 +6816,7 @@ parser_yylex(struct parser_params *parser)
 	    int is_float, seen_point, seen_e, nondigit;
 
 	    is_float = seen_point = seen_e = nondigit = 0;
-	    lex_state = EXPR_ENDARG;
+	    lex_state = EXPR_END;
 	    newtok();
 	    if (c == '-' || c == '+') {
 		tokadd(c);
@@ -6950,8 +7052,7 @@ parser_yylex(struct parser_params *parser)
 	    lex_state = EXPR_DOT;
 	    return tCOLON2;
 	}
-	if (lex_state == EXPR_END ||
-	    lex_state == EXPR_ENDARG || ISSPACE(c)) {
+	if (lex_state == EXPR_END || lex_state == EXPR_ENDARG || ISSPACE(c)) {
 	    pushback(c);
 	    lex_state = EXPR_BEG;
 	    return ':';
@@ -7190,7 +7291,7 @@ parser_yylex(struct parser_params *parser)
 
       case '$':
 	last_state = lex_state;
-	lex_state = EXPR_ENDARG;
+	lex_state = EXPR_END;
 	newtok();
 	c = nextc();
 	switch (c) {
@@ -7351,11 +7452,11 @@ parser_yylex(struct parser_params *parser)
 	last_state = lex_state;
 	switch (tok()[0]) {
 	  case '$':
-	    lex_state = EXPR_ENDARG;
+	    lex_state = EXPR_END;
 	    result = tGVAR;
 	    break;
 	  case '@':
-	    lex_state = EXPR_ENDARG;
+	    lex_state = EXPR_END;
 	    if (tok()[1] == '@')
 		result = tCVAR;
 	    else

@@ -277,6 +277,38 @@ class ActionMap
     code
   end
 
+  UsedName = {}
+
+  StrMemo = {}
+
+  def str_name(bytes)
+    size = @bytes_code.length
+    rawbytes = [bytes].pack("H*")
+
+    n = nil
+    if !n && !(suf = rawbytes.gsub(/[^A-Za-z0-9_]/, '')).empty? && !UsedName[nn = "str1_" + suf] then n = nn end
+    if !n && !UsedName[nn = "str1_" + bytes] then n = nn end
+    n ||= "str1s_#{size}"
+
+    StrMemo[bytes] = n
+    UsedName[n] = true
+    n
+  end
+
+  def gen_str(bytes)
+    if n = StrMemo[bytes]
+      n
+    else
+      len = bytes.length/2
+      size = @bytes_code.length
+      n = str_name(bytes)
+      @bytes_code.insert_at_last(1 + len,
+        "\#define #{n} makeSTR1(#{size})\n" +
+        "    #{len}," + bytes.gsub(/../, ' 0x\&,') + "\n\n")
+      n
+    end
+  end
+
   def generate_info(info)
     case info
     when :nomap
@@ -299,8 +331,10 @@ class ActionMap
       "o2(0x#$1,0x#$2)"
     when /\A([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])\z/i
       "o3(0x#$1,0x#$2,0x#$3)"
-    when /\A([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])\z/i
+    when /\A(f[0-7])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])\z/i
       "o4(0x#$1,0x#$2,0x#$3,0x#$4)"
+    when /\A([0-9a-f][0-9a-f]){0,255}\z/i
+      gen_str(info.upcase)
     when /\A\/\*BYTE_LOOKUP\*\// # pointer to BYTE_LOOKUP structure
       $'.to_s
     else
@@ -414,7 +448,11 @@ End
   end
 
   def gennode(bytes_code, words_code, name_hint=nil, valid_encoding=nil)
+    @bytes_code = bytes_code
+    @words_code = words_code
     name = generate_node(bytes_code, words_code, name_hint, valid_encoding)
+    @bytes_code = nil
+    @words_code = nil
     return name
   end
 end
@@ -565,7 +603,13 @@ TRANSCODERS = []
 TRANSCODE_GENERATED_TRANSCODER_CODE = ''
 
 def transcode_tblgen(from, to, map)
-  STDERR.puts "converter from #{from} to #{to}" if VERBOSE_MODE
+  if VERBOSE_MODE
+    if from.empty? || to.empty?
+      STDERR.puts "converter for #{from.empty? ? to : from}"
+    else
+      STDERR.puts "converter from #{from} to #{to}"
+    end
+  end
   id_from = from.tr('^0-9A-Za-z', '_')
   id_to = to.tr('^0-9A-Za-z', '_')
   if from == "UTF-8"

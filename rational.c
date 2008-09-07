@@ -24,9 +24,9 @@
 #define ONE INT2FIX(1)
 #define TWO INT2FIX(2)
 
-static ID id_Unify, id_abs, id_cmp, id_convert, id_equal_p,
-  id_expt, id_floor, id_format, id_idiv, id_inspect, id_negate, id_new,
-  id_new_bang, id_to_f, id_to_i, id_to_s, id_truncate;
+static ID id_Unify, id_abs, id_cmp, id_convert, id_equal_p, id_expt,
+  id_floor, id_format, id_idiv, id_inspect, id_negate, id_new, id_new_bang,
+  id_to_f, id_to_i, id_to_s, id_truncate;
 
 #define f_boolcast(x) ((x) ? Qtrue : Qfalse)
 
@@ -325,6 +325,8 @@ nurat_s_alloc(VALUE klass)
     return nurat_s_new_internal(klass, ZERO, ONE);
 }
 
+#define rb_raise_zerodiv() rb_raise(rb_eZeroDivError, "divided by zero")
+
 static VALUE
 nurat_s_new_bang(int argc, VALUE *argv, VALUE klass)
 {
@@ -348,7 +350,7 @@ nurat_s_new_bang(int argc, VALUE *argv, VALUE klass)
 	    den = f_negate(den);
 	    break;
 	  case 0:
-	    rb_raise(rb_eZeroDivError, "devided by zero");
+	    rb_raise_zerodiv();
 	    break;
 	}
 	break;
@@ -396,7 +398,7 @@ nurat_s_canonicalize_internal(VALUE klass, VALUE num, VALUE den)
 	den = f_negate(den);
 	break;
       case 0:
-	rb_raise(rb_eZeroDivError, "devided by zero");
+	rb_raise_zerodiv();
 	break;
     }
 
@@ -418,7 +420,7 @@ nurat_s_canonicalize_internal_no_reduce(VALUE klass, VALUE num, VALUE den)
 	den = f_negate(den);
 	break;
       case 0:
-	rb_raise(rb_eZeroDivError, "devided by zero");
+	rb_raise_zerodiv();
 	break;
     }
 
@@ -723,7 +725,7 @@ nurat_div(VALUE self, VALUE other)
       case T_FIXNUM:
       case T_BIGNUM:
 	if (f_zero_p(other))
-	    rb_raise(rb_eZeroDivError, "devided by zero");
+	    rb_raise_zerodiv();
 	{
 	    get_dat1(self);
 
@@ -735,7 +737,7 @@ nurat_div(VALUE self, VALUE other)
 	return rb_funcall(f_to_f(self), '/', 1, other);
       case T_RATIONAL:
 	if (f_zero_p(other))
-	    rb_raise(rb_eZeroDivError, "devided by zero");
+	    rb_raise_zerodiv();
 	{
 	    get_dat2(self, other);
 
@@ -1025,7 +1027,7 @@ nurat_to_f(VALUE self)
 {
     VALUE num, den;
     int minus = 0;
-    long nl, dl, ml, ne, de;
+    long nl, dl, ne, de;
     int e;
     double f;
 
@@ -1046,7 +1048,6 @@ nurat_to_f(VALUE self)
 
     nl = i_ilog2(num);
     dl = i_ilog2(den);
-    ml = (long)(log(DBL_MAX) / log(2.0) - 1); /* should be a static */
 
     ne = 0;
     if (nl > ml) {
@@ -1122,7 +1123,7 @@ nurat_marshal_load(VALUE self, VALUE a)
     dat->den = RARRAY_PTR(a)[1];
 
     if (f_zero_p(dat->den))
-	rb_raise(rb_eZeroDivError, "devided by zero");
+	rb_raise_zerodiv();
 
     return self;
 }
@@ -1185,8 +1186,8 @@ integer_to_r(VALUE self)
     return rb_rational_new1(self);
 }
 
-static VALUE
-float_decode(VALUE self)
+static void
+float_decode_internal(VALUE self, VALUE *rf, VALUE *rn)
 {
     double f;
     int n;
@@ -1194,15 +1195,28 @@ float_decode(VALUE self)
     f = frexp(RFLOAT_VALUE(self), &n);
     f = ldexp(f, DBL_MANT_DIG);
     n -= DBL_MANT_DIG;
-    return rb_assoc_new(f_to_i(rb_float_new(f)), INT2FIX(n));
+    *rf = rb_dbl2big(f);
+    *rn = INT2FIX(n);
 }
+
+#if 0
+static VALUE
+float_decode(VALUE self)
+{
+    VALUE f, n;
+
+    float_decode_internal(self, &f, &n);
+    return rb_assoc_new(f, n);
+}
+#endif
 
 static VALUE
 float_to_r(VALUE self)
 {
-    VALUE a = float_decode(self);
-    return f_mul(RARRAY_PTR(a)[0],
-		 f_expt(INT2FIX(FLT_RADIX), RARRAY_PTR(a)[1]));
+    VALUE f, n;
+
+    float_decode_internal(self, &f, &n);
+    return f_mul(f, f_expt(INT2FIX(FLT_RADIX), n));
 }
 
 static int vmkey_rat_pat, vmkey_an_e_pat, vmkey_a_dot_pat,
@@ -1322,10 +1336,14 @@ string_to_r_internal(VALUE self)
 	    v = f_add(v, f_to_i(fp));
 	    v = f_div(v, l);
 	}
-	if (!NIL_P(exp))
-	    v = f_mul(v, f_expt(INT2FIX(10), f_to_i(exp)));
 	if (!NIL_P(si) && *StringValuePtr(si) == '-')
 	    v = f_negate(v);
+	if (!NIL_P(exp))
+	    v = f_mul(v, f_expt(INT2FIX(10), f_to_i(exp)));
+#if 0
+	if (!NIL_P(de) && (!NIL_P(fp) || !NIL_P(exp)))
+	    return rb_assoc_new(v, rb_str_new2("dummy"));
+#endif
 	if (!NIL_P(de))
 	    v = f_div(v, f_to_i(de));
 

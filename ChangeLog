@@ -1,3 +1,9 @@
+Mon Sep  8 07:09:42 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c: some adjustments.
+
+	* rational.c: ditto.
+
 Mon Sep  8 06:38:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* configure.in (XLDFLAGS): added --enable-auto-import for cygwin and
@@ -13,6 +19,194 @@ Mon Sep  8 06:38:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* thread.c (rb_queue_empty_p): added.
 
 	* vm_core.h (rb_thread_set_current_raw): fixed typo.
+
+Mon Sep  8 02:04:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (rb_econv_set_replacement): renamed from
+	  rb_econv_set_replacemenet.
+
+	* transcode.c: follow the renaming.
+
+Mon Sep  8 01:10:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (transcode_tblgen): log message refined.
+
+Mon Sep  8 00:58:04 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* rational.c: removed unused code.
+
+Mon Sep  8 00:04:09 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/iso2022.trans: upcase to iso-2022-jp.
+
+	* enc/emacs_mule.c: ditto.
+
+Sun Sep  7 23:46:36 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/iso2022.trans: stateless-iso-2022-jp is defined to avoid
+	  undefined conversion error between iso-2022-jp and the corresponding
+	  stateless encoding.
+
+	* enc/emacs_mule.c: replicate emacs-mule as stateless-iso-2022-jp.
+
+Sun Sep  7 20:03:01 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/escape.trans (hexstr): renamed from str1.
+
+Sun Sep  7 19:45:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/escape.trans: use transcode_tblgen.
+
+	* tool/transcode-tblgen.rb: generate an empty line after str1.
+
+Sun Sep  7 19:16:38 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (ActionMap#str_name): new method to
+	  generate a name base on string content.
+	  (ActionMap#gen_str): extracted from generate_info and use str_name.
+
+Sun Sep  7 18:28:05 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (ActionMap#generate_info): use a memo to
+	  avoid duplication for STR1.
+
+Sun Sep  7 18:10:28 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (STR1): defined for a string up to 255 bytes.
+	  (STR1_BYTEINDEX): defined.
+	  (makeSTR1): defined.
+
+	* tool/transcode-tblgen.rb: generate STR1.
+
+	* transcode.c (transcode_restartable0): interpret STR1.
+
+	* enc/trans/escape.trans (fun_so_escape_xml_chref): removed.  STR1 is
+	  used instead.
+
+Sun Sep  7 17:54:45 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* configure.in: Mac OS X's crypt(2) is broken with invalid salt.
+	  [ruby-dev:35899]
+	* string.c (rb_str_crypt): ditto.
+
+Sun Sep  7 17:29:49 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb: o4 is usable only if the first byte is
+	  f0-f7.
+
+Sun Sep  7 12:44:26 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (make_writeconv): choose ASCII compatible encoding as
+	  intermediate encoding if stateful encoder exists.
+
+Sun Sep  7 12:09:29 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_XML_ATTR_CONTENT_ENCODER): defined.
+	  (ECONV_STATEFUL_ENCODER_MASK): defined.
+	  (ECONV_XML_ATTR_QUOTE_ENCODER): defined.
+	  (ECONV_XML_ATTR_ENCODER): removed.
+
+	* enc/trans/escape.trans (rb_escape_xml_attr_content): defined.
+	  (rb_escape_xml_attr_quote): defined.
+	  (rb_escape_xml_attr): removed.
+
+	* io.c (NEED_WRITECONV): writeconv is required if supplemental
+	  converter is used.
+	  (make_writeconv): apply stateful encoder in writeconv.
+
+	* transcode.c: follow the constant change.
+
+Sun Sep  7 07:24:09 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* misc/*.el:  merged the following patches from Nathan Weizenbaum
+	  <nex342 at gmail.com>.   [ruby-core:18424]
+
+	* misc/ruby-mode.el: improve here-doc performance.
+
+	* misc/ruby-mode.el: don't crash the whole mode if the Subversion
+	  $ keyword isn't interpolated.
+
+	* misc/ruby-mode.el: don't highlight keywords when they're the
+	  beginning of non-keyword symbols.
+
+	* misc/ruby-mode.el, misc/ruby-electric.el: use regexp-opt where
+	  possible for more efficient regexps.
+
+	* misc/*.el: untabify, for internal consistency and consistency
+	  with standard Emacs elisp files.
+
+	* misc/ruby-mode.el: fix a variable-name error.
+
+	* misc/emacs-mode.el: don't set case-fold-search globally to nil;
+	  instead just set it when we need it.
+
+Sun Sep  7 06:31:51 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* file.c (file_expand_path): applied a patch from Nobuhiro Tachino
+	  in [ruby-dev:35948].  fix #491
+
+Sun Sep  7 03:37:05 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (f_block_optarg): allow default for block parameters as
+	  long as the value is primary.  a patch from Eric Mahurin
+	  <eric.mahurin at gmail.com> in [ruby-core:16880].
+
+Sun Sep  7 01:07:10 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* parse.y (yylex): "1.upto 2 {|i| p i }" should be syntax error.
+	  [ruby-dev:36008]
+
+	* test/ruby/test_parse.rb (TestParse): update a test not to use
+	  recently fixed inconsistent syntax.
+
+Sun Sep  7 00:37:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_ERROR_HANDLER_MASK): defined.
+	  (ECONV_DECODER_MASK): defined.
+	  (ECONV_ENCODER_MASK): defined.
+
+	* io.c (make_writeconv): restrict ecflags for writeconv with
+	  ECONV_ERROR_HANDLER_MASK.
+
+Sat Sep  6 23:03:41 2008  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h (ECONV_XML_TEXT_ENCODER): renamed from
+	  ECONV_HTML_TEXT_ENCODER.
+	  (ECONV_XML_ATTR_ENCODER): renamed from ECONV_HTML_ATTR_ENCODER.
+
+	* enc/trans/escape.trans: follow the renaming.
+
+	* transcode.c: ditto.
+
+Sat Sep  6 21:35:52 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/socket/mkconstants.rb: add some IPV6 constants. [ruby-dev:36175]
+
+Sat Sep  6 20:10:48 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (econv_description): show ECONV_HTML_TEXT_ENCODER and
+	  ECONV_HTML_ATTR_ENCODER.
+
+Sat Sep  6 20:06:09 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_binmode): check actual transcoders.
+
+Sat Sep  6 19:54:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (rb_econv_open): fix last_tc.
+
+Sat Sep  6 19:36:34 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (rb_io_binmode): clear newline flags in writeconv_pre_ecflags.
+
+Sat Sep  6 18:47:40 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (str_transcode0): check ECONV_HTML_TEXT_ENCODER and
+	  ECONV_HTML_ATTR_ENCODER.
+
+Sat Sep  6 18:38:47 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (allocate_converted_string): fix overflow condition.
 
 Sat Sep  6 15:06:21 2008  Tanaka Akira  <akr@fsij.org>
 
@@ -104,7 +298,7 @@ Sat Sep  6 05:22:29 2008  Tanaka Akira  <akr@fsij.org>
 	  (rb_econv_convert): call output_hex_charref if
 	  ECONV_UNDEF_HEX_CHARREF.
 	  (Init_transcode): Encoding::Converter::UNDEF_HEX_CHARREF added.
-	  
+
 Sat Sep  6 03:52:47 2008  Tanaka Akira  <akr@fsij.org>
 
 	* transcode.c (rb_econv_convert): use ECONV_INVALID_MASK and
@@ -115,6 +309,11 @@ Sat Sep  6 06:05:09 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
 	* include/ruby/ruby.h (DBL2NUM): renamed from DOUBLE2NUM.
 	  a patch from Tadashi Saito <shiba at mail2.accsnet.ne.jp>
 	  in [ruby-dev:36102].
+
+Sat Sep  6 04:44:06 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* proc.c (Init_Proc): add '===' operator to use procs in when
+	  clause of the case statement.  inspired by <http://www.aimred.com/news/developers/2008/08/14/unlocking_the_power_of_case_equality_proc/>.
 
 Sat Sep  6 03:18:17 2008  Tanaka Akira  <akr@fsij.org>
 
@@ -184,7 +383,7 @@ Fri Sep  5 03:09:48 2008  Koichi Sasada  <ko1@atdot.net>
 
 Fri Sep  5 02:56:37 2008  Koichi Sasada  <ko1@atdot.net>
 
-	* vm.c (thread_recycle_stack_slot, thread_recycle_stack_count): 
+	* vm.c (thread_recycle_stack_slot, thread_recycle_stack_count):
 	  make it static.
 
 Fri Sep  5 02:40:38 2008  Koichi Sasada  <ko1@atdot.net>
@@ -233,7 +432,7 @@ Thu Sep  4 23:18:55 2008  Tanaka Akira  <akr@fsij.org>
 
 Thu Sep  4 23:05:54 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 
-	* lib/prime.rb (Prime::OldCompatibility#each): added compatibility to 
+	* lib/prime.rb (Prime::OldCompatibility#each): added compatibility to
 	    Ruby 1.8.7.
 	  (Prime#each): added more rdocs.
 	  (Prime#each): remembers the last value of the given block.
@@ -268,7 +467,7 @@ Thu Sep  4 20:57:54 2008  Koichi Sasada  <ko1@atdot.net>
 
 Thu Sep  4 20:30:24 2008  Tanaka Akira  <akr@fsij.org>
 
-	* transcode_data.h (PType): defined unconditionaly.
+	* transcode_data.h (PType): defined unconditionally.
 
 	* transcode.c (PType): don't define here.
 
@@ -307,7 +506,7 @@ Thu Sep  4 13:22:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* vm_core.h (struct rb_vm_struct): replaced signal staff with trap
 	  staff.
 
-	* signal.c (signal_buff): per process resouce now.
+	* signal.c (signal_buff): per process resource now.
 
 	* signal.c (trap_list): moved to VM.
 
@@ -514,7 +713,7 @@ Wed Sep  3 22:31:11 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 	  (Integer.each_prime): added.
 	  (Integer#prime?): added.
 	  (Prime): moved from mathn.rb.
-	    Its implmentation was rewritten. see [ruby-dev:35863].
+	    Its implementation was rewritten. see [ruby-dev:35863].
 	    And patched by Keiju ISHITSUKA <keiju@ishitsuka.com>,
 	    see [ruby-dev:36128].
 	  (Prime.new):                     obsolete.
@@ -548,8 +747,107 @@ Wed Sep  3 22:31:11 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 
 	* test/test_prime.rb: added.
 
-Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
+Wed Sep  3 21:49:00 2008  David A. Black  <dblack@rubypal.com>
 
+	* lib/scanf.rb: fixed bug involving matching literal '['
+
+	* test/scanf/test_scanf.rb: added test for scanf.rb fix
+
+Wed Sep  3 21:31:59 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (WORDINDEX_SHIFT_BITS): defined.
+	  (WORDINDEX2INFO): defined.
+	  (INFO2WORDINDEX): defined.
+
+	* tool/transcode-tblgen.rb: use WORDINDEX2INFO.
+
+	* transcode.c: use INFO2WORDINDEX.
+
+Wed Sep  3 21:19:51 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* golf_prelude.rb: suppress warnings when goruby -v.
+
+Wed Sep  3 21:07:30 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (BL_MIN_BYTE): defined.
+	  (BL_MAX_BYTE): defined.
+	  (BL_OFFSET): defined.
+	  (BL_ACTION): defined.
+	  (transcode_restartable0): use BL_MIN_BYTE, BL_MAX_BYTE and
+	  BL_ACTION.
+
+Wed Sep  3 20:58:30 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode.c (BYTE_ADDR): defined.
+	  (WORD_ADDR): ditto.
+	  (BL_BASE): use BYTE_ADDR and WORD_ADDR.
+	  (BL_INFO): use WORD_ADDR.
+
+Wed Sep  3 20:47:31 2008  Tanaka Akira  <akr@fsij.org>
+
+	* transcode_data.h (rb_transcoder): new field: byte_array_length and
+	  word_array_length.
+
+	* tool/transcode-tblgen.rb (transcode_generated_code): generate
+	  byte_array_length and word_array_length.
+
+Wed Sep  3 20:34:10 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (ArrayCode): new class.
+	  (ActionMap#gen_array_code): moved to ArrayCode.
+	  (ActionMap#numelt_array_code): ditto.
+	  (ActionMap#array_code_insert_at_last): ditto.
+	  (TRANSCODE_GENERATED_BYTES_CODE): use ArrayCode.
+	  (TRANSCODE_GENERATED_WORDS_CODE): ditto.
+
+Wed Sep  3 20:08:35 2008  Tanaka Akira  <akr@fsij.org>
+
+	* enc/trans/japanese.trans: new file.
+
+Wed Sep  3 20:04:33 2008  Tanaka Akira  <akr@fsij.org>
+
+	* tool/transcode-tblgen.rb (ActionMap#gen_array_code): extracted from
+	  generate_lookup_node.
+	  (ActionMap#numelt_array_code): ditto.
+	  (ActionMap#array_code_insert_at_last): ditto.
+
+Wed Sep  3 20:01:01 2008  Tanaka Akira  <akr@fsij.org>
+
+	* parse.y (parser_encoding_name): defined.
+	  (parser_tokadd_mbchar): show encoding in the message of
+	  "invalid multibyte char" error.
+
+Wed Sep  3 19:28:04 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* vm_insnhelper.c (vm_method_missing): C99.
+
+Wed Sep  3 19:18:12 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* test/ruby/test_thread.rb: fix test.
+	   [ruby-dev:35960]
+
+Wed Sep  3 17:48:32 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/make_transdb.rb: check $(srcdir)/enc/trans before
+	  enc/trans.
+
+	* enc/trans/make_transdb.rb: keep names_t.
+
+Wed Sep  3 16:54:46 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* include/ruby/signal.h: removed.
+
+	* common.mk, class.c, eval.c, eval_intern.h, file.c, gc.c, hash.c,
+	  io.c, process.c, signal.c: vm_core.h: ditto.
+	  Some unused external global variables are also removed.
+	 (rb_prohibit_interrupt, rb_trap_immediate, rb_trap_pending,
+	  rb_thread_critical)
+
+	* ext/openssl/ossl_ssl.c, ext/openssl/ossl_x509store.c,
+	  ext/readline/readline.c, ext/socket/depend,
+	  ext/socket/socket.c: ditto.
+
+Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
 	* include/ruby/mvm.h, include/ruby/ruby.h, main.c:
 	  main.c doesn't need "ruby.h" any more.
 
@@ -908,7 +1206,7 @@ Mon Sep  1 01:24:09 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
 	* enc/trans/eucjp-tbl.rb: replace by previous Citrus maps.
 
-	* enc/trans/sjis-tble.rb: ditto.
+	* enc/trans/sjis-tbl.rb: ditto.
 
 Mon Sep  1 01:18:26 2008  NARUSE, Yui  <naruse@ruby-lang.org>
 
@@ -1216,7 +1514,7 @@ Sat Aug 30 10:46:44 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* ext/iconv/iconv.c: remove include pragma for "ruby/intern.h".
 
-Sat Aug 30 10:43:03 2008 2008  Koichi Sasada  <ko1@atdot.net>
+Sat Aug 30 10:43:03 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* parse.y: remove include pragma for "ruby/intern.h".
 
@@ -3054,7 +3352,7 @@ Thu Aug 14 02:45:16 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
 	* test/ruby/test_file_exhaustive.rb (TestFileExhaustive#setup):
 	  set group of tmpdir.  [ruby-dev:35633]
 
-Thu Aug 14 15:50:30 2008  Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+Thu Aug 14 15:50:30 2008  Giuseppe Bilotta  <giuseppe.bilotta@gmail.com>
 
 	* hash.c (set_default): fix rdoc.  #441
 
