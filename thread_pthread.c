@@ -207,10 +207,18 @@ native_thread_destroy(rb_thread_t *th)
 #define STACK_DIR_UPPER(a,b) STACK_UPPER(&stack_grow_dir_detection, a, b)
 #endif
 
+#if defined HAVE_PTHREAD_GETATTR_NP || defined HAVE_PTHREAD_ATTR_GET_NP
+#define STACKADDR_AVAILABLE 1
+#elif defined HAVE_PTHREAD_GET_STACKADDR_NP && defined HAVE_PTHREAD_GET_STACKSIZE_NP
+#define STACKADDR_AVAILABLE 1
+#elif defined HAVE_THR_STKSEGMENT || defined HAVE_PTHREAD_STACKSEG_NP
+#define STACKADDR_AVAILABLE 1
+#endif
+
+#ifdef STACKADDR_AVAILABLE
 static int
 get_stack(void **addr, size_t *size)
 {
-#define STACKADDR_AVAILABLE 1
 #define CHECK_ERR(expr)				\
     {int err = (expr); if (err) return err;}
 #if defined HAVE_PTHREAD_GETATTR_NP || defined HAVE_PTHREAD_ATTR_GET_NP
@@ -254,15 +262,11 @@ get_stack(void **addr, size_t *size)
 # endif
     *addr = stk.ss_sp;
     *size = stk.ss_size;
-#else
-#undef STACKADDR_AVAILABLE
-    return -1;
 #endif
-#ifdef STACKADDR_AVAILABLE
     return 0;
-#endif
 #undef CHECK_ERR
 }
+#endif
 
 #ifndef STACKADDR_AVAILABLE
 static struct {
@@ -294,8 +298,8 @@ ruby_init_stack(void *addr
 #else
     if (!native_main_thread.stack_start ||
         STACK_UPPER(&addr,
-                    native_main_thread.stack_start > addr,
-                    native_main_thread.stack_start < addr)) {
+                    native_main_thread.stack_start > (VALUE *)addr,
+                    native_main_thread.stack_start < (VALUE *)addr)) {
         native_main_thread.stack_start = addr;
     }
 #endif

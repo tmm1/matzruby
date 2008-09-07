@@ -1,4 +1,4 @@
-Mon Sep  8 05:56:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Mon Sep  8 06:04:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* configure.in (XLDFLAGS): added --enable-auto-import for cygwin and
 	  mingw.
@@ -6,8 +6,8 @@ Mon Sep  8 05:56:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 	* dir.c (rb_dir_open), io.c (rb_sysopenat, rb_openat): resolved
 	  conflicts.
 
-<<<<<<< .working
-=======
+	* thread_pthread.c (get_stack): defines only if possible.
+
 Sat Sep  6 15:06:21 2008  Tanaka Akira  <akr@fsij.org>
 
 	* transcode.c (sym_html): new variable.
@@ -314,7 +314,6 @@ Thu Sep  4 13:22:02 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm.c (rb_vm_mark): marks trap_list.
 
->>>>>>> .merge-right.r19180
 Thu Sep  4 13:01:11 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* io.c (struct sysopen_struct, rb_sysopen_internal, rb_sysopen):
