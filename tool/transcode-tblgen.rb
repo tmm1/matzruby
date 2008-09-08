@@ -157,27 +157,28 @@ end
 
 class ArrayCode
   def initialize(type, name)
-    @code = <<"End"
-static const #{type}
-#{name}[0] = {
-};
-End
+    @type = type
+    @name = name
+    @len = 0;
+    @content = ''
   end
 
   def length
-    @code[/\[\d+\]/][1...-1].to_i
+    @len
   end
 
   def insert_at_last(num, str)
     newnum = self.length + num
-    @code.sub!(/^(\};\n\z)/) {
-      str + $1
-    }
-    @code.sub!(/\[\d+\]/) { "[#{newnum}]" }
+    @content << str
+    @len += num
   end
 
   def to_s
-    @code.dup
+    <<"End"
+static const #{@type}
+#{@name}[#{@len}] = {
+#{@content}};
+End
   end
 end
 
@@ -633,7 +634,7 @@ static const rb_transcoder
     #{input_unit_length}, /* input_unit_length */
     #{max_input}, /* max_input */
     #{max_output}, /* max_output */
-    stateless_converter, /* stateful_type */
+    asciicompat_converter, /* asciicompat_type */
     0, NULL, NULL, /* state_size, state_init, state_fini */
     NULL, NULL, NULL, NULL,
     NULL, NULL, NULL

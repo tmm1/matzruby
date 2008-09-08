@@ -3440,7 +3440,6 @@ rb_w32_fstati64(int fd, struct stati64 *st)
 static time_t
 filetime_to_unixtime(const FILETIME *ft)
 {
-    FILETIME loc;
     struct timeval tv;
 
     if (filetime_to_timeval(ft, &tv) == (time_t)-1)
@@ -3966,21 +3965,21 @@ rb_w32_getppid(void)
 	    HANDLE hNtDll = GetModuleHandle("ntdll.dll");
 	    if (hNtDll) {
 		pNtQueryInformationProcess = (long (WINAPI *)(HANDLE, int, void *, ULONG, ULONG *))GetProcAddress(hNtDll, "NtQueryInformationProcess");
-		if (pNtQueryInformationProcess) {
-		    struct {
-			long ExitStatus;
-			void* PebBaseAddress;
-			ULONG AffinityMask;
-			ULONG BasePriority;
-			ULONG UniqueProcessId;
-			ULONG ParentProcessId;
-		    } pbi;
-		    ULONG len;
-		    long ret = pNtQueryInformationProcess(GetCurrentProcess(), 0, &pbi, sizeof(pbi), &len);
-		    if (!ret) {
-			ppid = pbi.ParentProcessId;
-		    }
-		}
+	    }
+	}
+	if (pNtQueryInformationProcess) {
+	    struct {
+		long ExitStatus;
+		void* PebBaseAddress;
+		ULONG AffinityMask;
+		ULONG BasePriority;
+		ULONG UniqueProcessId;
+		ULONG ParentProcessId;
+	    } pbi;
+	    ULONG len;
+	    long ret = pNtQueryInformationProcess(GetCurrentProcess(), 0, &pbi, sizeof(pbi), &len);
+	    if (!ret) {
+		ppid = pbi.ParentProcessId;
 	    }
 	}
     }
