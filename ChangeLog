@@ -1,3 +1,7 @@
+Tue Sep  9 00:30:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* st.c (st_init_table_with_size, ADD_DIRECT): fixed typo.
+
 Mon Sep  8 20:10:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* bignum.c (power_cache_get_power0): no need to register address.
