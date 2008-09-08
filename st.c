@@ -61,9 +61,9 @@ static const struct st_hash_type type_strcasehash = {
 static void rehash(st_table *);
 
 #ifdef RUBY
-#define malloc xmalloc
-#define calloc xcalloc
-#define free(x) xfree(x)
+#define garbage_collect() rb_garbage_collect()
+#else
+#define garbage_collect() 0
 #endif
 
 #define alloc(type) (type*)malloc((size_t)sizeof(type))
@@ -168,12 +168,22 @@ st_init_table_with_size(const struct st_hash_type *type, int size)
 
     size = new_size(size);	/* round up to prime number */
 
+  retry:
     tbl = alloc(st_table);
+    if (!tbl) {
+      nomem:
+	if (garbage_collect()) goto retry;
+	retry 0;
+    }
     tbl->type = type;
     tbl->num_entries = 0;
     tbl->entries_packed = type == &type_numhash && size/2 <= MAX_PACKED_NUMHASH;
     tbl->num_bins = size;
     tbl->bins = (st_table_entry **)Calloc(size, sizeof(st_table_entry*));
+    if (!tbl->bins) {
+	free(tbl);
+	goto nomem;
+    }
     tbl->head = 0;
 
     return tbl;
@@ -332,15 +342,17 @@ st_get_key(st_table *table, register st_data_t key, st_data_t *result)
     }
 }
 
-#define ADD_DIRECT(table, key, value, hash_val, bin_pos)\
+#define ADD_DIRECT(table, key, value, hash_val, bin_pos, result)\
 do {\
     st_table_entry *entry, *head;\
+    result = 0;\
     if (table->num_entries/(table->num_bins) > ST_DEFAULT_MAX_DENSITY) {\
 	rehash(table);\
         bin_pos = hash_val % table->num_bins;\
     }\
     \
     entry = alloc(st_table_entry);\
+    if (!entry) break;
     \
     entry->hash = hash_val;\
     entry->key = key;\
@@ -356,6 +368,7 @@ do {\
     }\
     table->bins[bin_pos] = entry;\
     table->num_entries++;\
+    result = 1;\
 } while (0)
 
 static void
@@ -403,7 +416,13 @@ st_insert(register st_table *table, register st_data_t key, st_data_t value)
     FIND_ENTRY(table, ptr, hash_val, bin_pos);
 
     if (ptr == 0) {
-	ADD_DIRECT(table, key, value, hash_val, bin_pos);
+	int result;
+      retry:
+	ADD_DIRECT(table, key, value, hash_val, bin_pos, result);
+	if (!result) {
+	    if (garbage_collect()) goto retry;
+	    return -1;
+	}
 	return 0;
     }
     else {
@@ -416,6 +435,7 @@ void
 st_add_direct(st_table *table, st_data_t key, st_data_t value)
 {
     unsigned int hash_val, bin_pos;
+    int result;
 
     if (table->entries_packed) {
         int i;
@@ -432,7 +452,11 @@ st_add_direct(st_table *table, st_data_t key, st_data_t value)
 
     hash_val = do_hash(key, table);
     bin_pos = hash_val % table->num_bins;
-    ADD_DIRECT(table, key, value, hash_val, bin_pos);
+  retry:
+    ADD_DIRECT(table, key, value, hash_val, bin_pos, result);
+    if (!result) {
+	if (garbage_collect()) goto retry;
+    }
 }
 
 static void
@@ -443,8 +467,14 @@ rehash(register st_table *table)
     unsigned int hash_val;
 
     new_num_bins = new_size(table->num_bins+1);
+  retry:
     new_bins = (st_table_entry**)
-	xrealloc(table->bins, new_num_bins * sizeof(st_table_entry*));
+	realloc(table->bins, new_num_bins * sizeof(st_table_entry*));
+    if (!new_bins) {
+	if (garbage_collect()) goto retry;
+	return;
+    }
+
     for (i = 0; i < new_num_bins; ++i) new_bins[i] = 0;
     table->num_bins = new_num_bins;
     table->bins = new_bins;

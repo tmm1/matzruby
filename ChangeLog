@@ -1,3 +1,7 @@
+Mon Sep  8 17:26:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* st.c (garbage_collect): checks if memory can be reclaimed.
+
 Mon Sep  8 07:09:42 2008  Tadayoshi Funaba  <tadf@dotrb.org>
 
 	* complex.c: some adjustments.
