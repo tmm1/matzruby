@@ -204,7 +204,7 @@ rb_call0(VALUE klass, VALUE recv, ID mid, int argc, const VALUE *argv,
 		 rb_id2name(mid), (void *)recv);
     }
     /* is it in the method cache? */
-    ent = cache + EXPR1(klass, mid);
+    ent = GET_VM()->cache + EXPR1(klass, mid);
 
     if (ent->mid == mid && ent->klass == klass) {
 	if (!ent->method)

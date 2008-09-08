@@ -1,4 +1,10 @@
-Tue Sep  9 00:34:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Tue Sep  9 00:37:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (struct rb_vm_struct): includes method cache.
+
+	* vm.c (vm_init2): initializes method cache.
+
+	* vm_eval.c, vm_method.c: use method cache in VM.
 
 	* mvm.c (specific_key): must be initialized.
 

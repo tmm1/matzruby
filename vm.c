@@ -1410,6 +1410,7 @@ vm_init2(rb_vm_t *vm)
     vm->global_state_version = 1;
     vm->specific_storage.len = rb_vm_key_count();
     vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
+    vm->cache = ALLOC_N(struct cache_entry, CACHE_SIZE);
 }
 
 /* Thread */

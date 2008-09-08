@@ -22,7 +22,6 @@ struct cache_entry {		/* method hash table. */
     NODE *method;
 };
 
-static struct cache_entry cache[CACHE_SIZE];
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
@@ -30,12 +29,13 @@ void
 rb_clear_cache(void)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	ent->mid = 0;
@@ -47,12 +47,13 @@ static void
 rb_clear_cache_for_undef(VALUE klass, ID id)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if (ent->oklass == klass && ent->mid == id) {
@@ -66,12 +67,13 @@ static void
 rb_clear_cache_by_id(ID id)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if (ent->mid == id) {
@@ -85,12 +87,13 @@ void
 rb_clear_cache_by_class(VALUE klass)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if (ent->klass == klass || ent->oklass == klass) {
@@ -251,11 +254,12 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
 {
     NODE *volatile fbody, *body;
     NODE *method;
+    rb_vm_t *vm = GET_VM();
 
     if ((fbody = search_method(klass, id, 0)) == 0 || !fbody->nd_body) {
 	/* store empty info in cache */
 	struct cache_entry *ent;
-	ent = cache + EXPR1(klass, id);
+	ent = vm->cache + EXPR1(klass, id);
 	ent->klass = klass;
 	ent->mid = ent->mid0 = id;
 	ent->method = 0;
@@ -265,10 +269,10 @@ rb_get_method_body(VALUE klass, ID id, ID *idp)
 
     method = fbody->nd_body;
 
-    if (ruby_running) {
+    if (vm->running) {
 	/* store in cache */
 	struct cache_entry *ent;
-	ent = cache + EXPR1(klass, id);
+	ent = vm->cache + EXPR1(klass, id);
 	ent->klass = klass;
 	ent->mid = id;
 	ent->mid0 = fbody->nd_oid;
@@ -291,7 +295,7 @@ rb_method_node(VALUE klass, ID id)
 {
     struct cache_entry *ent;
 
-    ent = cache + EXPR1(klass, id);
+    ent = GET_VM()->cache + EXPR1(klass, id);
     if (ent->mid == id && ent->klass == klass) {
 	if (ent->method) return ent->method;
 	return 0;
