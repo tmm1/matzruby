@@ -675,9 +675,11 @@ rb_f_autoload_p(VALUE obj, VALUE sym)
 void
 Init_load()
 {
-#undef rb_intern
-#define rb_intern(str) rb_intern2(str, strlen(str))
-    rb_vm_t *vm = GET_VM();
+}
+
+void
+InitVM_load(rb_vm_t *vm)
+{
     static const char var_load_path[] = "$:";
     ID id_load_path = rb_intern2(var_load_path, sizeof(var_load_path)-1);
 

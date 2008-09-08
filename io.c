@@ -83,6 +83,7 @@
 #endif
 
 extern void Init_File(void);
+extern void InitVM_File(rb_vm_t *);
 
 #ifdef __BEOS__
 # ifndef NOFILE
@@ -8275,6 +8276,12 @@ argf_stdout_set(VALUE argf, VALUE f)
 void
 Init_IO(void)
 {
+    Init_File();
+}
+
+void
+InitVM_IO(rb_vm_t *vm)
+{
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
@@ -8536,7 +8543,7 @@ Init_IO(void)
     atexit(pipe_atexit);
 #endif
 
-    Init_File();
+    InitVM_File(vm);
 
     rb_define_method(rb_cFile, "initialize",  rb_file_initialize, -1);
 

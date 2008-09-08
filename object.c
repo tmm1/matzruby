@@ -2445,11 +2445,24 @@ boot_defclass(const char *name, VALUE super)
 void
 Init_Object(void)
 {
-    int i;
-
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
+    int i;
 
+    id_eq = rb_intern("==");
+    id_eql = rb_intern("eql?");
+    id_match = rb_intern("=~");
+    id_inspect = rb_intern("inspect");
+    id_init_copy = rb_intern("initialize_copy");
+
+    for (i=0; conv_method_names[i].method; i++) {
+	conv_method_names[i].id = rb_intern(conv_method_names[i].method);
+    }
+}
+
+void
+InitVM_Object(rb_vm_t *vm)
+{
     VALUE metaclass;
 
     rb_cBasicObject = boot_defclass("BasicObject", 0);
@@ -2620,14 +2633,4 @@ Init_Object(void)
     rb_undef_alloc_func(rb_cFalseClass);
     rb_undef_method(CLASS_OF(rb_cFalseClass), "new");
     rb_define_global_const("FALSE", Qfalse);
-
-    id_eq = rb_intern("==");
-    id_eql = rb_intern("eql?");
-    id_match = rb_intern("=~");
-    id_inspect = rb_intern("inspect");
-    id_init_copy = rb_intern("initialize_copy");
-
-    for (i=0; conv_method_names[i].method; i++) {
-	conv_method_names[i].id = rb_intern(conv_method_names[i].method);
-    }
 }

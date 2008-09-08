@@ -1744,6 +1744,11 @@ proc_curry(int argc, VALUE *argv, VALUE self)
 void
 Init_Proc(void)
 {
+}
+
+void
+InitVM_Proc(rb_vm_t *vm)
+{
     /* Proc */
     rb_cProc = rb_define_class("Proc", rb_cObject);
     rb_undef_alloc_func(rb_cProc);
@@ -1861,6 +1866,11 @@ Init_Proc(void)
 
 void
 Init_Binding(void)
+{
+}
+
+void
+InitVM_Binding(rb_vm_t *vm)
 {
     rb_cBinding = rb_define_class("Binding", rb_cObject);
     rb_undef_alloc_func(rb_cBinding);

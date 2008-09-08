@@ -906,7 +906,11 @@ Init_Range(void)
     id_beg = rb_intern("begin");
     id_end = rb_intern("end");
     id_excl = rb_intern("excl");
+}
 
+void
+InitVM_Range(rb_vm_t *vm)
+{
     rb_cRange = rb_struct_define_without_accessor(
         "Range", rb_cObject, range_alloc,
         "begin", "end", "excl", NULL);

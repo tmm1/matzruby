@@ -1704,8 +1704,6 @@ Init_marshal(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
-    VALUE rb_mMarshal = rb_define_module("Marshal");
-
     s_dump = rb_intern("_dump");
     s_load = rb_intern("_load");
     s_mdump = rb_intern("marshal_dump");
@@ -1717,6 +1715,12 @@ Init_marshal(void)
     s_read = rb_intern("read");
     s_write = rb_intern("write");
     s_binmode = rb_intern("binmode");
+}
+
+void
+InitVM_marshal(rb_vm_t *vm)
+{
+    VALUE rb_mMarshal = rb_define_module("Marshal");
 
     rb_define_module_function(rb_mMarshal, "dump", marshal_dump, -1);
     rb_define_module_function(rb_mMarshal, "load", marshal_load, -1);

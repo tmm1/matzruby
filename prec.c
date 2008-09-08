@@ -125,12 +125,16 @@ Init_Precision(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    prc_pr = rb_intern("prec");
+    prc_if = rb_intern("induced_from");
+}
+
+void
+InitVM_Precision(rb_vm_t *vm)
+{
     rb_mPrecision = rb_define_module("Precision");
     rb_define_singleton_method(rb_mPrecision, "included", prec_included, 1);
     rb_define_method(rb_mPrecision, "prec", prec_prec, 1);
     rb_define_method(rb_mPrecision, "prec_i", prec_prec_i, 0);
     rb_define_method(rb_mPrecision, "prec_f", prec_prec_f, 0);
-
-    prc_pr = rb_intern("prec");
-    prc_if = rb_intern("induced_from");
 }

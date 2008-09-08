@@ -1869,7 +1869,7 @@ rb_memhash(const void *ptr, long len)
     static unsigned int hashseed;
 
     if (!hashseed_init) {
-        hashseed = rb_genrand_int32();
+        /*hashseed = rb_genrand_int32();*/
         hashseed_init = 1;
     }
 
@@ -6657,6 +6657,12 @@ Init_String(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    id_to_s = rb_intern("to_s");
+}
+
+void
+InitVM_String(rb_vm_t *vm)
+{
     rb_cString  = rb_define_class("String", rb_cObject);
     rb_include_module(rb_cString, rb_mComparable);
     rb_define_alloc_func(rb_cString, str_alloc);
@@ -6778,8 +6784,6 @@ Init_String(void)
     rb_define_method(rb_cString, "force_encoding", rb_str_force_encoding, 1);
     rb_define_method(rb_cString, "valid_encoding?", rb_str_valid_encoding_p, 0);
     rb_define_method(rb_cString, "ascii_only?", rb_str_is_ascii_only_p, 0);
-
-    id_to_s = rb_intern("to_s");
 
     rb_fs = Qnil;
     rb_define_variable("$;", &rb_fs);

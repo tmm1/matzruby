@@ -1,4 +1,13 @@
-Tue Sep  9 00:37:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Tue Sep  9 00:55:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* eval.c (ruby_vm_init): split from ruby_init.
+
+	* eval.c (ruby_vm_run): cleans up VM always.
+
+	* inits.c (rb_call_inits): separated per-process and per-VM
+	  intializations.
+
+	* parse.y (sym_str_new): creates VM-neutral string.
 
 	* vm_core.h (struct rb_vm_struct): includes method cache.
 

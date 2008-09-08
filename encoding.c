@@ -1184,10 +1184,15 @@ Init_Encoding(void)
 {
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
-    VALUE list;
-    int i;
 
     id_base_encoding = rb_intern("#base_encoding");
+}
+
+void
+InitVM_Encoding(rb_vm_t *vm)
+{
+    VALUE list;
+    int i;
 
     rb_cEncoding = rb_define_class("Encoding", rb_cObject);
     rb_undef_alloc_func(rb_cEncoding);

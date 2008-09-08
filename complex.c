@@ -1335,8 +1335,6 @@ Init_Complex(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
-    assert(fprintf(stderr, "assert() is now active\n"));
-
     id_Unify = rb_intern("Unify");
     id_abs = rb_intern("abs");
     id_abs2 = rb_intern("abs2");
@@ -1365,6 +1363,12 @@ Init_Complex(void)
     id_to_r = rb_intern("to_r");
     id_to_s = rb_intern("to_s");
     id_truncate = rb_intern("truncate");
+}
+
+void
+InitVM_Complex(rb_vm_t *vm)
+{
+    assert(fprintf(stderr, "assert() is now active\n"));
 
     rb_cComplex = rb_define_class(COMPLEX_NAME, rb_cNumeric);
 

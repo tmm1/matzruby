@@ -2384,7 +2384,11 @@ Init_Time(void)
     id_divmod = rb_intern("divmod");
     id_mul = rb_intern("*");
     id_submicro = rb_intern("submicro");
+}
 
+void
+InitVM_Time(rb_vm_t *vm)
+{
     rb_cTime = rb_define_class("Time", rb_cObject);
     rb_include_module(rb_cTime, rb_mComparable);
 

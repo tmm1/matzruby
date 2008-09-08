@@ -3113,7 +3113,11 @@ Init_Numeric(void)
     id_coerce = rb_intern("coerce");
     id_to_i = rb_intern("to_i");
     id_eq = rb_intern("==");
+}
 
+void
+InitVM_Numeric(rb_vm_t *vm)
+{
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);
     rb_cNumeric = rb_define_class("Numeric", rb_cObject);

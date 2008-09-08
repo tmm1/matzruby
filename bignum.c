@@ -2681,6 +2681,11 @@ rb_big_even_p(VALUE num)
 void
 Init_Bignum(void)
 {
+}
+
+void
+InitVM_Bignum(rb_vm_t *vm)
+{
     rb_cBignum = rb_define_class("Bignum", rb_cInteger);
 
     rb_define_method(rb_cBignum, "to_s", rb_big_to_s, -1);

@@ -4712,6 +4712,11 @@ define_filetest_function(const char *name, VALUE (*func)(ANYARGS), int argc)
 void
 Init_File(void)
 {
+}
+
+void
+InitVM_File(rb_vm_t *vm)
+{
     VALUE separator;
 
     rb_mFileTest = rb_define_module("FileTest");

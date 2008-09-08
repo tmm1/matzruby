@@ -662,6 +662,11 @@ math_lgamma(VALUE obj, VALUE x)
 void
 Init_Math(void)
 {
+}
+
+void
+InitVM_Math(rb_vm_t *vm)
+{
     rb_mMath = rb_define_module("Math");
 
 #ifdef M_PI

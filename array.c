@@ -3513,6 +3513,12 @@ Init_Array(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    id_cmp = rb_intern("<=>");
+}
+
+void
+InitVM_Array(rb_vm_t *vm)
+{
     rb_cArray  = rb_define_class("Array", rb_cObject);
     rb_include_module(rb_cArray, rb_mEnumerable);
 
@@ -3610,6 +3616,4 @@ Init_Array(void)
     rb_define_method(rb_cArray, "take_while", rb_ary_take_while, 0);
     rb_define_method(rb_cArray, "drop", rb_ary_drop, 1);
     rb_define_method(rb_cArray, "drop_while", rb_ary_drop_while, 0);
-
-    id_cmp = rb_intern("<=>");
 }

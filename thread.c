@@ -3686,6 +3686,12 @@ Init_Thread(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    recursive_key = rb_intern("__recursive_key__");
+}
+
+void
+InitVM_Thread(rb_vm_t *vm)
+{
     VALUE cThGroup;
 
     rb_define_singleton_method(rb_cThread, "new", thread_s_new, -1);
@@ -3752,7 +3758,6 @@ Init_Thread(void)
     rb_define_method(rb_cMutex, "unlock", rb_mutex_unlock, 0);
     rb_define_method(rb_cMutex, "sleep", mutex_sleep, -1);
 
-    recursive_key = rb_intern("__recursive_key__");
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);
     rb_eMutex_OrphanLock = rb_define_class_under(rb_cMutex, "OrphanLock", rb_eThreadError);
 

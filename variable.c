@@ -24,13 +24,17 @@ static ID autoload, classpath, tmp_classpath, id_const_missing;
 void
 Init_var_tables(void)
 {
-    rb_vm_t *vm = GET_VM();
-    vm->mark_object_ary = rb_ary_new();
-    vm->global_tbl = st_init_numtable();
     CONST_ID(autoload, "__autoload__");
     CONST_ID(classpath, "__classpath__");
     CONST_ID(tmp_classpath, "__tmp_classpath__");
     CONST_ID(id_const_missing, "const_missing");
+}
+
+void
+InitVM_var_tables(rb_vm_t *vm)
+{
+    vm->mark_object_ary = rb_ary_new();
+    vm->global_tbl = st_init_numtable();
 }
 
 struct fc_result {

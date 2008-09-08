@@ -871,6 +871,11 @@ rb_struct_size(VALUE s)
 void
 Init_Struct(void)
 {
+}
+
+void
+InitVM_Struct(rb_vm_t *vm)
+{
     rb_cStruct = rb_define_class("Struct", rb_cObject);
     rb_include_module(rb_cStruct, rb_mEnumerable);
 

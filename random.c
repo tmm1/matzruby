@@ -203,7 +203,15 @@ struct Random {
     struct RandSeed seed;
 };
 
-static struct Random default_mt;
+static int vmkey_default_mt;
+#define default_mt (*(struct Random *)DATA_PTR(*rb_vm_specific_ptr(vmkey_default_mt)))
+
+static void
+random_mark(void *ptr)
+{
+    struct Random *r = ptr;
+    rb_gc_mark(r->seed.value);
+}
 
 unsigned long
 rb_genrand_int32(void)
@@ -355,6 +363,7 @@ static VALUE
 rb_f_srand(int argc, VALUE *argv, VALUE obj)
 {
     VALUE seed, old;
+    struct Random *r = &default_mt;
 
     rb_secure(4);
     if (argc == 0) {
@@ -363,8 +372,8 @@ rb_f_srand(int argc, VALUE *argv, VALUE obj)
     else {
 	rb_scan_args(argc, argv, "01", &seed);
     }
-    old = default_mt.seed.value;
-    default_mt.seed.value = rand_init(&default_mt.mt, seed);
+    old = r->seed.value;
+    r->seed.value = rand_init(&r->mt, seed);
 
     return old;
 }
@@ -532,29 +541,44 @@ rb_f_rand(int argc, VALUE *argv, VALUE obj)
 void
 Init_RandomSeed(void)
 {
-    fill_random_seed(default_mt.seed.initial);
-    init_by_array(&default_mt.mt, default_mt.seed.initial, DEFAULT_SEED_CNT);
+    vmkey_default_mt = rb_vm_key_create();
+}
+
+void
+InitVM_RandomSeed(rb_vm_t *vm)
+{
 }
 
 static void
-Init_RandomSeed2(void)
+InitVM_RandomSeed2(rb_vm_t *vm)
 {
-    default_mt.seed.value = make_seed_value(default_mt.seed.initial);
-    memset(default_mt.seed.initial, 0, DEFAULT_SEED_LEN);
+    struct Random *r;
+    VALUE rv = Data_Make_Struct(rb_cData, struct Random, random_mark, -1, r);
+
+    *(VALUE *)ruby_vm_specific_ptr(vm, vmkey_default_mt) = rv;
+    fill_random_seed(r->seed.initial);
+    init_by_array(&r->mt, r->seed.initial, DEFAULT_SEED_CNT);
+    r->seed.value = make_seed_value(r->seed.initial);
+    memset(r->seed.initial, 0, DEFAULT_SEED_LEN);
 }
 
 void
 rb_reset_random_seed(void)
 {
-    uninit_genrand(&default_mt.mt);
-    default_mt.seed.value = INT2FIX(0);
+    struct Random *r = &default_mt;
+    uninit_genrand(&r->mt);
+    r->seed.value = INT2FIX(0);
 }
 
 void
 Init_Random(void)
 {
-    Init_RandomSeed2();
+}
+
+void
+InitVM_Random(rb_vm_t *vm)
+{
+    InitVM_RandomSeed2(vm);
     rb_define_global_function("srand", rb_f_srand, -1);
     rb_define_global_function("rand", rb_f_rand, -1);
-    rb_global_variable(&default_mt.seed.value);
 }

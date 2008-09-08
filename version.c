@@ -27,6 +27,11 @@ const char ruby_engine[] = "ruby";
 void
 Init_version(void)
 {
+}
+
+void
+InitVM_version(rb_vm_t *vm)
+{
     rb_define_global_const("RUBY_VERSION", MKSTR(version));
     rb_define_global_const("RUBY_RELEASE_DATE", MKSTR(release_date));
     rb_define_global_const("RUBY_PLATFORM", MKSTR(platform));

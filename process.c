@@ -5068,6 +5068,11 @@ rb_proc_times(VALUE obj)
 void
 Init_process(void)
 {
+}
+
+void
+InitVM_process(rb_vm_t *vm)
+{
     VALUE rb_mProcUID;
     VALUE rb_mProcGID;
     VALUE rb_mProcID_Syscall;

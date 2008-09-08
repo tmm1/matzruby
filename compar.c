@@ -199,6 +199,12 @@ Init_Comparable(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    cmp = rb_intern("<=>");
+}
+
+void
+InitVM_Comparable(rb_vm_t *vm)
+{
     rb_mComparable = rb_define_module("Comparable");
     rb_define_method(rb_mComparable, "==", cmp_equal, 1);
     rb_define_method(rb_mComparable, ">", cmp_gt, 1);
@@ -206,6 +212,4 @@ Init_Comparable(void)
     rb_define_method(rb_mComparable, "<", cmp_lt, 1);
     rb_define_method(rb_mComparable, "<=", cmp_le, 1);
     rb_define_method(rb_mComparable, "between?", cmp_between, 2);
-
-    cmp = rb_intern("<=>");
 }

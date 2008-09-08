@@ -1316,6 +1316,11 @@ rb_iseq_build_for_ruby2cext(
 void
 Init_ISeq(void)
 {
+}
+
+void
+InitVM_ISeq(rb_vm_t *vm)
+{
     /* declare ::VM::InstructionSequence */
     rb_cISeq = rb_define_class_under(rb_cRubyVM, "InstructionSequence", rb_cObject);
     rb_define_alloc_func(rb_cISeq, iseq_alloc);

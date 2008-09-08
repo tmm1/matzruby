@@ -757,6 +757,12 @@ generator_each(VALUE obj)
 void
 Init_Enumerator(void)
 {
+    sym_each = ID2SYM(rb_intern_const("each"));
+}
+
+void
+InitVM_Enumerator(rb_vm_t *vm)
+{
     rb_define_method(rb_mKernel, "to_enum", obj_to_enum, -1);
     rb_define_method(rb_mKernel, "enum_for", obj_to_enum, -1);
 
@@ -794,8 +800,6 @@ Init_Enumerator(void)
     rb_define_method(rb_cYielder, "initialize", yielder_initialize, 0);
     rb_define_method(rb_cYielder, "yield", yielder_yield, -2);
     rb_define_method(rb_cYielder, "<<", yielder_yield, -2);
-
-    sym_each = ID2SYM(rb_intern("each"));
 
     rb_provide("enumerator.so");	/* for backward compatibility */
 }

@@ -2593,7 +2593,11 @@ Init_Hash(void)
     id_hash = rb_intern("hash");
     id_yield = rb_intern("yield");
     id_default = rb_intern("default");
+}
 
+void
+InitVM_Hash(rb_vm_t *vm)
+{
     rb_cHash = rb_define_class("Hash", rb_cObject);
 
     rb_include_module(rb_cHash, rb_mEnumerable);

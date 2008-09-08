@@ -33,6 +33,10 @@ void rb_call_inits(void);
 void Init_heap(void);
 void Init_ext(void);
 void Init_BareVM(void);
+void rb_vm_call_inits(rb_vm_t *vm);
+void InitVM_heap(rb_vm_t *vm);
+void InitVM_ext(rb_vm_t *vm);
+void ruby_vm_prog_init(rb_vm_t *vm);
 
 VALUE ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv);
 
@@ -60,7 +64,6 @@ ruby_init(void)
 
     Init_stack((void *)&state);
     Init_BareVM();
-    Init_heap();
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -71,8 +74,6 @@ ruby_init(void)
 #elif defined(__VMS)
 	_vmsruby_init();
 #endif
-
-	ruby_prog_init();
     }
     POP_TAG();
 
@@ -80,7 +81,28 @@ ruby_init(void)
 	error_print();
 	exit(EXIT_FAILURE);
     }
+}
+
+int
+ruby_vm_init(rb_vm_t *vm)
+{
+    int state;
+
+    InitVM_heap(vm);
+
+    PUSH_TAG();
+    if ((state = EXEC_TAG()) == 0) {
+	rb_vm_call_inits(vm);
+	ruby_vm_prog_init(vm);
+    }
+    POP_TAG();
+
+    if (state) {
+	error_print();
+	return state;
+    }
     GET_VM()->running = 1;
+    return 0;
 }
 
 static VALUE
@@ -132,18 +154,20 @@ ruby_vm_run(rb_vm_t *vm)
     rb_thread_set_current_raw(vm->main_thread);
 
     ruby_init();
-    iseq = vm_parse_options(vm);
+    if ((status = ruby_vm_init(vm)) == 0) {
+	iseq = vm_parse_options(vm);
 
-    switch (iseq) {
-      case Qtrue:  return EXIT_SUCCESS; /* -v */
-      case Qfalse: return EXIT_FAILURE;
+	switch (iseq) {
+	  case Qtrue:  status = EXIT_SUCCESS; break; /* -v */
+	  case Qfalse: status = EXIT_FAILURE; break;
+	  default:
+	    if (FIXNUM_P(iseq)) {
+		status = FIX2INT(iseq);
+		break;
+	    }
+	    status = th_exec_iseq(vm->main_thread, iseq);
+	}
     }
-
-    if (FIXNUM_P(iseq)) {
-	return FIX2INT(iseq);
-    }
-
-    status = th_exec_iseq(vm->main_thread, iseq);
     return ruby_vm_cleanup(vm, status);
 }
 
@@ -1137,6 +1161,11 @@ rb_f_method_name(void)
 
 void
 Init_eval(void)
+{
+}
+
+void
+InitVM_eval(rb_vm_t *vm)
 {
     rb_define_virtual_variable("$@", errat_getter, errat_setter);
     rb_define_virtual_variable("$!", errinfo_getter, 0);

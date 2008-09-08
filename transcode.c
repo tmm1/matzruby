@@ -3532,9 +3532,6 @@ extern void Init_newline(void);
 void
 Init_transcode(void)
 {
-    rb_eConversionUndefined = rb_define_class_under(rb_cEncoding, "ConversionUndefined", rb_eStandardError);
-    rb_eInvalidByteSequence = rb_define_class_under(rb_cEncoding, "InvalidByteSequence", rb_eStandardError);
-    rb_eNoConverter = rb_define_class_under(rb_cEncoding, "NoConverter", rb_eStandardError);
 
     transcoder_table = st_init_strcasetable();
 
@@ -3557,6 +3554,16 @@ Init_transcode(void)
     sym_crlf_newline_encoder = ID2SYM(rb_intern("crlf_newline_encoder"));
     sym_cr_newline_encoder = ID2SYM(rb_intern("cr_newline_encoder"));
     sym_partial_input = ID2SYM(rb_intern("partial_input"));
+
+    Init_newline();
+}
+
+void
+InitVM_transcode(rb_vm_t *vm)
+{
+    rb_eConversionUndefined = rb_define_class_under(rb_cEncoding, "ConversionUndefined", rb_eStandardError);
+    rb_eInvalidByteSequence = rb_define_class_under(rb_cEncoding, "InvalidByteSequence", rb_eStandardError);
+    rb_eNoConverter = rb_define_class_under(rb_cEncoding, "NoConverter", rb_eStandardError);
 
     rb_define_method(rb_cString, "encode", str_encode, -1);
     rb_define_method(rb_cString, "encode!", str_encode_bang, -1);
@@ -3605,6 +3612,4 @@ Init_transcode(void)
     rb_define_method(rb_eInvalidByteSequence, "error_bytes", ecerr_error_bytes, 0);
     rb_define_method(rb_eInvalidByteSequence, "readagain_bytes", ecerr_readagain_bytes, 0);
     rb_define_method(rb_eInvalidByteSequence, "incomplete_input?", ecerr_incomplete_input, 0);
-
-    Init_newline();
 }

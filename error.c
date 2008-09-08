@@ -980,6 +980,11 @@ errno_missing(VALUE self, VALUE id)
 void
 Init_Exception(void)
 {
+}
+
+void
+InitVM_Exception(rb_vm_t *vm)
+{
     rb_eException   = rb_define_class("Exception", rb_cObject);
     rb_define_singleton_method(rb_eException, "exception", rb_class_new_instance, -1);
     rb_define_method(rb_eException, "exception", exc_exception, -1);
@@ -1143,6 +1148,11 @@ rb_check_frozen(VALUE obj)
 
 void
 Init_syserr(void)
+{
+}
+
+void
+InitVM_syserr(rb_vm_t *vm)
 {
 #ifdef EPERM
     set_syserr(EPERM, "EPERM");

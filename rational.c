@@ -1020,7 +1020,7 @@ i_ilog2(VALUE x)
     return q + r;
 }
 
-static long ml;
+#define ml DBL_MAX_EXP
 
 static VALUE
 nurat_to_f(VALUE self)
@@ -1251,20 +1251,15 @@ make_patterns(void)
     vmkey_an_underscore = rb_vm_key_create();
 
     rat_pat = rb_reg_new(rat_pat_source, sizeof rat_pat_source - 1, 0);
-    rb_global_variable(&rat_pat);
 
     an_e_pat = rb_reg_new(an_e_pat_source, sizeof an_e_pat_source - 1, 0);
-    rb_global_variable(&an_e_pat);
 
     a_dot_pat = rb_reg_new(a_dot_pat_source, sizeof a_dot_pat_source - 1, 0);
-    rb_global_variable(&a_dot_pat);
 
     underscores_pat = rb_reg_new(underscores_pat_source,
 				 sizeof underscores_pat_source - 1, 0);
-    rb_global_variable(&underscores_pat);
 
     an_underscore = rb_str_new2("_");
-    rb_global_variable(&an_underscore);
 }
 
 #define id_match rb_intern("match")
@@ -1476,8 +1471,6 @@ Init_Rational(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
-    assert(fprintf(stderr, "assert() is now active\n"));
-
     id_Unify = rb_intern("Unify");
     id_abs = rb_intern("abs");
     id_cmp = rb_intern("<=>");
@@ -1495,8 +1488,12 @@ Init_Rational(void)
     id_to_i = rb_intern("to_i");
     id_to_s = rb_intern("to_s");
     id_truncate = rb_intern("truncate");
+}
 
-    ml = (long)(log(DBL_MAX) / log(2.0) - 1);
+void
+InitVM_Rational(rb_vm_t *vm)
+{
+    assert(fprintf(stderr, "assert() is now active\n"));
 
     rb_cRational = rb_define_class(RATIONAL_NAME, rb_cNumeric);
 

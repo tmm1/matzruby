@@ -1094,16 +1094,6 @@ void
 Init_signal(void)
 {
 #ifndef MACOS_UNUSE_SIGNAL
-    VALUE mSignal = rb_define_module("Signal");
-
-    rb_define_global_function("trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "trap", sig_trap, -1);
-    rb_define_module_function(mSignal, "list", sig_list, 0);
-
-    rb_define_method(rb_eSignal, "initialize", esignal_init, -1);
-    rb_define_method(rb_eSignal, "signo", esignal_signo, 0);
-    rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
-    rb_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 
     install_sighandler(SIGINT, sighandler);
 #ifdef SIGHUP
@@ -1147,5 +1137,22 @@ Init_signal(void)
     init_sigchld(SIGCHLD);
 #endif
 
+#endif /* MACOS_UNUSE_SIGNAL */
+}
+
+void
+InitVM_signal(rb_vm_t *vm)
+{
+#ifndef MACOS_UNUSE_SIGNAL
+    VALUE mSignal = rb_define_module("Signal");
+
+    rb_define_global_function("trap", sig_trap, -1);
+    rb_define_module_function(mSignal, "trap", sig_trap, -1);
+    rb_define_module_function(mSignal, "list", sig_list, 0);
+
+    rb_define_method(rb_eSignal, "initialize", esignal_init, -1);
+    rb_define_method(rb_eSignal, "signo", esignal_signo, 0);
+    rb_alias(rb_eSignal, rb_intern("signm"), rb_intern("message"));
+    rb_define_method(rb_eInterrupt, "initialize", interrupt_init, -1);
 #endif /* MACOS_UNUSE_SIGNAL */
 }
