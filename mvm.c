@@ -142,9 +142,9 @@ ruby_vm_init_stderr(rb_vm_t *vm, int fd)
 } while (0)
 
 static struct {
-    rb_thread_lock_t lock;
     int last;
-} specific_key;
+    rb_thread_lock_t lock;
+} specific_key = {((ruby_builtin_object_count + 8) & ~7)};
 
 int
 rb_vm_key_count(void)

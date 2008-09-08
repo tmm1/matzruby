@@ -1,4 +1,6 @@
-Tue Sep  9 00:30:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Tue Sep  9 00:34:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* mvm.c (specific_key): must be initialized.
 
 	* st.c (st_init_table_with_size, ADD_DIRECT): fixed typo.
 
