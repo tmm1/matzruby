@@ -4141,7 +4141,6 @@ static VALUE
 rb_file_open_internal(VALUE io, VALUE filename, const char *modestr)
 {
     return rb_file_openat_internal(io, filename, NULL, modestr);
-
 }
 
 VALUE
@@ -8277,6 +8276,7 @@ void
 Init_IO(void)
 {
     Init_File();
+    ruby_native_thread_lock_initialize(&max_file_descriptor_lock);
 }
 
 void
@@ -8590,6 +8590,4 @@ InitVM_IO(rb_vm_t *vm)
     sym_open_args = ID2SYM(rb_intern("open_args"));
     sym_textmode = ID2SYM(rb_intern("textmode"));
     sym_binmode = ID2SYM(rb_intern("binmode"));
-
-    ruby_native_thread_lock_initialize(&max_file_descriptor_lock);
 }

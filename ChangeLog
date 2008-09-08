@@ -1,3 +1,7 @@
+Tue Sep  9 01:52:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (Init_IO): max_file_descriptor_lock is per-process resource.
+
 Tue Sep  9 00:55:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* eval.c (ruby_vm_init): split from ruby_init.
