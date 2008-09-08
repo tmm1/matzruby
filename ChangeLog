@@ -1,3 +1,7 @@
+Mon Sep  8 20:10:12 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* bignum.c (power_cache_get_power0): no need to register address.
+
 Mon Sep  8 17:26:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* st.c (garbage_collect): checks if memory can be reclaimed.

@@ -758,32 +758,24 @@ typedef VALUE (*big2str_power_cache_t)[MAX_BIG2STR_TABLE_ENTRIES];
 static void
 power_cache_init(void)
 {
-    int i, j;
     VALUE cache_value = rb_ary_new2(35 * MAX_BIG2STR_TABLE_ENTRIES);
-    big2str_power_cache_t big2str_power_cache =
-	(big2str_power_cache_t)RARRAY_PTR(cache_value);
-
-    for (i = 0; i < 35; ++i) {
-	for (j = 0; j < MAX_BIG2STR_TABLE_ENTRIES; ++j) {
-	    big2str_power_cache[i][j] = Qnil;
-	}
-    }
+    rb_big2str_power_cache = cache_value;
 }
 
 static inline VALUE
-power_cache_get_power0(int base, int i)
+power_cache_get_power0(big2str_power_cache_t cache, int base, int i)
 {
-    VALUE cache_value = rb_big2str_power_cache;
-    big2str_power_cache_t big2str_power_cache =
-	(big2str_power_cache_t)RARRAY_PTR(cache_value);
-
-    if (NIL_P(big2str_power_cache[base - 2][i])) {
-	big2str_power_cache[base - 2][i] =
-	    i == 0 ? rb_big_pow(rb_int2big(base), INT2FIX(KARATSUBA_DIGITS))
-		   : bigsqr(power_cache_get_power0(base, i - 1));
-	rb_global_variable(&big2str_power_cache[base - 2][i]);
+    if (NIL_P(cache[base - 2][i])) {
+	if (i == 0) {
+	    cache[base - 2][i] =
+		rb_big_pow(rb_int2big(base), INT2FIX(KARATSUBA_DIGITS));
+	}
+	else {
+	    cache[base - 2][i] =
+		bigsqr(power_cache_get_power0(cache, base, i - 1));
+	}
     }
-    return big2str_power_cache[base - 2][i];
+    return cache[base - 2][i];
 }
 
 static VALUE
@@ -791,6 +783,7 @@ power_cache_get_power(int base, long n1, long* m1)
 {
     long i, j, m;
     VALUE t;
+    big2str_power_cache_t cache;
 
     if (n1 <= KARATSUBA_DIGITS)
 	rb_bug("n1 > KARATSUBA_DIGITS");
@@ -800,7 +793,8 @@ power_cache_get_power(int base, long n1, long* m1)
     i = m - LOG2_KARATSUBA_DIGITS;
     if (i >= MAX_BIG2STR_TABLE_ENTRIES)
 	i = MAX_BIG2STR_TABLE_ENTRIES - 1;
-    t = power_cache_get_power0(base, i);
+    cache = (big2str_power_cache_t)RARRAY_PTR(rb_big2str_power_cache);
+    t = power_cache_get_power0(cache, base, i);
 
     j = KARATSUBA_DIGITS*(1 << i);
     while (n1 > j) {
