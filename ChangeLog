@@ -1,3 +1,7 @@
+Tue Sep 16 05:04:56 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (rb_cv_thread_specific): check if no warnings.
+
 Tue Sep  9 01:52:28 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* io.c (Init_IO): max_file_descriptor_lock is per-process resource.
