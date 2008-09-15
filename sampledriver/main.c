@@ -65,7 +65,7 @@ multivm_driver_example(int argc, const char *argv[])
     for (i=0; i<n; i++) {
 	int err;
 	rb_vm_t *vm;
-	static void IntiVM_mruby(rb_vm_t *vm);
+	static void InitVM_mruby(rb_vm_t *vm);
 
 	/* create VM with command line arguments */
 	vm = vms[i] = ruby_vm_new(0, 0);
@@ -139,7 +139,7 @@ main(int argc, char *argv[])
 
 /* executed in each VM context */
 static void
-IntiVM_mruby(rb_vm_t *vm)
+InitVM_mruby(rb_vm_t *vm)
 {
     /* rb_define_method(...); */
 }
