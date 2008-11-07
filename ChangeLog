@@ -1,3 +1,7 @@
+Fri Nov  7 20:42:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (Init_sym):  symbol objectspace should not be GCed.
+
 Tue Sep 16 05:04:56 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* configure.in (rb_cv_thread_specific): check if no warnings.

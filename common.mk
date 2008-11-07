@@ -520,7 +520,7 @@ object.$(OBJEXT): {$(VPATH)}object.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h \
   {$(VPATH)}util.h {$(VPATH)}debug.h {$(VPATH)}node.h
 pack.$(OBJEXT): {$(VPATH)}pack.c $(RUBY_H_INCLUDES) {$(VPATH)}st.h
 parse.$(OBJEXT): {$(VPATH)}parse.c {$(VPATH)}parse.y $(RUBY_H_INCLUDES) \
-  {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h \
+  {$(VPATH)}st.h {$(VPATH)}node.h {$(VPATH)}encoding.h {$(VPATH)}gc.h \
   {$(VPATH)}oniguruma.h $(ID_H_INCLUDES) {$(VPATH)}regenc.h \
   {$(VPATH)}regex.h {$(VPATH)}util.h {$(VPATH)}lex.c {$(VPATH)}keywords \
   {$(VPATH)}debug.h {$(VPATH)}id.c

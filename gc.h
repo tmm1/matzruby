@@ -72,4 +72,10 @@ int ruby_get_stack_grow_direction(VALUE *addr);
 # define STACK_UPPER(x, a, b) (stack_growup_p(x) ? a : b)
 #endif
 
+struct rb_objspace;
+struct rb_objspace *rb_objspace_alloc(void);
+VALUE rb_objspace_gc_disable(struct rb_objspace *objspace);
+VALUE rb_objspace_gc_enable(struct rb_objspace *objspace);
+VALUE rb_newobj_from_heap(struct rb_objspace *objspace);
+
 #endif /* RUBY_GC_H */
