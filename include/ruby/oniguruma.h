@@ -104,7 +104,7 @@ extern "C" {
 #endif
 
 typedef unsigned char  OnigUChar;
-typedef unsigned long  OnigCodePoint;
+typedef unsigned int  OnigCodePoint;
 typedef unsigned int   OnigCtype;
 typedef unsigned int   OnigDistance;
 
@@ -164,7 +164,7 @@ typedef struct OnigEncodingTypeST {
   int    (*property_name_to_ctype)(struct OnigEncodingTypeST* enc, OnigUChar* p, OnigUChar* end);
   int    (*is_code_ctype)(OnigCodePoint code, OnigCtype ctype, struct OnigEncodingTypeST* enc);
   int    (*get_ctype_code_range)(OnigCtype ctype, OnigCodePoint* sb_out, const OnigCodePoint* ranges[], struct OnigEncodingTypeST* enc);
-  OnigUChar* (*left_adjust_char_head)(const OnigUChar* start, const OnigUChar* p, struct OnigEncodingTypeST* enc);
+  OnigUChar* (*left_adjust_char_head)(const OnigUChar* start, const OnigUChar* p, const OnigUChar* end, struct OnigEncodingTypeST* enc);
   int    (*is_allowed_reverse_match)(const OnigUChar* p, const OnigUChar* end, struct OnigEncodingTypeST* enc);
   int ruby_encoding_index;
 } OnigEncodingType;
@@ -219,14 +219,14 @@ ONIG_EXTERN OnigEncodingType OnigEncodingASCII;
   (enc)->mbc_case_fold(flag,(const OnigUChar** )pp,end,buf,enc)
 #define ONIGENC_IS_ALLOWED_REVERSE_MATCH(enc,s,end) \
         (enc)->is_allowed_reverse_match(s,end,enc)
-#define ONIGENC_LEFT_ADJUST_CHAR_HEAD(enc,start,s) \
-        (enc)->left_adjust_char_head(start, s, enc)
+#define ONIGENC_LEFT_ADJUST_CHAR_HEAD(enc,start,s,end) \
+        (enc)->left_adjust_char_head(start, s, end, enc)
 #define ONIGENC_APPLY_ALL_CASE_FOLD(enc,case_fold_flag,f,arg) \
         (enc)->apply_all_case_fold(case_fold_flag,f,arg,enc)
 #define ONIGENC_GET_CASE_FOLD_CODES_BY_STR(enc,case_fold_flag,p,end,acs) \
        (enc)->get_case_fold_codes_by_str(case_fold_flag,p,end,acs,enc)
-#define ONIGENC_STEP_BACK(enc,start,s,n) \
-        onigenc_step_back((enc),(start),(s),(n))
+#define ONIGENC_STEP_BACK(enc,start,s,end,n) \
+        onigenc_step_back((enc),(start),(s),(end),(n))
 
 #define ONIGENC_CONSTRUCT_MBCLEN_CHARFOUND(n)   (n)
 #define ONIGENC_MBCLEN_CHARFOUND_P(r)           (0 < (r))
@@ -290,7 +290,7 @@ int onigenc_mbclen_approximate P_((const OnigUChar* p,const OnigUChar* e, struct
         (enc)->get_ctype_code_range(ctype,sbout,ranges,enc)
 
 ONIG_EXTERN
-OnigUChar* onigenc_step_back P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, int n));
+OnigUChar* onigenc_step_back P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end, int n));
 
 
 /* encoding API */
@@ -303,13 +303,13 @@ OnigEncoding onigenc_get_default_encoding P_((void));
 ONIG_EXTERN
 void  onigenc_set_default_caseconv_table P_((const OnigUChar* table));
 ONIG_EXTERN
-OnigUChar* onigenc_get_right_adjust_char_head_with_prev P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar** prev));
+OnigUChar* onigenc_get_right_adjust_char_head_with_prev P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end, const OnigUChar** prev));
 ONIG_EXTERN
-OnigUChar* onigenc_get_prev_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s));
+OnigUChar* onigenc_get_prev_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end));
 ONIG_EXTERN
-OnigUChar* onigenc_get_left_adjust_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s));
+OnigUChar* onigenc_get_left_adjust_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end));
 ONIG_EXTERN
-OnigUChar* onigenc_get_right_adjust_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s));
+OnigUChar* onigenc_get_right_adjust_char_head P_((OnigEncoding enc, const OnigUChar* start, const OnigUChar* s, const OnigUChar* end));
 ONIG_EXTERN
 int onigenc_strlen P_((OnigEncoding enc, const OnigUChar* p, const OnigUChar* end));
 ONIG_EXTERN

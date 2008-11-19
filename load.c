@@ -2,6 +2,9 @@
  * load methods from eval.c
  */
 
+#include "ruby/ruby.h"
+#include "ruby/util.h"
+#include "dln.h"
 #include "eval_intern.h"
 
 VALUE ruby_dln_librefs;
@@ -277,8 +280,7 @@ rb_load(VALUE fname, int wrap)
 	th->mild_compile_error++;
 	node = (NODE *)rb_load_file(RSTRING_PTR(fname));
 	loaded = Qtrue;
-	iseq = rb_iseq_new(node, rb_str_new2("<top (required)>"),
-			   fname, Qfalse, ISEQ_TYPE_TOP);
+	iseq = rb_iseq_new_top(node, rb_str_new2("<top (required)>"), fname, Qfalse);
 	th->mild_compile_error--;
 	rb_iseq_eval(iseq);
     }
@@ -364,7 +366,7 @@ load_lock(const char *ftptr)
 }
 
 static void
-load_unlock(const char *ftptr)
+load_unlock(const char *ftptr, int done)
 {
     if (ftptr) {
 	st_data_t key = (st_data_t)ftptr;
@@ -372,8 +374,12 @@ load_unlock(const char *ftptr)
 	st_table *loading_tbl = get_loading_table();
 
 	if (st_delete(loading_tbl, &key, &data)) {
+	    VALUE barrier = (VALUE)data;
 	    xfree((char *)key);
-	    rb_barrier_release((VALUE)data);
+	    if (done)
+		rb_barrier_destroy(barrier);
+	    else
+		rb_barrier_release(barrier);
 	}
     }
 }
@@ -559,7 +565,7 @@ rb_require_safe(VALUE fname, int safe)
 	}
     }
     POP_TAG();
-    load_unlock(ftptr);
+    load_unlock(ftptr, !state);
 
     rb_set_safe_level_force(saved.safe);
     if (state) {
@@ -598,7 +604,7 @@ ruby_init_ext(const char *name, void (*init)(void))
 	rb_vm_call_cfunc(rb_vm_top_self(), init_ext_call, (VALUE)init,
 			 0, rb_str_new2(name));
 	rb_provide(name);
-	load_unlock(name);
+	load_unlock(name, 1);
     }
 }
 
@@ -700,5 +706,5 @@ InitVM_load(rb_vm_t *vm)
     rb_define_global_function("autoload?", rb_f_autoload_p, 1);
 
     ruby_dln_librefs = rb_ary_new();
-    rb_register_mark_object(ruby_dln_librefs);
+    rb_gc_register_mark_object(ruby_dln_librefs);
 }

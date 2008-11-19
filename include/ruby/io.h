@@ -30,10 +30,10 @@ extern "C" {
 typedef struct rb_io_t {
     int fd;                     /* file descriptor */
     FILE *stdio_file;		/* stdio ptr for read/write if available */
-    int mode;			/* mode flags */
+    int mode;			/* mode flags: FMODE_XXXs */
     rb_pid_t pid;		/* child's pid (for pipes) */
     int lineno;			/* number of lines read */
-    VALUE pathv;			/* pathname for file */
+    VALUE pathv;		/* pathname for file */
     void (*finalize)(struct rb_io_t*,int); /* finalize proc */
 
     char *wbuf;                 /* wbuf_off + wbuf_len <= wbuf_capa */
@@ -68,11 +68,12 @@ typedef struct rb_io_t {
     int cbuf_capa;
 
     rb_econv_t *writeconv;
-    VALUE writeconv_stateless;
+    VALUE writeconv_asciicompat;
     int writeconv_pre_ecflags;
     VALUE writeconv_pre_ecopts;
     int writeconv_initialized;
 
+    VALUE write_lock;
 } rb_io_t;
 
 #define HAVE_RB_IO_T 1
@@ -124,7 +125,7 @@ typedef struct rb_io_t {
     fp->cbuf_len = 0;\
     fp->cbuf_capa = 0;\
     fp->writeconv = NULL;\
-    fp->writeconv_stateless = Qnil;\
+    fp->writeconv_asciicompat = Qnil;\
     fp->writeconv_pre_ecflags = 0;\
     fp->writeconv_pre_ecopts = Qnil;\
     fp->writeconv_initialized = 0;\
@@ -133,6 +134,7 @@ typedef struct rb_io_t {
     fp->encs.enc2 = NULL;\
     fp->encs.ecflags = 0;\
     fp->encs.ecopts = Qnil;\
+    fp->write_lock = 0;\
 } while (0)
 
 FILE *rb_io_stdio_file(rb_io_t *fptr);
@@ -161,11 +163,6 @@ NORETURN(void rb_eof_error(void));
 void rb_io_read_check(rb_io_t*);
 int rb_io_read_pending(rb_io_t*);
 void rb_read_check(FILE*);
-
-DEPRECATED(int rb_getc(FILE*));
-DEPRECATED(long rb_io_fread(char *, long, FILE *));
-DEPRECATED(long rb_io_fwrite(const char *, long, FILE *));
-DEPRECATED(int rb_read_pending(FILE*));
 
 int ruby_absolute_path_p(const char*);
 

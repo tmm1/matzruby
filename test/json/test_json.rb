@@ -3,6 +3,7 @@
 
 require 'test/unit'
 require 'json'
+require 'stringio'
 
 class TC_JSON < Test::Unit::TestCase
   include JSON
@@ -28,7 +29,6 @@ class TC_JSON < Test::Unit::TestCase
     @json = '{"a":2,"b":3.141,"c":"c","d":[1,"b",3.14],"e":{"foo":"bar"},' +
       '"g":"\\"\\u0000\\u001f","h":1.0E3,"i":1.0E-3}'
   end
-    suite << TC_JSON.suite
 
   def test_construction
     parser = JSON::Parser.new('test')
@@ -49,10 +49,10 @@ class TC_JSON < Test::Unit::TestCase
     assert_equal([23], parse('[23]'))
     assert_equal([0.23], parse('[0.23]'))
     assert_equal([0.0], parse('[0e0]'))
-    assert_raises(JSON::ParserError) { parse('[+23.2]') }
-    assert_raises(JSON::ParserError) { parse('[+23]') }
-    assert_raises(JSON::ParserError) { parse('[.23]') }
-    assert_raises(JSON::ParserError) { parse('[023]') }
+    assert_raise(JSON::ParserError) { parse('[+23.2]') }
+    assert_raise(JSON::ParserError) { parse('[+23]') }
+    assert_raise(JSON::ParserError) { parse('[.23]') }
+    assert_raise(JSON::ParserError) { parse('[023]') }
     assert_equal_float [3.141], parse('[3.141]')
     assert_equal_float [-3.141], parse('[-3.141]')
     assert_equal_float [3.141], parse('[3141e-3]')
@@ -61,6 +61,12 @@ class TC_JSON < Test::Unit::TestCase
     assert_equal_float [3.141], parse('[3141.0E-3]')
     assert_equal_float [-3.141], parse('[-3141.0e-3]')
     assert_equal_float [-3.141], parse('[-3141e-3]')
+    assert_raise(ParserError) { parse('[NaN]') }
+    assert parse('[NaN]', :allow_nan => true).first.nan?
+    assert_raise(ParserError) { parse('[Infinity]') }
+    assert_equal [1.0/0], parse('[Infinity]', :allow_nan => true)
+    assert_raise(ParserError) { parse('[-Infinity]') }
+    assert_equal [-1.0/0], parse('[-Infinity]', :allow_nan => true)
     assert_equal([""], parse('[""]'))
     assert_equal(["foobar"], parse('["foobar"]'))
     assert_equal([{}], parse('[{}]'))
@@ -73,7 +79,7 @@ class TC_JSON < Test::Unit::TestCase
     assert_equal({ "a" => nil }, parse('{"a":null}'))
     assert_equal({ "a" => false }, parse('{   "a"  :  false  }  '))
     assert_equal({ "a" => false }, parse('{"a":false}'))
-    assert_raises(JSON::ParserError) { parse('{false}') }
+    assert_raise(JSON::ParserError) { parse('{false}') }
     assert_equal({ "a" => true }, parse('{"a":true}'))
     assert_equal({ "a" => true }, parse('  { "a" :  true  }   '))
     assert_equal({ "a" => -23 }, parse('  {  "a"  :  -23  }  '))
@@ -84,30 +90,22 @@ class TC_JSON < Test::Unit::TestCase
     assert_equal({ "a" => 0.23 }, parse('  {  "a"  :  0.23  }  '))
   end
 
-  begin
-    require 'permutation'
-    def test_parse_more_complex_arrays
-      a = [ nil, false, true, "foßbar", [ "n€st€d", true ], { "nested" => true, "n€ßt€ð2" => {} }]
-      perms = Permutation.for a
-      perms.each do |perm|
-        orig_ary = perm.project
-        json = pretty_generate(orig_ary)
-        assert_equal orig_ary, parse(json)
-      end
+  def test_parse_more_complex_arrays
+    a = [ nil, false, true, "foßbar", [ "n€st€d", true ], { "nested" => true, "n€ßt€ð2" => {} }]
+    a.permutation do |orig_ary|
+      json = pretty_generate(orig_ary)
+      assert_equal orig_ary, parse(json)
     end
+  end
 
-    def test_parse_complex_objects
-      a = [ nil, false, true, "foßbar", [ "n€st€d", true ], { "nested" => true, "n€ßt€ð2" => {} }]
-      perms = Permutation.for a
-      perms.each do |perm|
-        s = "a"
-        orig_obj = perm.project.inject({}) { |h, x| h[s.dup] = x; s = s.succ; h }
-        json = pretty_generate(orig_obj)
-        assert_equal orig_obj, parse(json)
-      end
+  def test_parse_complex_objects
+    a = [ nil, false, true, "foßbar", [ "n€st€d", true ], { "nested" => true, "n€ßt€ð2" => {} }]
+    a.permutation do |orig_ary|
+      s = "a"
+      orig_obj = orig_ary.inject({}) { |h, x| h[s.dup] = x; s = s.succ; h }
+      json = pretty_generate(orig_obj)
+      assert_equal orig_obj, parse(json)
     end
-  rescue LoadError
-    warn "Skipping permutation tests."
   end
 
   def test_parse_arrays
@@ -175,7 +173,7 @@ EOT
                     *  comment */
 }
 EOT
-    assert_raises(ParserError) { parse(json) }
+    assert_raise(ParserError) { parse(json) }
     json = <<EOT
 {
   "key1":"value1"  /* multi line
@@ -184,7 +182,7 @@ EOT
                    and again, throw an Error */
 }
 EOT
-    assert_raises(ParserError) { parse(json) }
+    assert_raise(ParserError) { parse(json) }
     json = <<EOT
 {
   "key1":"value1"  /*/*/
@@ -220,36 +218,67 @@ EOT
   end
 
   def test_wrong_inputs
-    assert_raises(ParserError) { JSON.parse('"foo"') }
-    assert_raises(ParserError) { JSON.parse('123') }
-    assert_raises(ParserError) { JSON.parse('[] bla') }
-    assert_raises(ParserError) { JSON.parse('[] 1') }
-    assert_raises(ParserError) { JSON.parse('[] []') }
-    assert_raises(ParserError) { JSON.parse('[] {}') }
-    assert_raises(ParserError) { JSON.parse('{} []') }
-    assert_raises(ParserError) { JSON.parse('{} {}') }
-    assert_raises(ParserError) { JSON.parse('[NULL]') }
-    assert_raises(ParserError) { JSON.parse('[FALSE]') }
-    assert_raises(ParserError) { JSON.parse('[TRUE]') }
-    assert_raises(ParserError) { JSON.parse('[07]    ') }
-    assert_raises(ParserError) { JSON.parse('[0a]') }
-    assert_raises(ParserError) { JSON.parse('[1.]') }
-    assert_raises(ParserError) { JSON.parse('     ') }
+    assert_raise(ParserError) { JSON.parse('"foo"') }
+    assert_raise(ParserError) { JSON.parse('123') }
+    assert_raise(ParserError) { JSON.parse('[] bla') }
+    assert_raise(ParserError) { JSON.parse('[] 1') }
+    assert_raise(ParserError) { JSON.parse('[] []') }
+    assert_raise(ParserError) { JSON.parse('[] {}') }
+    assert_raise(ParserError) { JSON.parse('{} []') }
+    assert_raise(ParserError) { JSON.parse('{} {}') }
+    assert_raise(ParserError) { JSON.parse('[NULL]') }
+    assert_raise(ParserError) { JSON.parse('[FALSE]') }
+    assert_raise(ParserError) { JSON.parse('[TRUE]') }
+    assert_raise(ParserError) { JSON.parse('[07]    ') }
+    assert_raise(ParserError) { JSON.parse('[0a]') }
+    assert_raise(ParserError) { JSON.parse('[1.]') }
+    assert_raise(ParserError) { JSON.parse('     ') }
   end
 
   def test_nesting
-    to_deep = '[[[[[[[[[[[[[[[[[[[["Too deep"]]]]]]]]]]]]]]]]]]]]'
-    assert_raises(JSON::NestingError) { JSON.parse to_deep }
-    assert_raises(JSON::NestingError) { JSON.parser.new(to_deep).parse }
-    assert_raises(JSON::NestingError) { JSON.parse to_deep, :max_nesting => 19 }
-    ok = JSON.parse to_deep, :max_nesting => 20
-    assert_kind_of Array, ok
-    ok = JSON.parse to_deep, :max_nesting => nil
-    assert_kind_of Array, ok
-    ok = JSON.parse to_deep, :max_nesting => false
-    assert_kind_of Array, ok
-    ok = JSON.parse to_deep, :max_nesting => 0
-    assert_kind_of Array, ok
+    assert_raise(JSON::NestingError) { JSON.parse '[[]]', :max_nesting => 1 }
+    assert_raise(JSON::NestingError) { JSON.parser.new('[[]]', :max_nesting => 1).parse }
+    assert_equal [[]], JSON.parse('[[]]', :max_nesting => 2)
+    too_deep = '[[[[[[[[[[[[[[[[[[[["Too deep"]]]]]]]]]]]]]]]]]]]]'
+    too_deep_ary = eval too_deep
+    assert_raise(JSON::NestingError) { JSON.parse too_deep }
+    assert_raise(JSON::NestingError) { JSON.parser.new(too_deep).parse }
+    assert_raise(JSON::NestingError) { JSON.parse too_deep, :max_nesting => 19 }
+    ok = JSON.parse too_deep, :max_nesting => 20
+    assert_equal too_deep_ary, ok
+    ok = JSON.parse too_deep, :max_nesting => nil
+    assert_equal too_deep_ary, ok
+    ok = JSON.parse too_deep, :max_nesting => false
+    assert_equal too_deep_ary, ok
+    ok = JSON.parse too_deep, :max_nesting => 0
+    assert_equal too_deep_ary, ok
+    assert_raise(JSON::NestingError) { JSON.generate [[]], :max_nesting => 1 }
+    assert_equal '[[]]', JSON.generate([[]], :max_nesting => 2)
+    assert_raise(JSON::NestingError) { JSON.generate too_deep_ary }
+    assert_raise(JSON::NestingError) { JSON.generate too_deep_ary, :max_nesting => 19 }
+    ok = JSON.generate too_deep_ary, :max_nesting => 20
+    assert_equal too_deep, ok
+    ok = JSON.generate too_deep_ary, :max_nesting => nil
+    assert_equal too_deep, ok
+    ok = JSON.generate too_deep_ary, :max_nesting => false
+    assert_equal too_deep, ok
+    ok = JSON.generate too_deep_ary, :max_nesting => 0
+    assert_equal too_deep, ok
+  end
+
+  def test_load_dump
+    too_deep = '[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]'
+    assert_equal too_deep, JSON.dump(eval(too_deep))
+    assert_kind_of String, Marshal.dump(eval(too_deep))
+    assert_raise(ArgumentError) { JSON.dump(eval(too_deep), 19) }
+    assert_raise(ArgumentError) { Marshal.dump(eval(too_deep), 19) }
+    assert_equal too_deep, JSON.dump(eval(too_deep), 20)
+    assert_kind_of String, Marshal.dump(eval(too_deep), 20)
+    output = StringIO.new
+    JSON.dump(eval(too_deep), output)
+    assert_equal too_deep, output.string
+    output = StringIO.new
+    JSON.dump(eval(too_deep), output, 20)
+    assert_equal too_deep, output.string
   end
 end
-  # vim: set et sw=2 ts=2:

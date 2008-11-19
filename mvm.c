@@ -9,7 +9,6 @@
 
 **********************************************************************/
 
-#include "ruby/mvm.h"
 #include "ruby/ruby.h"
 #include "vm_core.h"
 #include "eval_intern.h"

@@ -14,14 +14,13 @@
 
 #define RUBY_VM_THREAD_MODEL 2
 
-#include <setjmp.h>
-
 #include "ruby/ruby.h"
-#include "ruby/mvm.h"
 #include "ruby/st.h"
-#include "ruby/node.h"
+
+#include "vm_insnhelper.h"
 #include "private_object.h"
 
+#include "node.h"
 #include "debug.h"
 #include "vm_opts.h"
 #include "id.h"
@@ -34,19 +33,22 @@
 #error "unsupported thread type"
 #endif
 
+#include <setjmp.h>
 #include <signal.h>
 
 #ifndef NSIG
-# ifdef DJGPP
-#  define NSIG SIGMAX
-# elif defined MACOS_UNUSE_SIGNAL
-#  define NSIG 1
-# else
-#  define NSIG (_SIGMAX + 1)      /* For QNX */
-# endif
+# define NSIG (_SIGMAX + 1)      /* For QNX */
 #endif
 
 #define RUBY_NSIG NSIG
+
+#ifdef HAVE_STDARG_PROTOTYPES
+#include <stdarg.h>
+#define va_init_list(a,b) va_start(a,b)
+#else
+#include <varargs.h>
+#define va_init_list(a,b) va_start(a)
+#endif
 
 /*****************/
 /* configuration */
@@ -93,46 +95,6 @@
 
 typedef unsigned long rb_num_t;
 
-#define ISEQ_TYPE_TOP    INT2FIX(1)
-#define ISEQ_TYPE_METHOD INT2FIX(2)
-#define ISEQ_TYPE_BLOCK  INT2FIX(3)
-#define ISEQ_TYPE_CLASS  INT2FIX(4)
-#define ISEQ_TYPE_RESCUE INT2FIX(5)
-#define ISEQ_TYPE_ENSURE INT2FIX(6)
-#define ISEQ_TYPE_EVAL   INT2FIX(7)
-#define ISEQ_TYPE_DEFINED_GUARD INT2FIX(8)
-
-#define CATCH_TYPE_RESCUE INT2FIX(1)
-#define CATCH_TYPE_ENSURE INT2FIX(2)
-#define CATCH_TYPE_RETRY  INT2FIX(3)
-#define CATCH_TYPE_BREAK  INT2FIX(4)
-#define CATCH_TYPE_REDO   INT2FIX(5)
-#define CATCH_TYPE_NEXT   INT2FIX(6)
-
-struct iseq_insn_info_entry {
-    unsigned short position;
-    unsigned short line_no;
-    unsigned short sp;
-};
-
-struct iseq_catch_table_entry {
-    VALUE type;
-    VALUE iseq;
-    unsigned long start;
-    unsigned long end;
-    unsigned long cont;
-    unsigned long sp;
-};
-
-#define INITIAL_ISEQ_COMPILE_DATA_STORAGE_BUFF_SIZE (512)
-
-struct iseq_compile_data_storage {
-    struct iseq_compile_data_storage *next;
-    unsigned long pos;
-    unsigned long size;
-    char *buff;
-};
-
 struct iseq_compile_data_ensure_node_stack;
 
 typedef struct rb_compile_option_struct {
@@ -147,31 +109,6 @@ typedef struct rb_compile_option_struct {
     int debug_level;
 } rb_compile_option_t;
 
-struct iseq_compile_data {
-    /* GC is needed */
-    VALUE err_info;
-    VALUE mark_ary;
-    VALUE catch_table_ary;	/* Array */
-
-    /* GC is not needed */
-    struct iseq_label_data *start_label;
-    struct iseq_label_data *end_label;
-    struct iseq_label_data *redo_label;
-    VALUE current_block;
-    VALUE loopval_popped;	/* used by NODE_BREAK */
-    VALUE ensure_node;
-    VALUE for_iseq;
-    struct iseq_compile_data_ensure_node_stack *ensure_node_stack;
-    int cached_const;
-    struct iseq_compile_data_storage *storage_head;
-    struct iseq_compile_data_storage *storage_current;
-    int last_line;
-    int flip_cnt;
-    int label_no;
-    int node_level;
-    const rb_compile_option_t *option;
-};
-
 #if 1
 #define GetCoreDataFromValue(obj, type, ptr) do { \
     ptr = (type*)DATA_PTR(obj); \
@@ -182,12 +119,6 @@ struct iseq_compile_data {
 
 #define GetISeqPtr(obj, ptr) \
   GetCoreDataFromValue(obj, rb_iseq_t, ptr)
-
-typedef struct rb_iseq_profile_struct {
-    VALUE count;
-    VALUE time_self;
-    VALUE time_cumu; /* cumulative */
-} rb_iseq_profile_t;
 
 struct rb_iseq_struct;
 
@@ -279,7 +210,6 @@ struct rb_iseq_struct {
 
     /* misc */
     ID defined_method_id;	/* for define_method */
-    rb_iseq_profile_t profile;
 
     /* used at compile time */
     struct iseq_compile_data *compile_data;
@@ -299,14 +229,13 @@ enum end_proc_type {
 
 #define ENABLE_VM_OBJSPACE 1
 
-struct rb_vm_struct
-{
+struct rb_vm_struct {
     VALUE self;
 
     rb_thread_lock_t global_vm_lock;
 
     VALUE global_state_version;
-    VALUE redefined_flag;
+    char redefined_flag[BOP_LAST_];
     st_table *opt_method_table;
 
     struct rb_thread_struct *main_thread;
@@ -376,8 +305,6 @@ typedef struct {
     VALUE proc;			/* cfp[9] / block[4] */
     ID method_id;               /* cfp[10] saved in special case */
     VALUE method_class;         /* cfp[11] saved in special case */
-    VALUE prof_time_self;       /* cfp[12] */
-    VALUE prof_time_chld;       /* cfp[13] */
 } rb_control_frame_t;
 
 typedef struct rb_block_struct {
@@ -446,7 +373,7 @@ int rb_queue_push(rb_queue_t *, void *);
 int rb_queue_shift(rb_queue_t *, void **);
 int rb_queue_empty_p(const rb_queue_t *);
 
-struct rb_thread_struct
+typedef struct rb_thread_struct
 {
     VALUE self;
     rb_vm_t *vm;
@@ -557,25 +484,24 @@ struct rb_thread_struct
     /* misc */
     int method_missing_reason;
     int abort_on_exception;
-};
-
-typedef struct rb_thread_struct rb_thread_t;
+} rb_thread_t;
 
 /* iseq.c */
 VALUE rb_iseq_new(NODE*, VALUE, VALUE, VALUE, VALUE);
+VALUE rb_iseq_new_top(NODE *node, VALUE name, VALUE filename, VALUE parent);
 VALUE rb_iseq_new_with_bopt(NODE*, VALUE, VALUE, VALUE, VALUE, VALUE);
 VALUE rb_iseq_new_with_opt(NODE*, VALUE, VALUE, VALUE, VALUE, const rb_compile_option_t*);
 VALUE rb_iseq_compile(VALUE src, VALUE file, VALUE line);
 VALUE ruby_iseq_disasm(VALUE self);
 VALUE ruby_iseq_disasm_insn(VALUE str, VALUE *iseqval, int pos, rb_iseq_t *iseq, VALUE child);
 const char *ruby_node_name(int node);
-VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
+int rb_iseq_first_lineno(rb_iseq_t *iseq);
 
 /* each thread has this size stack : 128KB */
 #define RUBY_VM_THREAD_STACK_SIZE (128 * 1024)
 
-struct global_entry {
-    struct global_variable *var;
+struct rb_global_entry {
+    struct rb_global_variable *var;
     ID id;
 };
 
@@ -671,8 +597,6 @@ typedef rb_control_frame_t *
 #define GC_GUARDED_PTR_REF(p) ((void *)(((VALUE)p) & ~0x03))
 #define GC_GUARDED_PTR_P(p)   (((VALUE)p) & 0x01)
 
-#define RUBY_VM_METHOD_NODE NODE_METHOD
-
 #define RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp) (cfp+1)
 #define RUBY_VM_NEXT_CONTROL_FRAME(cfp) (cfp-1)
 #define RUBY_VM_END_CONTROL_FRAME(th) \
@@ -692,20 +616,7 @@ typedef rb_control_frame_t *
 #define RUBY_VM_GET_CFP_FROM_BLOCK_PTR(b) \
   ((rb_control_frame_t *)((VALUE *)(b) - 5))
 
-/* defined? */
-#define DEFINED_IVAR   INT2FIX(1)
-#define DEFINED_IVAR2  INT2FIX(2)
-#define DEFINED_GVAR   INT2FIX(3)
-#define DEFINED_CVAR   INT2FIX(4)
-#define DEFINED_CONST  INT2FIX(5)
-#define DEFINED_METHOD INT2FIX(6)
-#define DEFINED_YIELD  INT2FIX(7)
-#define DEFINED_REF    INT2FIX(8)
-#define DEFINED_ZSUPER INT2FIX(9)
-#define DEFINED_FUNC   INT2FIX(10)
-
 /* VM related object allocate functions */
-/* TODO: should be static functions */
 VALUE rb_thread_alloc(VALUE klass);
 VALUE rb_proc_alloc(VALUE klass);
 
@@ -768,8 +679,7 @@ int ruby_thread_set_native(rb_thread_t *th);
 void rb_thread_execute_interrupts(rb_thread_t *);
 
 #define RUBY_VM_CHECK_INTS_TH(th) do { \
-  if (th->interrupt_flag) { \
-    /* TODO: trap something event */ \
+  if (UNLIKELY(th->interrupt_flag)) { \
     rb_thread_execute_interrupts(th); \
   } \
 } while (0)

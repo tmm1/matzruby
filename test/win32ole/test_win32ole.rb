@@ -153,6 +153,15 @@ if defined?(WIN32OLE)
       assert_instance_of(WIN32OLE, @dict2)
     end
 
+    def test_s_new_exc
+      assert_raise(TypeError) {
+        WIN32OLE.new(1)
+      }
+      assert_raise(TypeError) {
+        WIN32OLE.new("Scripting.Dictionary", 1)
+      }
+    end
+
     def test_s_new_DCOM
       rshell = WIN32OLE.new("Shell.Application")
       assert_instance_of(WIN32OLE, rshell)
@@ -170,6 +179,12 @@ if defined?(WIN32OLE)
     def test_s_connect
       obj = WIN32OLE.connect("winmgmts:")
       assert_instance_of(WIN32OLE, obj)
+    end
+
+    def test_s_connect_exc
+      assert_raise(TypeError) {
+        WIN32OLE.connect(1)
+      }
     end
 
     def test_invoke_accept_symbol_hash_key
@@ -358,6 +373,22 @@ if defined?(WIN32OLE)
         if (File.exist?(fname))
           File.unlink(fname)
         end
+      end
+    end
+
+    def test_cp51932
+      cp = WIN32OLE.codepage
+      begin
+        obj = WIN32OLE_VARIANT.new([0x3042].pack("U*").force_encoding("UTF-8"))
+        begin
+          WIN32OLE.codepage = 51932
+        rescue
+        end
+        if WIN32OLE.codepage == 51932
+          assert_equal("\xA4\xA2".force_encoding("CP51932"), obj.value)
+        end
+      ensure
+        WIN32OLE.codepage = cp
       end
     end
 

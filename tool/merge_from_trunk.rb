@@ -13,7 +13,7 @@ conflicts = []
 old_revision = IO.read(".merged-trunk-revision").chomp
 unless old_revision == new_revision
   puts "merging r#{old_revision}:#{new_revision}"
-  IO.foreach("|svn merge #{TRUNK}@#{old_revision} #{TRUNK}@#{new_revision} .") do |line|
+  IO.foreach("|svn merge --accept postpone #{TRUNK}@#{old_revision} #{TRUNK}@#{new_revision} .") do |line|
     puts line
     conflicts << line[5..-2] if /^C/ =~ line
   end

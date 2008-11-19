@@ -21,7 +21,7 @@ class TestSignal < Test::Unit::TestCase
       assert_equal 2, x
 
       Signal.trap(:INT) { raise "Interrupt" }
-      ex = assert_raises(RuntimeError) {
+      ex = assert_raise(RuntimeError) {
         Process.kill :INT, Process.pid
         sleep 0.1
       }
@@ -41,7 +41,7 @@ class TestSignal < Test::Unit::TestCase
         Signal.trap(:USR1, "EXIT")
         w0.close
         w.syswrite("a")
-        Thread.start { Thread.pass }
+        Thread.start { sleep(2) }
         r0.sysread(4096)
       }
       r.sysread(1)

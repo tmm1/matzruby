@@ -1,39 +1,9 @@
 #ifndef RUBY_PUBLIC_OBJECT_H
 #define RUBY_PUBLIC_OBJECT_H 1
 
-#include "ruby/mvm.h"
+#include "ruby/vm.h"
 
-/*
-public_vars = %w{
-  mKernel mComparable mEnumerable mPrecision mErrno mFileTest mGC 
-  mMath mProcess cBasicObject cObject cArray cBignum cBinding 
-  cClass cCont cDir cData cFalseClass cEncoding cEnumerator cFile 
-  cFixnum cFloat cHash cInteger cIO cMatch cMethod cModule 
-  cNameErrorMesg cNilClass cNumeric cProc cRange cRational cComplex 
-  cRegexp cStat cString cStruct cSymbol cThread cTime cTrueClass 
-  cUnboundMethod cMutex cBarrier eException eStandardError 
-  eSystemExit eInterrupt eSignal eFatal eArgError eEOFError 
-  eIndexError eStopIteration eKeyError eRangeError eIOError 
-  eRuntimeError eSecurityError eSystemCallError eThreadError 
-  eTypeError eZeroDivError eNotImpError eNoMemError eNoMethodError 
-  eFloatDomainError eLocalJumpError eSysStackError eRegexpError 
-  eEncCompatError eScriptError eNameError eSyntaxError eLoadError 
-  stdin stdout stderr argf
-}
 
-public_vars2 = %w{
-  verbose debug progname
-}
-
-public_vars.each{|var|
-  puts "    rb_vmkey_#{var},"
-  puts "\#define rb_#{var} (*((VALUE *)rb_vm_specific_ptr(rb_vmkey_#{var})))"
-}
-public_vars2.each{|var|
-  puts "    rb_vmkey_#{var},"
-}
-
- */
 
 VALUE *rb_vm_specific_ptr(int key);
 
@@ -44,8 +14,6 @@ enum ruby_public_object_vmkey {
 #define rb_mComparable (*rb_vm_specific_ptr(rb_vmkey_mComparable))
     rb_vmkey_mEnumerable,
 #define rb_mEnumerable (*rb_vm_specific_ptr(rb_vmkey_mEnumerable))
-    rb_vmkey_mPrecision,
-#define rb_mPrecision (*rb_vm_specific_ptr(rb_vmkey_mPrecision))
     rb_vmkey_mErrno,
 #define rb_mErrno (*rb_vm_specific_ptr(rb_vmkey_mErrno))
     rb_vmkey_mFileTest,
@@ -68,8 +36,6 @@ enum ruby_public_object_vmkey {
 #define rb_cBinding (*rb_vm_specific_ptr(rb_vmkey_cBinding))
     rb_vmkey_cClass,
 #define rb_cClass (*rb_vm_specific_ptr(rb_vmkey_cClass))
-    rb_vmkey_cCont,
-#define rb_cCont (*rb_vm_specific_ptr(rb_vmkey_cCont))
     rb_vmkey_cDir,
 #define rb_cDir (*rb_vm_specific_ptr(rb_vmkey_cDir))
     rb_vmkey_cData,
@@ -78,6 +44,8 @@ enum ruby_public_object_vmkey {
 #define rb_cFalseClass (*rb_vm_specific_ptr(rb_vmkey_cFalseClass))
     rb_vmkey_cEncoding,
 #define rb_cEncoding (*rb_vm_specific_ptr(rb_vmkey_cEncoding))
+    rb_vmkey_cEncodingConverter,
+#define rb_cEncodingConverter (*rb_vm_specific_ptr(rb_vmkey_cEncodingConverter))
     rb_vmkey_cEnumerator,
 #define rb_cEnumerator (*rb_vm_specific_ptr(rb_vmkey_cEnumerator))
     rb_vmkey_cFile,
@@ -186,6 +154,8 @@ enum ruby_public_object_vmkey {
 #define rb_eSysStackError (*rb_vm_specific_ptr(rb_vmkey_eSysStackError))
     rb_vmkey_eRegexpError,
 #define rb_eRegexpError (*rb_vm_specific_ptr(rb_vmkey_eRegexpError))
+    rb_vmkey_eEncodingError,
+#define rb_eEncodingError (*rb_vm_specific_ptr(rb_vmkey_eEncodingError))
     rb_vmkey_eEncCompatError,
 #define rb_eEncCompatError (*rb_vm_specific_ptr(rb_vmkey_eEncCompatError))
     rb_vmkey_eScriptError,
@@ -196,6 +166,12 @@ enum ruby_public_object_vmkey {
 #define rb_eSyntaxError (*rb_vm_specific_ptr(rb_vmkey_eSyntaxError))
     rb_vmkey_eLoadError,
 #define rb_eLoadError (*rb_vm_specific_ptr(rb_vmkey_eLoadError))
+    rb_vmkey_eUndefinedConversionError,
+#define rb_eUndefinedConversionError (*rb_vm_specific_ptr(rb_vmkey_eUndefinedConversionError))
+    rb_vmkey_eInvalidByteSequenceError,
+#define rb_eInvalidByteSequenceError (*rb_vm_specific_ptr(rb_vmkey_eInvalidByteSequenceError))
+    rb_vmkey_eConverterNotFoundError,
+#define rb_eConverterNotFoundError (*rb_vm_specific_ptr(rb_vmkey_eConverterNotFoundError))
     rb_vmkey_stdin,
 #define rb_stdin (*rb_vm_specific_ptr(rb_vmkey_stdin))
     rb_vmkey_stdout,
@@ -209,6 +185,7 @@ enum ruby_public_object_vmkey {
     rb_vmkey_debug,
 #define ruby_debug (*rb_vm_specific_ptr(rb_vmkey_debug))
     rb_vmkey_progname,
+#define ruby_progname (*rb_vm_specific_ptr(rb_vmkey_progname))
 
     ruby_public_object_count
 };

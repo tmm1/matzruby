@@ -2,6 +2,10 @@ require 'erb'
 
 module RSS
   module Assertions
+    def _wrap_assertion
+      yield
+    end
+
     def assert_parse(rss, assert_method, *args)
       __send__("assert_#{assert_method}", *args) do
         ::RSS::Parser.parse(rss)
@@ -1460,7 +1464,7 @@ EOA
       _assert_maker_atom_element(feed_type, maker_readers, feed_readers,
                                  maker_extractor, feed_extractor,
                                  &block)
-     end
+    end
 
     def assert_maker_atom_generator(feed_type, maker_readers, feed_readers,
                                     not_set_error_name=nil, &block)

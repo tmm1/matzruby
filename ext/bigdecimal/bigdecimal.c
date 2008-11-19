@@ -579,13 +579,6 @@ BigDecimal_to_i(VALUE self)
     return rb_cstr2inum(psz,10);
 }
 
-static VALUE
-BigDecimal_induced_from(VALUE self, VALUE x)
-{
-    Real *p = GetVpValue(x,1);
-    return p->obj;
-}
-
 /* Returns a new Float object having approximately the same value as the
  * BigDecimal number. Normal accuracy limits and built-in errors of binary
  * Float arithmetic apply.
@@ -611,6 +604,41 @@ BigDecimal_to_f(VALUE self)
        else      return rb_float_new(-DBL_MAX);
     }
     return rb_float_new(d);
+}
+
+
+static VALUE BigDecimal_split(VALUE self);
+
+/* Converts a BigDecimal to a Rational.
+ */
+static VALUE
+BigDecimal_to_r(VALUE self)
+{
+    Real *p;
+    S_LONG sign, power, denomi_power;
+    VALUE a, digits, numerator;
+
+    p = GetVpValue(self,1);
+    sign = VpGetSign(p);
+    power = VpExponent10(p);
+    a = BigDecimal_split(self);
+    digits = RARRAY_PTR(a)[1];
+    denomi_power = power - RSTRING_LEN(digits);
+    numerator = rb_funcall(digits, rb_intern("to_i"), 0);
+    
+    if (sign < 0) {
+	numerator = rb_funcall(numerator, '*', 1, INT2FIX(-1));
+    }
+    if (denomi_power < 0) {
+	return rb_Rational(numerator,
+			   rb_funcall(INT2FIX(10), rb_intern("**"), 1,
+				      INT2FIX(-denomi_power)));
+    }
+    else {
+        return rb_Rational1(rb_funcall(numerator, '*', 1,
+				       rb_funcall(INT2FIX(10), rb_intern("**"), 1,
+						  INT2FIX(denomi_power))));
+    }
 }
 
 /* The coerce method provides support for Ruby type coercion. It is not
@@ -1807,7 +1835,6 @@ Init_bigdecimal(void)
     rb_define_singleton_method(rb_cBigDecimal, "mode", BigDecimal_mode, -1);
     rb_define_singleton_method(rb_cBigDecimal, "limit", BigDecimal_limit, -1);
     rb_define_singleton_method(rb_cBigDecimal, "double_fig", BigDecimal_double_fig, 0);
-    rb_define_singleton_method(rb_cBigDecimal, "induced_from",BigDecimal_induced_from, 1);
     rb_define_singleton_method(rb_cBigDecimal, "_load", BigDecimal_load, 1);
     rb_define_singleton_method(rb_cBigDecimal, "ver", BigDecimal_version, 0);
 
@@ -1926,6 +1953,7 @@ Init_bigdecimal(void)
     rb_define_method(rb_cBigDecimal, "to_s", BigDecimal_to_s, -1);
     rb_define_method(rb_cBigDecimal, "to_i", BigDecimal_to_i, 0);
     rb_define_method(rb_cBigDecimal, "to_int", BigDecimal_to_i, 0);
+    rb_define_method(rb_cBigDecimal, "to_r", BigDecimal_to_r, 0);
     rb_define_method(rb_cBigDecimal, "split", BigDecimal_split, 0);
     rb_define_method(rb_cBigDecimal, "+", BigDecimal_add, 1);
     rb_define_method(rb_cBigDecimal, "-", BigDecimal_sub, 1);
@@ -3944,7 +3972,12 @@ VpCtoV(Real *a, const char *int_chr, U_LONG ni, const char *frac, U_LONG nf, con
             es = e*((S_INT)BASE_FIG);
             e = e * 10 + exp_chr[i] - '0';
             if(es>e*((S_INT)BASE_FIG)) {
-                return VpException(VP_EXCEPTION_INFINITY,"exponent overflow",0);
+                VpException(VP_EXCEPTION_INFINITY,"exponent overflow",0);
+                sign = 1;
+                if(int_chr[0] == '-') sign = -1;
+                if(signe > 0) VpSetInf(a, sign);
+                else VpSetZero(a, sign);
+                return 1;
             }
             ++i;
         }
@@ -4633,8 +4666,20 @@ VpPower(Real *y, Real *x, S_INT n)
         }
         goto Exit;
     }
-    if(!VpIsDef(x)) {
-        VpSetNaN(y); /* Not sure !!! */
+    if(VpIsNaN(x)) {
+        VpSetNaN(y);
+        goto Exit;
+    }
+    if(VpIsInf(x)) {
+        if(n==0) {
+            VpSetOne(y);
+            goto Exit;
+        }
+        if(n>0) {
+            VpSetInf(y, (n%2==0 || VpIsPosInf(x)) ? 1 : -1);
+            goto Exit;
+        }
+        VpSetZero(y, (n%2==0 || VpIsPosInf(x)) ? 1 : -1);
         goto Exit;
     }
 

@@ -1,8 +1,8 @@
 require 'test/unit'
 
 class TestEnv < Test::Unit::TestCase
-  IGNORE_CASE = /djgpp|bccwin|mswin|mingw/ =~ RUBY_PLATFORM
-  PATH_ENV = /human68k/ =~ RUBY_PLATFORM ? "path" : "PATH"
+  IGNORE_CASE = /bccwin|mswin|mingw/ =~ RUBY_PLATFORM
+  PATH_ENV = "PATH"
 
   def setup
     @verbose = $VERBOSE
@@ -36,13 +36,13 @@ class TestEnv < Test::Unit::TestCase
       assert_equal('foo', ENV['test'])
     end
 
-    assert_raises(TypeError) {
+    assert_raise(TypeError) {
       tmp = ENV[1]
     }
-    assert_raises(TypeError) {
+    assert_raise(TypeError) {
       ENV[1] = 'foo'
     }
-    assert_raises(TypeError) {
+    assert_raise(TypeError) {
       ENV['test'] = 0
     }
   end
@@ -118,7 +118,8 @@ class TestEnv < Test::Unit::TestCase
         ENV["test"] = "foo"
       end.join
     end
-    assert_raise(TypeError) { ENV["test"] = nil }
+    assert_nothing_raised { ENV["test"] = nil }
+    assert_equal(nil, ENV["test"])
     assert_raise(ArgumentError) { ENV["foo\0bar"] = "test" }
     assert_raise(ArgumentError) { ENV["test"] = "foo\0bar" }
     ENV[PATH_ENV] = "/tmp/".taint

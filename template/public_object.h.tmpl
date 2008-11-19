@@ -1,0 +1,52 @@
+#ifndef RUBY_PUBLIC_OBJECT_H
+#define RUBY_PUBLIC_OBJECT_H 1
+
+#include "ruby/vm.h"
+
+<%
+public_vars = %w{
+
+  mKernel mComparable mEnumerable mErrno mFileTest mGC mMath mProcess
+
+  cBasicObject cObject cArray cBignum cBinding cClass cDir cData
+  cFalseClass cEncoding cEncodingConverter cEnumerator cFile
+  cFixnum cFloat cHash cInteger cIO cMatch cMethod cModule
+  cNameErrorMesg cNilClass cNumeric cProc cRange cRational cComplex
+  cRegexp cStat cString cStruct cSymbol cThread cTime cTrueClass
+  cUnboundMethod cMutex cBarrier
+
+  eException eStandardError eSystemExit eInterrupt eSignal eFatal
+  eArgError eEOFError eIndexError eStopIteration eKeyError eRangeError
+  eIOError eRuntimeError eSecurityError eSystemCallError eThreadError
+  eTypeError eZeroDivError eNotImpError eNoMemError eNoMethodError
+  eFloatDomainError eLocalJumpError eSysStackError eRegexpError
+  eEncodingError eEncCompatError eScriptError eNameError eSyntaxError
+  eLoadError eUndefinedConversionError
+  eInvalidByteSequenceError eConverterNotFoundError
+
+  stdin stdout stderr argf
+
+}
+
+public_vars2 = %w{
+  verbose debug progname
+}
+%>
+
+VALUE *rb_vm_specific_ptr(int key);
+
+enum ruby_public_object_vmkey {
+% public_vars.each{|var|
+    rb_vmkey_<%=var%>,
+#define rb_<%=var%> (*rb_vm_specific_ptr(rb_vmkey_<%=var%>))
+% }
+% public_vars2.each{|var|
+    rb_vmkey_<%=var%>,
+#define ruby_<%=var%> (*rb_vm_specific_ptr(rb_vmkey_<%=var%>))
+% }
+
+    ruby_public_object_count
+};
+
+#undef RUBY_PUBLIC_OBJECT_ACCESSOR
+#endif	/* RUBY_PUBLIC_OBJECT_H */

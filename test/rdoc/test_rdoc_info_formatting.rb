@@ -1,11 +1,12 @@
 require 'fileutils'
 require 'tmpdir'
-require 'test/unit'
+require 'rubygems'
+require 'minitest/unit'
 
 require 'rdoc/generator/texinfo'
 
 # From chapter 18 of the Pickaxe 3rd ed. and the TexInfo manual.
-class TestRdocInfoFormatting < Test::Unit::TestCase
+class TestRDocInfoFormatting < MiniTest::Unit::TestCase
   def setup
     @output_dir = File.join Dir.tmpdir, "test_rdoc_info_formatting_#{$$}"
     @output_file = File.join @output_dir, 'rdoc.texinfo'
@@ -19,12 +20,13 @@ class TestRdocInfoFormatting < Test::Unit::TestCase
   end
 
   def teardown
-    FileUtils.rm_rf @output_dir
+    # FileUtils.rm_rf @output_dir
   end
 
   # Make sure tags like *this* do not make HTML
   def test_descriptions_are_not_html
-    assert_no_match Regexp.new("\<b\>this\<\/b\>"), @text, "We had some HTML; icky!"
+    refute_match Regexp.new("\<b\>this\<\/b\>"), @text,
+                 "We had some HTML; icky!"
   end
 
   # Ensure we get a reasonable amount
@@ -73,10 +75,10 @@ class TestRdocInfoFormatting < Test::Unit::TestCase
   # === Everything deeper becomes a regular @heading
   # ====== Regardless of its nesting level
   def test_headings
-    assert_match(/@majorheading\{Huge heading should be a @@majorheading\}/)
-    assert_match(/@chapheading\{There is also @@chapheading\}/)
-    assert_match(/@heading\{Everything deeper becomes a regular @@heading\}/)
-    assert_match(/@heading\{Regardless of its nesting level\}/)
+    assert_match(/@majorheading Huge heading should be a @@majorheading/)
+    assert_match(/@chapheading There is also @@chapheading/)
+    assert_match(/@heading Everything deeper becomes a regular @@heading/)
+    assert_match(/@heading Regardless of its nesting level/)
   end
 
   # * list item
@@ -173,3 +175,5 @@ Second outer item.
     assert string[regex] #, message
   end
 end
+
+MiniTest::Unit.autorun

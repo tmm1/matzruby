@@ -69,9 +69,6 @@ rb_encoding* rb_nkf_enc_get(const char *name)
 	idx = rb_enc_find_index(nkf_enc_name(nkf_enc_to_base_encoding(nkf_enc)));
 	if (idx < 0) {
 	    idx = rb_define_dummy_encoding(name);
-	} else {
-	    rb_encoding *rb_enc = rb_enc_from_index(idx);
-	    idx = rb_enc_replicate(name, rb_enc);
 	}
     }
     return rb_enc_from_index(idx);
@@ -138,6 +135,7 @@ int nkf_split_options(const char *arg)
 static VALUE
 rb_nkf_convert(VALUE obj, VALUE opt, VALUE src)
 {
+    volatile VALUE tmp;
     reinit();
     StringValue(opt);
     nkf_split_options(RSTRING_PTR(opt));
@@ -158,7 +156,7 @@ rb_nkf_convert(VALUE obj, VALUE opt, VALUE src)
     StringValue(src);
     input = (unsigned char *)RSTRING_PTR(src);
     i_len = RSTRING_LEN(src);
-    result = rb_str_new(0, i_len*3 + 10);
+    tmp = result = rb_str_new(0, i_len*3 + 10);
 
     output_ctr = 0;
     output     = (unsigned char *)RSTRING_PTR(result);

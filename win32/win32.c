@@ -33,9 +33,6 @@
 #endif
 #include "ruby/win32.h"
 #include "win32/dir.h"
-#ifdef _WIN32_WCE
-#include "wince.h"
-#endif
 #ifndef index
 #define index(x, y) strchr((x), (y))
 #endif
@@ -46,7 +43,7 @@
 #undef close
 #undef setsockopt
 
-#if defined __BORLANDC__ || defined _WIN32_WCE
+#if defined __BORLANDC__
 #  define _filbuf _fgetc
 #  define _flsbuf _fputc
 #  define enough_to_get(n) (--(n) >= 0)
@@ -67,11 +64,7 @@
 static struct ChildRecord *CreateChild(const char *, const char *, SECURITY_ATTRIBUTES *, HANDLE, HANDLE, HANDLE);
 static int has_redirection(const char *);
 int rb_w32_wait_events(HANDLE *events, int num, DWORD timeout);
-#if !defined(_WIN32_WCE)
 static int rb_w32_open_osfhandle(intptr_t osfhandle, int flags);
-#else
-#define rb_w32_open_osfhandle(osfhandle, flags) _open_osfhandle(osfhandle, flags)
-#endif
 
 #define RUBY_CRITICAL(expr) do { expr; } while (0)
 
@@ -508,11 +501,6 @@ rb_w32_sysinit(int *argc, char ***argv)
 
     // Initialize Winsock
     StartSockets();
-
-#ifdef _WIN32_WCE
-    // free commandline buffer
-    wce_FreeCommandLine();
-#endif
 }
 
 char *
@@ -776,9 +764,8 @@ rb_w32_pipe_exec(const char *cmd, const char *prog, int mode, int *pipe,
 	reading = TRUE;
 	writing = FALSE;
     }
-    mode &= ~(O_RDWR|O_RDONLY|O_WRONLY);
-    if (!(mode & O_BINARY))
-	mode |= O_TEXT;
+    mode &= ~(O_RDWR|O_RDONLY|O_WRONLY|O_TEXT);
+    mode |= O_BINARY;
 
     sa.nLength              = sizeof (SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = NULL;
@@ -1698,7 +1685,7 @@ typedef struct	{
 #define _CRTIMP __declspec(dllimport)
 #endif
 
-#if !defined(__BORLANDC__) && !defined(_WIN32_WCE)
+#if !defined(__BORLANDC__)
 EXTERN_C _CRTIMP ioinfo * __pioinfo[];
 
 #define IOINFO_L2E			5
@@ -2157,6 +2144,9 @@ do_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 static inline int
 subtract(struct timeval *rest, const struct timeval *wait)
 {
+    if (rest->tv_sec < wait->tv_sec) {
+	return 0;
+    }
     while (rest->tv_usec < wait->tv_usec) {
 	if (rest->tv_sec <= wait->tv_sec) {
 	    return 0;
@@ -2306,25 +2296,33 @@ int WSAAPI
 rb_w32_accept(int s, struct sockaddr *addr, int *addrlen)
 {
     SOCKET r;
+    int fd;
 
     if (!NtSocketsInitialized) {
 	StartSockets();
     }
     RUBY_CRITICAL({
-	r = accept(TO_SOCKET(s), addr, addrlen);
-	if (r == INVALID_SOCKET) {
-	    errno = map_errno(WSAGetLastError());
-	    s = -1;
-	}
-	else {
-	    s = rb_w32_open_osfhandle(r, O_RDWR|O_BINARY|O_NOINHERIT);
-	    if (s != -1)
+	HANDLE h = CreateFile("NUL", 0, 0, NULL, OPEN_ALWAYS, 0, NULL);
+	fd = rb_w32_open_osfhandle((intptr_t)h, O_RDWR|O_BINARY|O_NOINHERIT);
+	if (fd != -1) {
+	    r = accept(TO_SOCKET(s), addr, addrlen);
+	    if (r != INVALID_SOCKET) {
+		MTHREAD_ONLY(EnterCriticalSection(&(_pioinfo(fd)->lock)));
+		_set_osfhnd(fd, r);
+		MTHREAD_ONLY(LeaveCriticalSection(&_pioinfo(fd)->lock));
+		CloseHandle(h);
 		st_insert(socklist, (st_data_t)r, (st_data_t)0);
-	    else
-		closesocket(r);
+	    }
+	    else {
+		errno = map_errno(WSAGetLastError());
+		close(fd);
+		fd = -1;
+	    }
 	}
+	else
+	    CloseHandle(h);
     });
-    return s;
+    return fd;
 }
 
 #undef bind
@@ -2652,6 +2650,8 @@ open_ifs_socket(int af, int type, int protocol)
 				    WSA_FLAG_OVERLAPPED);
 		    break;
 		}
+		if (out == INVALID_SOCKET)
+		    out = WSASocket(af, type, protocol, NULL, 0, 0);
 	    }
 
 	    free(proto_buffers);
@@ -3756,7 +3756,7 @@ catch_interrupt(void)
     RUBY_CRITICAL(rb_w32_wait_events(NULL, 0, 0));
 }
 
-#if defined __BORLANDC__ || defined _WIN32_WCE
+#if defined __BORLANDC__
 #undef read
 int
 read(int fd, void *buf, size_t size)
@@ -3776,15 +3776,13 @@ int
 rb_w32_getc(FILE* stream)
 {
     int c;
-#ifndef _WIN32_WCE
     if (enough_to_get(stream->FILE_COUNT)) {
 	c = (unsigned char)*stream->FILE_READPTR++;
     }
     else 
-#endif
     {
 	c = _filbuf(stream);
-#if defined __BORLANDC__ || defined _WIN32_WCE
+#if defined __BORLANDC__
         if ((c == EOF) && (errno == EPIPE)) {
 	    clearerr(stream);
         }
@@ -3798,12 +3796,10 @@ rb_w32_getc(FILE* stream)
 int
 rb_w32_putc(int c, FILE* stream)
 {
-#ifndef _WIN32_WCE
     if (enough_to_put(stream->FILE_COUNT)) {
 	c = (unsigned char)(*stream->FILE_READPTR++ = (char)c);
     }
     else 
-#endif
     {
 	c = _flsbuf(c, stream);
 	catch_interrupt();
@@ -4195,7 +4191,7 @@ rb_w32_pipe(int fds[2])
 	return _pipe(fds, 65536L, _O_NOINHERIT);
 
     p = strchr(name, '0');
-    snprintf(p, strlen(p) + 1, "%x-%x", rb_w32_getpid(), serial++);
+    snprintf(p, strlen(p) + 1, "%x-%lx", rb_w32_getpid(), serial++);
 
     sec.nLength = sizeof(sec);
     sec.lpSecurityDescriptor = NULL;
@@ -4443,8 +4439,8 @@ rb_w32_write(int fd, const void *buf, size_t size)
 	memset(&ol, 0, sizeof(ol));
 	if (!(_osfile(fd) & (FDEV | FPIPE))) {
 	    LONG high = 0;
-	    DWORD low = SetFilePointer((HANDLE)_osfhnd(fd), 0, &high,
-				       FILE_CURRENT);
+	    DWORD method = _osfile(fd) & FAPPEND ? FILE_END : FILE_CURRENT;
+	    DWORD low = SetFilePointer((HANDLE)_osfhnd(fd), 0, &high, method);
 #ifndef INVALID_SET_FILE_POINTER
 #define INVALID_SET_FILE_POINTER ((DWORD)-1)
 #endif
@@ -4670,7 +4666,7 @@ rb_w32_unlink(const char *path)
     return ret;
 }
 
-#if !defined(__BORLANDC__) && !defined(_WIN32_WCE)
+#if !defined(__BORLANDC__)
 int
 rb_w32_isatty(int fd)
 {

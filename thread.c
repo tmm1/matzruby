@@ -45,8 +45,8 @@
 /* for model 2 */
 
 #include "eval_intern.h"
-#include "vm.h"
 #include "gc.h"
+#include "ruby/util.h"
 
 #ifndef USE_NATIVE_THREAD_PRIORITY
 #define USE_NATIVE_THREAD_PRIORITY 0
@@ -72,6 +72,7 @@ static void rb_check_deadlock(rb_vm_t *vm);
 
 void rb_signal_exec(rb_thread_t *th, int sig);
 void rb_disable_interrupt(void);
+void rb_thread_stop_timer_thread(void);
 
 static const VALUE eKillSignal = INT2FIX(0);
 static const VALUE eTerminateSignal = INT2FIX(1);
@@ -87,9 +88,18 @@ st_delete_wrap(st_table *table, st_data_t key)
 
 #define THREAD_SYSTEM_DEPENDENT_IMPLEMENTATION
 
+struct rb_blocking_region_buffer {
+    enum rb_thread_status prev_status;
+    struct rb_unblock_callback oldubf;
+};
+
 static void set_unblock_function(rb_thread_t *th, rb_unblock_function_t *func, void *arg,
 				 struct rb_unblock_callback *old);
 static void reset_unblock_function(rb_thread_t *th, const struct rb_unblock_callback *old);
+
+static void inline blocking_region_begin(rb_thread_t *th, struct rb_blocking_region_buffer *region,
+					 rb_unblock_function_t *func, void *arg);
+static void inline blocking_region_end(rb_thread_t *th, struct rb_blocking_region_buffer *region);
 
 #define GVL_UNLOCK_BEGIN() do { \
   rb_thread_t *_th_stored = GET_THREAD(); \
@@ -110,18 +120,10 @@ static void reset_unblock_function(rb_thread_t *th, const struct rb_unblock_call
 
 #define BLOCKING_REGION(exec, ubf, ubfarg) do { \
     rb_thread_t *__th = GET_THREAD(); \
-    enum rb_thread_status __prev_status = __th->status; \
-    struct rb_unblock_callback __oldubf; \
-    set_unblock_function(__th, ubf, ubfarg, &__oldubf); \
-    __th->status = THREAD_STOPPED; \
-    thread_debug("enter blocking region (%p)\n", __th); \
-    BLOCKING_REGION_CORE(exec); \
-    thread_debug("leave blocking region (%p)\n", __th); \
-    remove_signal_thread_list(__th); \
-    reset_unblock_function(__th, &__oldubf); \
-    if (__th->status == THREAD_STOPPED) { \
-	__th->status = __prev_status; \
-    } \
+    struct rb_blocking_region_buffer __region; \
+    blocking_region_begin(__th, &__region, ubf, ubfarg); \
+    exec; \
+    blocking_region_end(__th, &__region); \
     RUBY_VM_CHECK_INTS(); \
 } while(0)
 
@@ -326,7 +328,7 @@ rb_vm_thread_terminate_all(rb_vm_t *vm)
 	}
 	POP_TAG();
     }
-    --system_working;
+    rb_thread_stop_timer_thread();
 }
 
 int
@@ -919,6 +921,15 @@ rb_thread_check_trap_pending(void)
     return !rb_queue_empty_p(&GET_THREAD()->queue.signal);
 }
 
+/* This function can be called in blocking region. */
+int
+rb_thread_interrupted(VALUE thval)
+{
+    rb_thread_t *th;
+    GetThreadPtr(thval, th);
+    return RUBY_VM_INTERRUPTED(th);
+}
+
 struct timeval rb_time_timeval();
 
 void
@@ -950,6 +961,79 @@ rb_thread_schedule(void)
     }
 }
 
+/* blocking region */
+static inline void
+blocking_region_begin(rb_thread_t *th, struct rb_blocking_region_buffer *region,
+		      rb_unblock_function_t *func, void *arg)
+{
+    region->prev_status = th->status;
+    set_unblock_function(th, func, arg, &region->oldubf);
+    th->status = THREAD_STOPPED;
+    thread_debug("enter blocking region (%p)\n", th);
+    rb_gc_save_machine_context(th);
+    native_mutex_unlock(&th->vm->global_vm_lock);
+}
+
+static inline void
+blocking_region_end(rb_thread_t *th, struct rb_blocking_region_buffer *region)
+{
+    native_mutex_lock(&th->vm->global_vm_lock);
+    rb_thread_set_current(th);
+    thread_debug("leave blocking region (%p)\n", th);
+    remove_signal_thread_list(th);
+    reset_unblock_function(th, &region->oldubf);
+    if (th->status == THREAD_STOPPED) {
+	th->status = region->prev_status;
+    }
+}
+
+struct rb_blocking_region_buffer *
+rb_thread_blocking_region_begin(void)
+{
+    rb_thread_t *th = GET_THREAD();
+    struct rb_blocking_region_buffer *region = ALLOC(struct rb_blocking_region_buffer);
+    blocking_region_begin(th, region, ubf_select, th);
+    return region;
+}
+
+void
+rb_thread_blocking_region_end(struct rb_blocking_region_buffer *region)
+{
+    rb_thread_t *th = GET_THREAD();
+    blocking_region_end(th, region);
+    xfree(region);
+    RUBY_VM_CHECK_INTS();
+}
+
+/*
+ * rb_thread_blocking_region - permit concurrent/parallel execution.
+ *
+ * This function does:
+ *   (1) release GVL.
+ *       Other Ruby threads may run in parallel.
+ *   (2) call func with data1.
+ *   (3) aquire GVL.
+ *       Other Ruby threads can not run in parallel any more.
+ *
+ *   If another thread interrupts this thread (Thread#kill, signal deliverly,
+ *   VM-shutdown request, and so on), `ubf()' is called (`ubf()' means
+ *   "un-blocking function").  `ubf()' should interrupt `func()' execution.
+ *
+ *   There are built-in ubfs and you can specify these ubfs.
+ *   However, we can not guarantee our built-in ubfs interrupt
+ *   your `func()' correctly.  Be careful to use rb_thread_blocking_region().
+ *
+ *     * RUBY_UBF_IO: ubf for IO operation
+ *     * RUBY_UBF_PROCESS: ubf for process operation
+ *
+ *   NOTE: You can not execute most of Ruby C API and touch Ruby objects
+ *         in `func()' and `ubf()' because current thread doesn't acquire
+ *         GVL (cause synchronization problem).  If you need to do it,
+ *         read source code of C APIs and confirm by yourself.
+ *
+ *   Safe C API:
+ *     * rb_thread_interrupted() - check interrupt flag
+ */
 VALUE
 rb_thread_blocking_region(
     rb_blocking_function_t *func, void *data1,
@@ -2236,6 +2320,7 @@ rb_thread_wait_fd_rw(int fd, int read)
     if (fd < 0) {
 	rb_raise(rb_eIOError, "closed stream");
     }
+    if (rb_thread_alone()) return;
     while (result <= 0) {
 	rb_fdset_t set;
 	rb_fd_init(&set);
@@ -2322,6 +2407,7 @@ int rb_get_next_signal(void);
 static int
 vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
 {
+    /* for time slice */
     RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
     return Qtrue;
 }
@@ -2388,7 +2474,7 @@ timer_thread_function(void *arg)
 void
 rb_thread_stop_timer_thread(void)
 {
-    if (timer_thread_id && --system_working == 0) {
+    if (timer_thread_id && native_stop_timer_thread()) {
 	native_thread_join(timer_thread_id);
 	timer_thread_id = 0;
     }
@@ -3059,7 +3145,7 @@ mutex_sleep(int argc, VALUE *argv, VALUE self)
  */
 
 VALUE
-rb_thread_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg)
+rb_mutex_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg)
 {
     rb_mutex_lock(mutex);
     return rb_ensure(func, arg, rb_mutex_unlock, mutex);
@@ -3068,135 +3154,47 @@ rb_thread_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg)
 /*
  * Document-class: Barrier
  */
-typedef struct rb_thread_list_struct rb_thread_list_t;
-
-struct rb_thread_list_struct {
-    rb_thread_t *th;
-    rb_thread_list_t *next;
-};
-
-static void
-thlist_mark(void *ptr)
-{
-    rb_thread_list_t *q = ptr;
-
-    for (; q; q = q->next) {
-	rb_gc_mark(q->th->self);
-    }
-}
-
-static void
-thlist_free(void *ptr)
-{
-    rb_thread_list_t *q = ptr, *next;
-
-    for (; q; q = next) {
-	next = q->next;
-	ruby_xfree(q);
-    }
-}
-
-static int
-thlist_signal(rb_thread_list_t **list, unsigned int maxth, rb_thread_t **woken_thread)
-{
-    int woken = 0;
-    rb_thread_list_t *q;
-
-    while ((q = *list) != NULL) {
-	rb_thread_t *th = q->th;
-
-	*list = q->next;
-	ruby_xfree(q);
-	if (th->status != THREAD_KILLED) {
-	    rb_thread_ready(th);
-	    if (!woken && woken_thread) *woken_thread = th;
-	    if (++woken >= maxth && maxth) break;
-	}
-    }
-    return woken;
-}
-
-typedef struct {
-    rb_thread_t *owner;
-    rb_thread_list_t *waiting, **tail;
-} rb_barrier_t;
-
-static void
-barrier_mark(void *ptr)
-{
-    rb_barrier_t *b = ptr;
-
-    if (b->owner) rb_gc_mark(b->owner->self);
-    thlist_mark(b->waiting);
-}
-
-static void
-barrier_free(void *ptr)
-{
-    rb_barrier_t *b = ptr;
-
-    b->owner = 0;
-    thlist_free(b->waiting);
-    b->waiting = 0;
-    ruby_xfree(ptr);
-}
-
 static VALUE
 barrier_alloc(VALUE klass)
 {
-    VALUE volatile obj;
-    rb_barrier_t *barrier;
-
-    obj = Data_Make_Struct(klass, rb_barrier_t, barrier_mark, barrier_free, barrier);
-    barrier->owner = GET_THREAD();
-    barrier->waiting = 0;
-    barrier->tail = &barrier->waiting;
-    return obj;
+    return Data_Wrap_Struct(klass, rb_gc_mark, 0, (void *)mutex_alloc(0));
 }
 
 VALUE
 rb_barrier_new(void)
 {
-    return barrier_alloc(rb_cBarrier);
+    VALUE barrier = barrier_alloc(rb_cBarrier);
+    rb_mutex_lock((VALUE)DATA_PTR(barrier));
+    return barrier;
 }
 
 VALUE
 rb_barrier_wait(VALUE self)
 {
-    rb_barrier_t *barrier;
-    rb_thread_list_t *q;
+    VALUE mutex = (VALUE)DATA_PTR(self);
+    mutex_t *m;
 
-    Data_Get_Struct(self, rb_barrier_t, barrier);
-    if (!barrier->owner || barrier->owner->status == THREAD_KILLED) {
-	barrier->owner = 0;
-	if (thlist_signal(&barrier->waiting, 1, &barrier->owner)) return Qfalse;
-	return Qtrue;
-    }
-    else if (barrier->owner == GET_THREAD()) {
-	return Qfalse;
-    }
-    else {
-	*barrier->tail = q = ALLOC(rb_thread_list_t);
-	q->th = GET_THREAD();
-	q->next = 0;
-	barrier->tail = &q->next;
-	rb_thread_sleep_forever();
-	return barrier->owner == GET_THREAD() ? Qtrue : Qfalse;
-    }
+    if (!mutex) return Qfalse;
+    GetMutexPtr(mutex, m);
+    if (m->th == GET_THREAD()) return Qfalse;
+    rb_mutex_lock(mutex);
+    if (DATA_PTR(self)) return Qtrue;
+    rb_mutex_unlock(mutex);
+    return Qfalse;
 }
 
 VALUE
 rb_barrier_release(VALUE self)
 {
-    rb_barrier_t *barrier;
-    unsigned int n;
+    return rb_mutex_unlock((VALUE)DATA_PTR(self));
+}
 
-    Data_Get_Struct(self, rb_barrier_t, barrier);
-    if (barrier->owner != GET_THREAD()) {
-	rb_raise(rb_eThreadError, "not owned");
-    }
-    n = thlist_signal(&barrier->waiting, 0, &barrier->owner);
-    return n ? UINT2NUM(n) : Qfalse;
+VALUE
+rb_barrier_destroy(VALUE self)
+{
+    VALUE mutex = (VALUE)DATA_PTR(self);
+    DATA_PTR(self) = 0;
+    return rb_mutex_unlock(mutex);
 }
 
 /* variables for recursive traversals */

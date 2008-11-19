@@ -94,7 +94,7 @@ static int
 char_casecmp(const char *p1, const char *p2, rb_encoding *enc, const int nocase)
 {
     const char *p1end, *p2end;
-    int c1, c2;
+    unsigned int c1, c2;
 
     if (!*p1 || !*p2) return !!*p1 - !!*p2;
     p1end = p1 + strlen(p1);
@@ -428,16 +428,6 @@ dir_check(VALUE dir)
     if (dirp->dir == NULL) dir_closed();\
 } while (0)
 
-static VALUE
-dir_enc_str_new(const char *p, long len, rb_encoding *enc)
-{
-    VALUE path = rb_tainted_str_new(p, len);
-    if (rb_enc_asciicompat(enc) && rb_enc_str_asciionly_p(path)) {
-	enc = rb_usascii_encoding();
-    }
-    rb_enc_associate(path, enc);
-    return path;
-}
 
 /*
  *  call-seq:
@@ -499,7 +489,7 @@ dir_read(VALUE dir)
     errno = 0;
     dp = readdir(dirp->dir);
     if (dp) {
-	return dir_enc_str_new(dp->d_name, NAMLEN(dp), dirp->enc);
+	return rb_external_str_new_with_enc(dp->d_name, NAMLEN(dp), dirp->enc);
     }
     else if (errno == 0) {	/* end of stream */
 	return Qnil;
@@ -537,7 +527,7 @@ dir_each(VALUE dir)
     GetDIR(dir, dirp);
     rewinddir(dirp->dir);
     for (dp = readdir(dirp->dir); dp != NULL; dp = readdir(dirp->dir)) {
-	rb_yield(dir_enc_str_new(dp->d_name, NAMLEN(dp), dirp->enc));
+	rb_yield(rb_external_str_new_with_enc(dp->d_name, NAMLEN(dp), dirp->enc));
 	if (dirp->dir == NULL) dir_closed();
     }
     return dir;
@@ -698,7 +688,7 @@ ruby_dirfd(const char *path)
 # elif defined O_DIRECTORY
     return open(path, O_RDONLY|O_DIRECTORY);
 # else
-#   error don't know how to open directory.
+#   error do not know how to open directory.
 # endif
 }
 #endif
@@ -1516,7 +1506,7 @@ rb_glob(const char *path, void (*func)(const char *, VALUE, void *), VALUE arg)
 static void
 push_pattern(const char *path, VALUE ary, void *enc)
 {
-    rb_ary_push(ary, dir_enc_str_new(path, strlen(path), enc));
+    rb_ary_push(ary, rb_external_str_new_with_enc(path, strlen(path), enc));
 }
 
 static int
@@ -1661,7 +1651,7 @@ dir_globs(long argc, VALUE *argv, int flags)
     for (i = 0; i < argc; ++i) {
 	int status;
 	VALUE str = argv[i];
-	StringValue(str);
+	SafeStringValue(str);
 	status = push_glob(ary, str, flags);
 	if (status) GLOB_JUMP_TAG(status);
     }

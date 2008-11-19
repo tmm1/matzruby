@@ -28,7 +28,7 @@
 #endif
 
 #ifndef _WIN32
-#if defined(__BEOS__) && !defined(__HAIKU__)  
+#if defined(__BEOS__) && !defined(__HAIKU__) && !defined(BONE)
 # include <net/socket.h>
 #else
 # include <sys/socket.h>
@@ -241,9 +241,7 @@ init_sock(VALUE sock, int fd)
     MakeOpenFile(sock, fp);
     fp->fd = fd;
     fp->mode = FMODE_READWRITE|FMODE_DUPLEX;
-#if defined(_WIN32) || defined(DJGPP) || defined(__CYGWIN__) || defined(__human68k__) || defined(__EMX__)
-    fp->mode |= FMODE_BINMODE;
-#endif
+    rb_io_ascii8bit_binmode(sock);
     if (do_not_reverse_lookup) {
 	fp->mode |= FMODE_NOREVLOOKUP;
     }
@@ -772,7 +770,7 @@ bsock_recv(int argc, VALUE *argv, VALUE sock)
  * 	c = TCPSocket.new(addr, port)
  * 	s = serv.accept
  * 	c.send "aaa", 0
- * 	IO.select([s])
+ * 	IO.select([s]) # emulate blocking recv.
  * 	p s.recv_nonblock(10) #=> "aaa"
  *
  * Refer to Socket#recvfrom for the exceptions that may be thrown if the call
@@ -869,7 +867,7 @@ host_str(VALUE host, char *hbuf, size_t len)
 	return NULL;
     }
     else if (rb_obj_is_kind_of(host, rb_cInteger)) {
-	long i = NUM2LONG(host);
+	unsigned long i = NUM2ULONG(host);
 
 	make_inetaddr(htonl(i), hbuf, len);
 	return hbuf;
@@ -1598,7 +1596,7 @@ tcp_accept(VALUE sock)
  * === Example
  * 	require 'socket'
  * 	serv = TCPServer.new(2202)
- * 	begin
+ * 	begin # emulate blocking accept
  * 	  sock = serv.accept_nonblock
  * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
  * 	  IO.select([serv])
@@ -1899,7 +1897,7 @@ udp_send(int argc, VALUE *argv, VALUE sock)
  * 	s2.connect(*s1.addr.values_at(3,1))
  * 	s1.connect(*s2.addr.values_at(3,1))
  * 	s1.send "aaa", 0
- * 	IO.select([s2])
+ * 	IO.select([s2]) # emulate blocking recvfrom
  * 	p s2.recvfrom_nonblock(10)  #=> ["aaa", ["AF_INET", 33302, "localhost.localdomain", "127.0.0.1"]]
  *
  * Refer to Socket#recvfrom for the exceptions that may be thrown if the call
@@ -2187,7 +2185,7 @@ unix_accept(VALUE sock)
  * === Example
  * 	require 'socket'
  * 	serv = UNIXServer.new("/tmp/sock")
- * 	begin
+ * 	begin # emulate blocking accept
  * 	  sock = serv.accept_nonblock
  * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
  * 	  IO.select([serv])
@@ -2560,7 +2558,7 @@ sock_connect(VALUE sock, VALUE addr)
  * 	include Socket::Constants
  * 	socket = Socket.new(AF_INET, SOCK_STREAM, 0)
  * 	sockaddr = Socket.sockaddr_in(80, 'www.google.com')
- * 	begin
+ * 	begin # emulate blocking connect
  * 	  socket.connect_nonblock(sockaddr)
  * 	rescue Errno::EINPROGRESS
  * 	  IO.select(nil, [socket])
@@ -2916,7 +2914,7 @@ sock_recvfrom(int argc, VALUE *argv, VALUE sock)
  * 	socket.bind(sockaddr)
  * 	socket.listen(5)
  * 	client, client_sockaddr = socket.accept
- * 	begin
+ * 	begin # emulate blocking recvfrom
  * 	  pair = client.recvfrom_nonblock(20)
  * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK
  * 	  IO.select([client])
@@ -2984,7 +2982,7 @@ sock_accept(VALUE sock)
  * 	sockaddr = Socket.sockaddr_in(2200, 'localhost')
  * 	socket.bind(sockaddr)
  * 	socket.listen(5)
- * 	begin
+ * 	begin # emulate blocking accept
  * 	  client_socket, client_sockaddr = socket.accept_nonblock
  * 	rescue Errno::EAGAIN, Errno::EWOULDBLOCK, Errno::ECONNABORTED, Errno::EPROTO, Errno::EINTR
  * 	  IO.select([socket])
@@ -3224,23 +3222,23 @@ sock_s_getservbyname(int argc, VALUE *argv)
     VALUE service, proto;
     struct servent *sp;
     int port;
+    const char *servicename, *protoname = "tcp";
 
     rb_scan_args(argc, argv, "11", &service, &proto);
-    if (NIL_P(proto)) proto = rb_str_new2("tcp");
     StringValue(service);
-    StringValue(proto);
-
-    sp = getservbyname(StringValueCStr(service),  StringValueCStr(proto));
+    if (!NIL_P(proto)) StringValue(proto);
+    servicename = StringValueCStr(service);
+    if (!NIL_P(proto)) protoname = StringValueCStr(proto);
+    sp = getservbyname(servicename, protoname);
     if (sp) {
 	port = ntohs(sp->s_port);
     }
     else {
-	char *s = RSTRING_PTR(service);
 	char *end;
 
-	port = STRTOUL(s, &end, 0);
+	port = STRTOUL(servicename, &end, 0);
 	if (*end != '\0') {
-	    rb_raise(rb_eSocket, "no such service %s/%s", s, RSTRING_PTR(proto));
+	    rb_raise(rb_eSocket, "no such service %s/%s", servicename, protoname);
 	}
     }
     return INT2FIX(port);
@@ -3251,14 +3249,20 @@ sock_s_getservbyport(int argc, VALUE *argv)
 {
     VALUE port, proto;
     struct servent *sp;
+    long portnum;
+    const char *protoname = "tcp";
 
     rb_scan_args(argc, argv, "11", &port, &proto);
-    if (NIL_P(proto)) proto = rb_str_new2("tcp");
-    StringValue(proto);
+    portnum = NUM2LONG(port);
+    if (portnum != (uint16_t)portnum) {
+	const char *s = portnum > 0 ? "big" : "small";
+	rb_raise(rb_eRangeError, "integer %ld too %s to convert into `int16_t'", portnum, s);
+    }
+    if (!NIL_P(proto)) protoname = StringValueCStr(proto);
 
-    sp = getservbyport(NUM2INT(port),  StringValueCStr(proto));
+    sp = getservbyport((int)htons((uint16_t)portnum), protoname);
     if (!sp) {
-	rb_raise(rb_eSocket, "no such service for port %d/%s", NUM2INT(port), RSTRING_PTR(proto));
+	rb_raise(rb_eSocket, "no such service for port %d/%s", (int)portnum, protoname);
     }
     return rb_tainted_str_new2(sp->s_name);
 }

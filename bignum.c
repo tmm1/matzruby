@@ -759,13 +759,14 @@ static void
 power_cache_init(void)
 {
     VALUE cache_value = rb_ary_new2(35 * MAX_BIG2STR_TABLE_ENTRIES);
+    MEMZERO(RARRAY_PTR(cache_value), VALUE, 35 * MAX_BIG2STR_TABLE_ENTRIES);
     rb_big2str_power_cache = cache_value;
 }
 
 static inline VALUE
 power_cache_get_power0(big2str_power_cache_t cache, int base, int i)
 {
-    if (NIL_P(cache[base - 2][i])) {
+    if (!cache[base - 2][i]) {
 	if (i == 0) {
 	    cache[base - 2][i] =
 		rb_big_pow(rb_int2big(base), INT2FIX(KARATSUBA_DIGITS));
@@ -894,21 +895,6 @@ big2str_karatsuba(VALUE x, int base, char* ptr,
     long lh, ll, m1;
     VALUE b, q, r;
 
-    if (FIXNUM_P(x)) {
-	VALUE str = rb_fix2str(x, base);
-	char* str_ptr = RSTRING_PTR(str);
-	long str_len = RSTRING_LEN(str);
-	if (trim) {
-	    if (FIX2INT(x) == 0) return 0;
-	    MEMCPY(ptr, str_ptr, char, str_len);
-	    return str_len;
-	}
-	else {
-	    memset(ptr, '0', len - str_len);
-	    MEMCPY(ptr + len - str_len, str_ptr, char, str_len);
-	    return len;
-	}
-    }
     if (BIGZEROP(x)) {
 	if (trim) return 0;
 	else {
@@ -923,10 +909,12 @@ big2str_karatsuba(VALUE x, int base, char* ptr,
 
     b = power_cache_get_power(base, n1, &m1);
     bigdivmod(x, b, &q, &r);
-    lh = big2str_karatsuba(q, base, ptr,      (len - m1)/2,
+    lh = big2str_karatsuba(q, base, ptr, (len - m1)/2,
 			   len - m1, hbase, trim);
+    rb_big_resize(q, 0);
     ll = big2str_karatsuba(r, base, ptr + lh, m1/2,
-			   m1,       hbase, !lh && trim);
+			   m1, hbase, !lh && trim);
+    rb_big_resize(r, 0);
 
     return lh + ll;
 }
@@ -969,6 +957,7 @@ rb_big2str0(VALUE x, int base, int trim)
 	len = off + big2str_karatsuba(xx, base, ptr + off, n1,
 				      n2, hbase, trim);
     }
+    rb_big_resize(xx, 0);
 
     ptr[len] = '\0';
     rb_str_resize(ss, len);
@@ -1624,6 +1613,7 @@ rb_big_mul(VALUE x, VALUE y)
 }
 
 struct big_div_struct {
+    VALUE x, y;
     long nx, ny;
     BDIGIT *yds, *zds;
     VALUE stop;
@@ -1748,6 +1738,8 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 	while (j--) zds[j] = xds[j];
     }
 
+    bds.x = x;
+    bds.y = y;
     bds.nx = nx;
     bds.ny = ny;
     bds.zds = zds;
@@ -1765,6 +1757,7 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 	zds = BDIGITS(*divp);
 	j = (nx==ny ? nx+2 : nx+1) - ny;
 	for (i = 0;i < j;i++) zds[i] = zds[i+ny];
+	if (!zds[i-1]) i--;
 	RBIGNUM_SET_LEN(*divp, i);
     }
     if (modp) {			/* normalize remainder */
@@ -1780,6 +1773,7 @@ bigdivrem(VALUE x, VALUE y, VALUE *divp, VALUE *modp)
 		t2 = BIGUP(q);
 	    }
 	}
+	if (!zds[ny-1]) ny--;
 	RBIGNUM_SET_LEN(*modp, ny);
 	RBIGNUM_SET_SIGN(*modp, RBIGNUM_SIGN(x));
     }
@@ -2113,9 +2107,6 @@ rb_big_pow(VALUE x, VALUE y)
 	break;
 
       case T_BIGNUM:
-	if (rb_funcall(y, '<', 1, INT2FIX(0)))
-	  return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
-
 	rb_warn("in a**b, b may be too big");
 	d = rb_big2dbl(y);
 	break;
@@ -2124,7 +2115,7 @@ rb_big_pow(VALUE x, VALUE y)
 	yy = FIX2LONG(y);
 
 	if (yy < 0)
-	  return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
+	    return rb_funcall(rb_rational_raw1(x), rb_intern("**"), 1, y);
 	else {
 	    VALUE z = 0;
 	    SIGNED_VALUE mask;

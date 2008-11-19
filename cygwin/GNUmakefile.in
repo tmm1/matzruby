@@ -1,5 +1,5 @@
 include Makefile
-include uncommon.mk
+-include uncommon.mk
 
 ENABLE_SHARED=@ENABLE_SHARED@
 DLLWRAP = @DLLWRAP@ --target=@target_os@
@@ -9,7 +9,7 @@ ifeq (@target_os@,cygwin)
 else
   DLL_BASE_NAME := $(RUBY_SO_NAME)
   DLLWRAP += -mno-cygwin
-  VPATH += $(srcdir)/win32
+  VPATH := $(VPATH):$(srcdir)/win32
 endif
 
 ifneq ($(ENABLE_SHARED),yes)

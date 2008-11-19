@@ -1540,7 +1540,7 @@ str_node_split_last_char(StrNode* sn, OnigEncoding enc)
   Node* n = NULL_NODE;
 
   if (sn->end > sn->s) {
-    p = onigenc_get_prev_char_head(enc, sn->s, sn->end);
+    p = onigenc_get_prev_char_head(enc, sn->s, sn->end, sn->end);
     if (p && p > sn->s) { /* can be splitted. */
       n = node_new_str(p, sn->end);
       if ((sn->flag & NSTR_RAW) != 0)
@@ -4218,8 +4218,8 @@ parse_char_class(Node** np, OnigToken* tok, UChar** src, UChar* end,
     fetched = 0;
     switch (r) {
     case TK_CHAR:
-      len = ONIGENC_CODE_TO_MBCLEN(env->enc, tok->u.c);
-      if (len > 1) {
+      if ((tok->u.code >= SINGLE_BYTE_SIZE) ||
+	  (len = ONIGENC_CODE_TO_MBCLEN(env->enc, tok->u.c)) > 1) {
 	in_type = CCV_CODE_POINT;
       }
       else if (len < 0) {
@@ -5387,7 +5387,10 @@ parse_exp(Node** np, OnigToken* tok, int term,
       if (tok->u.repeat.possessive != 0) {
 	Node* en;
 	en = node_new_enclose(ENCLOSE_STOP_BACKTRACK);
-	CHECK_NULL_RETURN_MEMERR(en);
+	if (IS_NULL(en)) {
+	  onig_node_free(qn);
+	  return ONIGERR_MEMORY;
+	}
 	NENCLOSE(en)->target = qn;
 	qn = en;
       }

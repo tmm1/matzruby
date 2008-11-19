@@ -1,11 +1,9 @@
-#!/usr/bin/env ruby
 #--
 # Copyright 2006 by Chad Fowler, Rich Kilmer, Jim Weirich and others.
 # All rights reserved.
 # See LICENSE.txt for permissions.
 #++
 
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'rubygems/config_file'
 
@@ -57,6 +55,9 @@ class TestGemConfigFile < RubyGemTestCase
       fp.puts ":sources:"
       fp.puts "  - http://more-gems.example.com"
       fp.puts "install: --wrappers"
+      fp.puts ":gempath:"
+      fp.puts "- /usr/ruby/1.8/lib/ruby/gems/1.8"
+      fp.puts "- /var/ruby/1.8/gem_home"
     end
 
     util_config_file
@@ -68,6 +69,8 @@ class TestGemConfigFile < RubyGemTestCase
     assert_equal false, @cfg.update_sources
     assert_equal %w[http://more-gems.example.com], Gem.sources
     assert_equal '--wrappers', @cfg[:install]
+    assert_equal(['/usr/ruby/1.8/lib/ruby/gems/1.8', '/var/ruby/1.8/gem_home'],
+                 @cfg.path)
   end
 
   def test_initialize_handle_arguments_config_file

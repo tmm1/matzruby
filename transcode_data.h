@@ -34,10 +34,12 @@
 #define FUNsi	(PType 0x0D)	/* function from start to info */
 #define FUNio	(PType 0x0E)	/* function from info to output */
 #define FUNso	(PType 0x0F)	/* function from start to output */
-#define STR1	(PType 0x11)	/* string up to 255 bytes: 1byte length + content */
+#define STR1	(PType 0x11)	/* string 4 <= len <= 259 bytes: 1byte length + content */
 
+#define STR1_LENGTH(byte_addr) (*(byte_addr) + 4)
 #define STR1_BYTEINDEX(w) ((w) >> 6)
 #define makeSTR1(bi) (((bi) << 6) | STR1)
+#define makeSTR1LEN(len) ((len)-4)
 
 #define o1(b1)		(PType((((unsigned char)(b1))<<8)|ONEbt))
 #define o2(b1,b2)	(PType((((unsigned char)(b1))<<8)|(((unsigned char)(b2))<<16)|TWObt))
@@ -84,11 +86,11 @@ struct rb_transcoder {
     int (*state_fini_func)(void*); /* ret==0:success ret!=0:failure(errno) */
     VALUE (*func_ii)(void*, VALUE); /* info  -> info   */
     VALUE (*func_si)(void*, const unsigned char*, size_t); /* start -> info   */
-    int (*func_io)(void*, VALUE, const unsigned char*); /* info  -> output */
-    int (*func_so)(void*, const unsigned char*, size_t, unsigned char*); /* start -> output */
-    int (*finish_func)(void*, unsigned char*); /* -> output */
-    int (*resetsize_func)(void*); /* -> len */
-    int (*resetstate_func)(void*, unsigned char*); /* -> output */
+    ssize_t (*func_io)(void*, VALUE, const unsigned char*, size_t); /* info  -> output */
+    ssize_t (*func_so)(void*, const unsigned char*, size_t, unsigned char*, size_t); /* start -> output */
+    ssize_t (*finish_func)(void*, unsigned char*, size_t); /* -> output */
+    ssize_t (*resetsize_func)(void*); /* -> len */
+    ssize_t (*resetstate_func)(void*, unsigned char*, size_t); /* -> output */
 };
 
 void rb_declare_transcoder(const char *enc1, const char *enc2, const char *lib);

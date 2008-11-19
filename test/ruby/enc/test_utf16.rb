@@ -1,12 +1,19 @@
 require 'test/unit'
 
 class TestUTF16 < Test::Unit::TestCase
-  def encdump(str)
-    d = str.dump
-    if /\.force_encoding\("[A-Za-z0-9.:_+-]*"\)\z/ =~ d
-      d
+  def encdump(obj)
+    case obj
+    when String
+      d = obj.dump
+      if /\.force_encoding\("[A-Za-z0-9.:_+-]*"\)\z/ =~ d
+        d
+      else
+        "#{d}.force_encoding(#{obj.encoding.name.dump})"
+      end
+    when Regexp
+      "Regexp.new(#{encdump(obj.source)}, #{obj.options})"
     else
-      "#{d}.force_encoding(#{str.encoding.name.dump})"
+      raise Argument, "unexpected: #{obj.inspect}"
     end
   end
 
@@ -137,19 +144,19 @@ EOT
   end
 
   def test_hex
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "ff".encode("utf-16le").hex
     }
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "ff".encode("utf-16be").hex
     }
   end
 
   def test_oct
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "77".encode("utf-16le").oct
     }
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "77".encode("utf-16be").oct
     }
   end
@@ -157,7 +164,7 @@ EOT
   def test_count
     s1 = "aa".force_encoding("utf-16be")
     s2 = "aa"
-    assert_raise(EncodingCompatibilityError, "#{encdump s1}.count(#{encdump s2})") {
+    assert_raise(Encoding::CompatibilityError, "#{encdump s1}.count(#{encdump s2})") {
       s1.count(s2)
     }
   end
@@ -165,7 +172,7 @@ EOT
   def test_plus
     s1 = "a".force_encoding("us-ascii")
     s2 = "aa".force_encoding("utf-16be")
-    assert_raise(EncodingCompatibilityError, "#{encdump s1} + #{encdump s2}") {
+    assert_raise(Encoding::CompatibilityError, "#{encdump s1} + #{encdump s2}") {
       s1 + s2
     }
   end
@@ -178,7 +185,7 @@ EOT
 
   def test_interpolation
     s = "aa".force_encoding("utf-16be")
-    assert_raise(EncodingCompatibilityError, "\"a\#{#{encdump s}}\"") {
+    assert_raise(Encoding::CompatibilityError, "\"a\#{#{encdump s}}\"") {
       "a#{s}"
     }
   end
@@ -206,7 +213,7 @@ EOT
   def test_plus_nonempty
     s1 = "aa"
     s2 = "bb".force_encoding("utf-16be")
-    assert_raise(EncodingCompatibilityError, "#{encdump s1} << #{encdump s2}") {
+    assert_raise(Encoding::CompatibilityError, "#{encdump s1} << #{encdump s2}") {
       s1 + s2
     }
   end
@@ -230,7 +237,7 @@ EOT
   def test_concat_nonempty
     s1 = "aa"
     s2 = "bb".force_encoding("utf-16be")
-    assert_raise(EncodingCompatibilityError, "#{encdump s1} << #{encdump s2}") {
+    assert_raise(Encoding::CompatibilityError, "#{encdump s1} << #{encdump s2}") {
       s1 << s2
     }
   end
@@ -272,7 +279,7 @@ EOT
       s.gsub(Regexp.new(".".encode("utf-16be")), "xy")
     }
     s = "ab\0\ncd".force_encoding("utf-16be")
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       s.gsub(Regexp.new(".".encode("utf-16be")), "xy")
     }
   end
@@ -354,5 +361,24 @@ EOT
     assert_equal(sb, 0x20bb7.chr("utf-16be"))
     assert_equal("", sl.chop)
     assert_equal("", sb.chop)
+  end
+
+  def test_regexp_escape
+    s = "\0*".force_encoding("UTF-16BE")
+    r = Regexp.new(Regexp.escape(s))
+    assert(r =~ s, "#{encdump(r)} =~ #{encdump(s)}")
+  end
+
+  def test_casecmp
+    assert_equal(0, "\0A".force_encoding("UTF-16BE").casecmp("\0a".force_encoding("UTF-16BE")))
+    assert_not_equal(0, "\0A".force_encoding("UTF-16LE").casecmp("\0a".force_encoding("UTF-16LE")))
+    assert_not_equal(0, "A\0".force_encoding("UTF-16BE").casecmp("a\0".force_encoding("UTF-16BE")))
+    assert_equal(0, "A\0".force_encoding("UTF-16LE").casecmp("a\0".force_encoding("UTF-16LE")))
+
+    ary = ["01".force_encoding("UTF-16LE"),
+           "10".force_encoding("UTF-16LE")]
+    e = ary.sort {|x,y| x <=> y }
+    a = ary.sort {|x,y| x.casecmp(y) }
+    assert_equal(e, a)
   end
 end

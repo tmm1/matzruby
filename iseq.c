@@ -10,11 +10,11 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "ruby/node.h"
 
 /* #define MARK_FREE_DEBUG 1 */
 #include "gc.h"
 #include "vm_core.h"
+#include "iseq.h"
 
 #include "insns.inc"
 #include "insns_info.inc"
@@ -305,6 +305,13 @@ rb_iseq_new(NODE *node, VALUE name, VALUE filename,
 				&COMPILE_OPTION_DEFAULT);
 }
 
+VALUE
+rb_iseq_new_top(NODE *node, VALUE name, VALUE filename, VALUE parent)
+{
+    return rb_iseq_new_with_opt(node, name, filename, parent, ISEQ_TYPE_TOP,
+				&COMPILE_OPTION_DEFAULT);
+}
+
 static VALUE
 rb_iseq_new_with_bopt_and_opt(NODE *node, VALUE name, VALUE filename,
 				VALUE parent, VALUE type, VALUE bopt,
@@ -498,9 +505,10 @@ iseq_s_compile_file(int argc, VALUE *argv, VALUE self)
 
     rb_secure(1);
     rb_scan_args(argc, argv, "11", &file, &opt);
+    FilePathValue(file);
     fname = StringValueCStr(file);
 
-    f = rb_file_open(fname, "r");
+    f = rb_file_open_str(file, "r");
 
     parser = rb_parser_new();
     node = rb_parser_compile_file(parser, fname, f, NUM2INT(line));
@@ -566,6 +574,12 @@ iseq_to_a(VALUE self)
     rb_iseq_t *iseq = iseq_check(self);
     rb_secure(1);
     return iseq_data_to_ary(iseq);
+}
+
+int
+rb_iseq_first_lineno(rb_iseq_t *iseq)
+{
+    return iseq->insn_info_table[0].line_no;
 }
 
 /* TODO: search algorithm is brute force.
@@ -696,7 +710,7 @@ insn_operand_intern(rb_iseq_t *iseq,
 	}
       case TS_GENTRY:
 	{
-	    struct global_entry *entry = (struct global_entry *)op;
+	    struct rb_global_entry *entry = (struct rb_global_entry *)op;
 	    ret = rb_str_dup(rb_id2str(entry->id));
 	}
 	break;
@@ -1117,7 +1131,7 @@ iseq_data_to_ary(rb_iseq_t *iseq)
 		break;
 	      case TS_GENTRY:
 		{
-		    struct global_entry *entry = (struct global_entry *)*seq;
+		    struct rb_global_entry *entry = (struct rb_global_entry *)*seq;
 		    rb_ary_push(ary, ID2SYM(entry->id));
 		}
 		break;

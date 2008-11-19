@@ -1,6 +1,8 @@
-
 #ifndef RUBY_EVAL_INTERN_H
 #define RUBY_EVAL_INTERN_H
+
+#include "ruby/ruby.h"
+#include "vm_core.h"
 
 #define PASS_PASSED_BLOCK_TH(th) do { \
     (th)->passed_block = GC_GUARDED_PTR_REF((rb_block_t *)(th)->cfp->lfp[0]); \
@@ -11,11 +13,6 @@
     rb_thread_t * const __th__ = GET_THREAD(); \
     PASS_PASSED_BLOCK_TH(__th__); \
 } while (0)
-
-#include "ruby/ruby.h"
-#include "ruby/node.h"
-#include "ruby/util.h"
-#include "vm_core.h"
 
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
@@ -29,9 +26,6 @@
 
 #include <stdio.h>
 #include <setjmp.h>
-
-#include "ruby/st.h"
-#include "dln.h"
 
 #ifdef __APPLE__
 #include <crt_externs.h>
@@ -58,14 +52,6 @@ void *alloca();
 # endif	/* HAVE_ALLOCA_H */
 #endif /* __GNUC__ */
 
-#ifdef HAVE_STDARG_PROTOTYPES
-#include <stdarg.h>
-#define va_init_list(a,b) va_start(a,b)
-#else
-#include <varargs.h>
-#define va_init_list(a,b) va_start(a)
-#endif
-
 #ifndef HAVE_STRING_H
 char *strrchr(const char *, const char);
 #endif
@@ -78,14 +64,6 @@ char *strrchr(const char *, const char);
 #include <net/socket.h>
 #endif
 
-#ifdef __MACOS__
-#include "macruby_private.h"
-#endif
-
-#ifdef __VMS
-#include "vmsruby_private.h"
-#endif
-
 #define ruby_setjmp(env) RUBY_SETJMP(env)
 #define ruby_longjmp(env,val) RUBY_LONGJMP(env,val)
 #ifdef __CYGWIN__
@@ -95,10 +73,6 @@ int _setjmp(), _longjmp();
 #include <sys/types.h>
 #include <signal.h>
 #include <errno.h>
-
-#if defined(__VMS)
-#pragma nostandard
-#endif
 
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>

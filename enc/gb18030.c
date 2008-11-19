@@ -178,16 +178,12 @@ gb18030_mbc_to_code(const UChar* p, const UChar* end, OnigEncoding enc)
     c = *p++;
     n <<= 8;  n += c;
   }
-  n &= 0x7FFFFFFF;
   return n;
 }
 
 static int
 gb18030_code_to_mbc(OnigCodePoint code, UChar *buf, OnigEncoding enc)
 {
-  if ((code & 0xff000000) != 0) {
-	code |= 0x80000000;
-  }
   return onigenc_mb4_code_to_mbc(enc, code, buf);
 }
 
@@ -249,7 +245,7 @@ enum state {
 };
 
 static UChar*
-gb18030_left_adjust_char_head(const UChar* start, const UChar* s, OnigEncoding enc)
+gb18030_left_adjust_char_head(const UChar* start, const UChar* s, const UChar* end, OnigEncoding enc)
 {
   const UChar *p;
   enum state state = S_START;

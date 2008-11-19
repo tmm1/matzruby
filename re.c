@@ -378,8 +378,12 @@ static VALUE
 rb_reg_desc(const char *s, long len, VALUE re)
 {
     VALUE str = rb_str_buf_new2("/");
-
-    rb_enc_copy(str, re);
+    if (re && rb_enc_asciicompat(rb_enc_get(re))) {
+	rb_enc_copy(str, re);
+    }
+    else {
+	rb_enc_associate(str, rb_usascii_encoding());
+    }
     rb_reg_expr_str(str, s, len);
     rb_str_buf_cat2(str, "/");
     if (re) {
@@ -1260,10 +1264,10 @@ rb_reg_adjust_startpos(VALUE re, VALUE str, int pos, int reverse)
 	 string = (UChar*)RSTRING_PTR(str);
 
 	 if (range > 0) {
-	      p = onigenc_get_right_adjust_char_head(enc, string, string + pos);
+	      p = onigenc_get_right_adjust_char_head(enc, string, string + pos, string + RSTRING_LEN(str));
 	 }
 	 else {
-	      p = ONIGENC_LEFT_ADJUST_CHAR_HEAD(enc, string, string + pos);
+	      p = ONIGENC_LEFT_ADJUST_CHAR_HEAD(enc, string, string + pos, string + RSTRING_LEN(str));
 	 }
 	 return p - string;
     }
@@ -2561,11 +2565,13 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
  *     p rhs    #=> nil
  *
  *  This assignment is implemented in the Ruby parser.
- *  So a regexp literal is required for the assignment. 
+ *  The parser detects 'regexp-literal =~ expression' for the assignment.
+ *  The regexp must be a literal without interpolation and placed at left hand side.
+ *
  *  The assignment is not occur if the regexp is not a literal.
  *
  *     re = /(?<lhs>\w+)\s*=\s*(?<rhs>\w+)/
- *     re =~ "  x = "
+ *     re =~ "  x = y  "
  *     p lhs    # undefined local variable
  *     p rhs    # undefined local variable
  *
@@ -2575,6 +2581,11 @@ reg_match_pos(VALUE re, VALUE *strp, long pos)
  *     rhs_pat = /(?<rhs>\w+)/
  *     /(?<lhs>\w+)\s*=\s*#{rhs_pat}/ =~ "x = y"
  *     p lhs    # undefined local variable
+ *
+ *  The assignment is not occur if the regexp is placed at right hand side.
+ *
+ *    "  x = y  " =~ /(?<lhs>\w+)\s*=\s*(?<rhs>\w+)/
+ *    p lhs, rhs # undefined local variable
  *
  */
 
@@ -2776,10 +2787,10 @@ rb_reg_initialize_m(int argc, VALUE *argv, VALUE self)
 	    char *kcode = StringValuePtr(argv[2]);
 	    if (kcode[0] == 'n' || kcode[1] == 'N') {
 		enc = rb_ascii8bit_encoding();
-		flags |= ARG_ENCODING_FIXED;
+		flags |= ARG_ENCODING_NONE;
 	    }
 	    else {
-		rb_warning("encoding option is obsolete - %s", kcode);
+		rb_warn("encoding option is ignored - %s", kcode);
 	    }
 	}
 	str = argv[0];
@@ -2856,34 +2867,34 @@ rb_reg_quote(VALUE str)
 	  case '*': case '.': case '\\':
 	  case '?': case '+': case '^': case '$':
 	  case '#':
-	    *t++ = '\\';
+            t += rb_enc_mbcput('\\', t, enc);
 	    break;
 	  case ' ':
-	    *t++ = '\\';
-	    *t++ = ' ';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput(' ', t, enc);
 	    continue;
 	  case '\t':
-	    *t++ = '\\';
-	    *t++ = 't';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput('t', t, enc);
 	    continue;
 	  case '\n':
-	    *t++ = '\\';
-	    *t++ = 'n';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput('n', t, enc);
 	    continue;
 	  case '\r':
-	    *t++ = '\\';
-	    *t++ = 'r';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput('r', t, enc);
 	    continue;
 	  case '\f':
-	    *t++ = '\\';
-	    *t++ = 'f';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput('f', t, enc);
 	    continue;
 	  case '\v':
-	    *t++ = '\\';
-	    *t++ = 'v';
+            t += rb_enc_mbcput('\\', t, enc);
+            t += rb_enc_mbcput('v', t, enc);
 	    continue;
 	}
-	*t++ = c;
+        t += rb_enc_mbcput(c, t, enc);
     }
     rb_str_resize(tmp, t - RSTRING_PTR(tmp));
     OBJ_INFECT(tmp, str);
@@ -3126,7 +3137,7 @@ rb_reg_regsub(VALUE str, VALUE src, struct re_registers *regs, VALUE regexp)
     rb_encoding *str_enc = rb_enc_get(str);
     rb_encoding *src_enc = rb_enc_get(src);
     int acompat = rb_enc_asciicompat(str_enc);
-#define ASCGET(s,e,cl) (acompat ? (*cl=1,s[0]) : rb_enc_ascget(s, e, cl, str_enc))
+#define ASCGET(s,e,cl) (acompat ? (*cl=1,ISASCII(s[0])?s[0]:-1) : rb_enc_ascget(s, e, cl, str_enc))
 
     p = s = RSTRING_PTR(str);
     e = s + RSTRING_LEN(str);

@@ -1,4 +1,5 @@
-#!/usr/local/bin/ruby -w
+#!/usr/bin/env ruby -w
+# encoding: UTF-8
 
 # ts_all.rb
 #
@@ -8,12 +9,13 @@
 
 require "test/unit"
 
-require "tc_csv_parsing"
-require "tc_features"
-require "tc_interface"
-require "tc_csv_writing"
-require "tc_data_converters"
-require "tc_row"
-require "tc_table"
-require "tc_headers"
-require "tc_serialization"
+require "test_csv_parsing"
+require "test_features"
+require "test_interface"
+require "test_csv_writing"
+require "test_data_converters"
+require "test_row"
+require "test_table"
+require "test_headers"
+require "test_serialization"
+require "test_encodings"

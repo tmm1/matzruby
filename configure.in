@@ -520,7 +520,7 @@ darwin*)	LIBS="-lobjc $LIBS"
 		    #endif
 		    ],
 		    [
-		    test "x$target_cpu" = xppc && ac_cv_header_ucontext_h=no
+		    test "x$target_cpu" = xpowerpc && ac_cv_header_ucontext_h=no
 		    ],
 		    [
 		    AC_DEFINE(BROKEN_SETREUID, 1)
@@ -611,21 +611,6 @@ bsdi*)          LIBS="-lm $LIBS"
 		AC_DEFINE(BROKEN_SETREGID, 1)
                 ac_cv_sizeof_rlim_t=8;;
 freebsd*)	LIBS="-lm $LIBS"
-		AC_CACHE_CHECK([whether -lxpg4 has to be linked],
-		  rb_cv_lib_xpg4_needed,
-		  [AC_TRY_CPP([
-#include <osreldate.h>
-#if __FreeBSD_version < 400020 || \
-   (__FreeBSD_version >= 500000 && __FreeBSD_version < 500005)
-#error needs libxpg4
-#endif
-		   ],
-		   rb_cv_lib_xpg4_needed=no,
-		   rb_cv_lib_xpg4_needed=yes,
-		   rb_cv_lib_xpg4_needed=yes)])
-		if test "$rb_cv_lib_xpg4_needed" = yes; then
-			AC_CHECK_LIB(xpg4, setlocale)
-		fi
 		;;
 dragonfly*)	LIBS="-lm $LIBS"
 		;;
@@ -1056,6 +1041,7 @@ AC_CACHE_VAL(rb_cv_frptr,
      __ptr	dnl
      bufpos	dnl
      _p	dnl
+     __bufpos	dnl
 ; do
     AC_TRY_COMPILE([#include <stdio.h>
 ],
@@ -1075,6 +1061,7 @@ else
     [for frend in	dnl
          _IO_read_end	dnl
          bufread 	dnl
+         __bufread 	dnl
     ; do
         AC_TRY_COMPILE([#include <stdio.h>
     ],
@@ -1278,7 +1265,13 @@ dnl wheather use dln_a_out or not
 AC_ARG_WITH(dln-a-out, 
 	[  --with-dln-a-out        use dln_a_out if possible], [
 	case $withval in
-	yes) with_dln_a_out=yes;;
+	dnl (
+	yes)
+	    if test "$enable_shared" = yes; then
+		AC_MSG_ERROR(dln_a_out can not make shared library)
+	    fi
+	    with_dln_a_out=yes;;
+	dnl (
 	*)   with_dln_a_out=no;;
 	esac], [with_dln_a_out=no])
 
@@ -1296,6 +1289,9 @@ rb_cv_binary_elf=no)])
 
 if test "$rb_cv_binary_elf" = yes; then
   AC_DEFINE(USE_ELF)
+  if test "$with_dln_a_out" = yes; then
+    AC_MSG_ERROR(dln_a_out does not work with ELF)
+  fi
 fi
 
 case "$target_os" in
@@ -1446,10 +1442,12 @@ if test "$with_dln_a_out" != yes; then
 			  powerpc*)
 			    : ${LDSHARED="ld -xms"}
 			    DLDFLAGS="$DLDFLAGS "'-export Init_$(TARGET) -lbe -lroot glue-noinit.a init_term_dyn.o start_dyn.o'
-                            ;;
+			    LDFLAGS="$LDFLAGS -L/boot/home/config/lib -lbe -lroot"
+			    ;;
 			  i586*)
 			    : ${LDSHARED="ld -shared"}
-			    DLDFLAGS="$DLDFLAGS -L/boot/develop/lib/x86 -lbe -lroot"
+			    DLDFLAGS="$DLDFLAGS -L/boot/develop/lib/x86 -L/boot/home/config/lib \$(topdir)/_APP_ -lbe -lroot"
+			    LDFLAGS="$LDFLAGS -L/boot/develop/lib/x86 -L/boot/home/config/lib -lbe -lroot"
 			    ;;
 			esac
 			: ${LIBPATHENV=LIBRARY_PATH}
@@ -1470,7 +1468,7 @@ if test "$with_dln_a_out" != yes; then
 			: ${LDSHARED='ld -Bshareable -x'}
 			LDFLAGS="$LDFLAGS -L/lib -L/usr/lib -L/usr/local/lib"
 			rb_cv_dlopen=yes;;
-	cygwin*|mingw*)	: ${LDSHARED="${CC} -shared -s"}
+	cygwin*|mingw*)	: ${LDSHARED="${CC} -shared "'$(if $(filter-out -g -g0,$(debugflags)),,-s)'}
 			XLDFLAGS="$XLDFLAGS -Wl,--stack,0x00200000,--enable-auto-import"
 			DLDFLAGS="${DLDFLAGS} -Wl,--enable-auto-image-base,--enable-auto-import,--export-all"
 			: ${LIBPATHENV=""}
@@ -1478,7 +1476,7 @@ if test "$with_dln_a_out" != yes; then
 	hiuxmpp)	: ${LDSHARED='ld -r'} ;;
 	atheos*) 	: ${LDSHARED="$CC -shared"}
 			rb_cv_dlopen=yes ;;
-	os2-emx*)	LDFLAGS="$LDFLAGS -Zbsd-signals"
+	os2-emx*)	LDFLAGS="$LDFLAGS -Zomf"
 			;;
 	*) 		: ${LDSHARED='ld'} ;;
   esac
@@ -1698,9 +1696,9 @@ ENABLE_SHARED=no
 AC_ARG_ENABLE(shared,
        [  --enable-shared         build a shared library for Ruby. ],
        [enable_shared=$enableval])
+LIBRUBYARG_SHARED='-l$(RUBY_SO_NAME)'
 if test "$enable_shared" = 'yes'; then
   LIBRUBY='$(LIBRUBY_SO)'
-  LIBRUBYARG_SHARED='-l$(RUBY_SO_NAME)'
   LIBRUBYARG='$(LIBRUBYARG_SHARED)'
   CFLAGS="$CFLAGS $CCDLFLAGS"
   ENABLE_SHARED=yes
@@ -1777,7 +1775,9 @@ if test "$enable_shared" = 'yes'; then
   esac
 fi
 if test "$enable_rpath" = yes; then
-    LIBRUBYARG_SHARED="${linker_flag}-R ${linker_flag}\$(libdir) -L\$(libdir) $LIBRUBYARG_SHARED"
+    LIBRUBY_RPATHFLAGS="${linker_flag}-R ${linker_flag}\$(libdir) -L\$(libdir)"
+    LIBRUBYARG_SHARED="$LIBRUBY_RPATHFLAGS $LIBRUBYARG_SHARED"
+    LIBRUBYARG_STATIC="$LIBRUBY_RPATHFLAGS $LIBRUBYARG_STATIC"
 fi
 
 LDFLAGS="-L. $LDFLAGS"
@@ -1822,7 +1822,7 @@ case "$target_os" in
         MINIDLNOBJ=dmydln.o
 	;;
     os2-emx)
-	CFLAGS="$CFLAGS -DOS2 -Zmts"
+    	CFLAGS="$CFLAGS -DOS2"
 	LIBRUBY_A=`echo $LIBRUBY_A | sed 's/^lib//'`
 	LIBRUBY_SO=`echo $LIBRUBY_SO | sed 's/^lib//'`
 	LIBRUBY_ALIASES=`for i in $LIBRUBY_ALIASES; do echo "$i"; done | sed 's/^lib//'`
@@ -1849,6 +1849,7 @@ case "$target_os" in
 	    CFLAGS="$CFLAGS -relax_pointers"
 	    ;;
 	esac
+	CPPFLAGS="$CPPFLAGS -I/boot/home/config/include"
 	;;
     cygwin*|mingw*)
 	LIBRUBY_DLDFLAGS="${DLDFLAGS}"' -Wl,--out-implib=$(LIBRUBY)'
@@ -1917,7 +1918,7 @@ dnl (
     dnl (
     *yes*)
 	echo "include Makefile" > GNUmakefile
-	echo "include uncommon.mk" >> GNUmakefile
+	echo "-include uncommon.mk" >> GNUmakefile
 	gnumake=yes;;
     dnl (
     *)
@@ -1983,7 +1984,7 @@ case "$target_os" in
     rubyw_install_name="$RUBYW_INSTALL_NAME"
     ;;
 esac
-RUBY_LIB_PREFIX=`eval echo \\"${libdir}/ruby\\"`
+RUBY_LIB_PREFIX=`eval echo \\"${libdir}/${RUBY_INSTALL_NAME}\\"`
 
 AC_ARG_WITH(ruby-version,
 	    [  --with-ruby-version=STR ruby version string for version specific directories [[full]] (full|minor|STR)],
@@ -2001,13 +2002,13 @@ esac
 AC_ARG_WITH(sitedir,
 	    [  --with-sitedir=DIR      site libraries in DIR [[LIBDIR/ruby/site_ruby]]],
             [sitedir=$withval],
-            [sitedir='${libdir}/ruby/site_ruby'])
+            [sitedir='${libdir}/${RUBY_INSTALL_NAME}/site_ruby'])
 SITE_DIR=`eval echo \\"${sitedir}\\"`
 
 AC_ARG_WITH(vendordir,
 	    [  --with-vendordir=DIR    vendor libraries in DIR [[LIBDIR/ruby/vendor_ruby]]],
             [vendordir=$withval],
-            [vendordir='${libdir}/ruby/vendor_ruby'])
+            [vendordir='${libdir}/${RUBY_INSTALL_NAME}/vendor_ruby'])
 VENDOR_DIR=`eval echo \\"${vendordir}\\"`
 
 case "$target_os" in
@@ -2076,7 +2077,7 @@ fi
 AC_ARG_WITH(rubyhdrdir,
 	    [  --with-ruby-hdrdir=DIR  core headers in DIR [INCLUDEDIR]],
 	    [rubyhdrdir=$withval],
-	    [rubyhdrdir='${includedir}/ruby-${ruby_version}'])
+	    [rubyhdrdir='${includedir}/${RUBY_INSTALL_NAME}-${ruby_version}'])
 
 AC_ARG_WITH(sitehdrdir,
 	    [  --with-site-hdrdir=DIR  core headers in DIR [INCLUDEDIR]],
@@ -2106,7 +2107,7 @@ AC_ARG_WITH(mantype,
 		])
 if test -z "$MANTYPE"; then
 	AC_PATH_PROGS(NROFF, nroff awf, /bin/false, "/usr/bin:/usr/ucb")
-	if ${NROFF} -mdoc ${srcdir}/ruby.1 >/dev/null 2>&1; then
+	if ${NROFF} -mdoc ${srcdir}/man/ruby.1 >/dev/null 2>&1; then
 		MANTYPE=doc
 	else
 		MANTYPE=man

@@ -86,11 +86,17 @@ define rp
     print (struct RString *)$arg0
   else
   if ($flags & RUBY_T_MASK) == RUBY_T_REGEXP
+    set $regsrc = ((struct RRegexp*)$arg0)->src
+    set $rsflags = ((struct RBasic*)$regsrc)->flags
     printf "T_REGEXP: "
     set print address off
-    output ((struct RRegexp*)$arg0)->str
+    output (char *)(($rsflags & RUBY_FL_USER1) ? \
+	    ((struct RString*)$regsrc)->as.heap.ptr : \
+	    ((struct RString*)$regsrc)->as.ary)
     set print address on
-    printf " len:%ld ", ((struct RRegexp*)$arg0)->len
+    printf " len:%ld ", ($rsflags & RUBY_FL_USER1) ? \
+            ((struct RString*)$regsrc)->as.heap.len : \
+            (($rsflags & (RUBY_FL_USER2|RUBY_FL_USER3|RUBY_FL_USER4|RUBY_FL_USER5|RUBY_FL_USER6)) >> RUBY_FL_USHIFT+2)
     if $flags & RUBY_FL_USER6
       printf "(none) "
     end
@@ -104,9 +110,34 @@ define rp
     print (struct RRegexp *)$arg0
   else
   if ($flags & RUBY_T_MASK) == RUBY_T_ARRAY
-    printf "T_ARRAY: len=%ld ", ((struct RArray*)$arg0)->len
+    if ($flags & RUBY_FL_USER1)
+      set $len = (($flags & (RUBY_FL_USER3|RUBY_FL_USER4)) >> (RUBY_FL_USHIFT+3))
+      printf "T_ARRAY: len=%ld ", $len
+      printf "(embed) "
+      if ($len == 0)
+	printf "{(empty)} "
+      else
+	output/x *((VALUE*)((struct RArray*)$arg0)->as.ary) @ $len
+	printf " "
+      end
+    else
+      set $len = ((struct RArray*)$arg0)->as.heap.len
+      printf "T_ARRAY: len=%ld ", $len
+      if ($flags & RUBY_FL_USER2)
+	printf "(shared) shared="
+	output/x ((struct RArray*)$arg0)->as.heap.aux.shared
+	printf " "
+      else
+	printf "(ownership) capa=%ld ", ((struct RArray*)$arg0)->as.heap.aux.capa
+      end
+      if ($len == 0)
+	printf "{(empty)} "
+      else
+	output/x *((VALUE*)((struct RArray*)$arg0)->as.heap.ptr) @ $len
+	printf " "
+      end
+    end
     print (struct RArray *)$arg0
-    x/xw ((struct RArray*)$arg0)->ptr
   else
   if ($flags & RUBY_T_MASK) == RUBY_T_FIXNUM
     printf "T_FIXNUM: "

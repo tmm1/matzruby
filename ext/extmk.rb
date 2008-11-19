@@ -39,7 +39,7 @@ load File.expand_path("lib/mkmf.rb", srcdir)
 require 'optparse/shellwords'
 
 def sysquote(x)
-  @quote ||= /human|os2|macos/ =~ (CROSS_COMPILING || RUBY_PLATFORM)
+  @quote ||= /os2/ =~ (CROSS_COMPILING || RUBY_PLATFORM)
   @quote ? x.quote : x
 end
 
@@ -343,7 +343,6 @@ unless CROSS_COMPILING
   ENV["RUBYLIB"] = "-"
   ENV["RUBYOPT"] = "-r#{File.expand_path('ext/purelib.rb', $top_srcdir)}"
 end
-$config_h = '$(arch_hdrdir)/ruby/config.h'
 $mflags << "ruby=#$ruby"
 
 MTIMES = [__FILE__, 'rbconfig.rb', srcdir+'/lib/mkmf.rb'].collect {|f| File.mtime(f)}
@@ -507,7 +506,7 @@ void Init_ext _((void))\n{\n#$extinit}
   end
 
   $extobjs = "ext/#{extinit.o} #{$extobjs}"
-  if RUBY_PLATFORM =~ /m68k-human|beos/
+  if RUBY_PLATFORM =~ /beos/
     $extflags.delete("-L/usr/local/lib")
   end
   $extpath.delete("$(topdir)")

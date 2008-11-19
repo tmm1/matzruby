@@ -1,4 +1,3 @@
-#!/usr/bin/env ruby
 #--
 # Copyright 2006 by Chad Fowler, Rich Kilmer, Jim Weirich and others.
 # All rights reserved.
@@ -9,8 +8,14 @@ at_exit { $SAFE = 1 }
 
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))
 
+require 'rubygems'
 require 'fileutils'
-require 'test/unit'
+begin
+  require 'minitest/unit'
+rescue LoadError
+  warn "Install minitest gem"
+  raise
+end
 require 'tmpdir'
 require 'uri'
 require 'rubygems/package'
@@ -19,6 +24,10 @@ require 'rubygems/test_utilities'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'mockgemui')
 
 module Gem
+  def self.searcher=(searcher)
+    MUTEX.synchronize do @searcher = searcher end
+  end
+
   def self.source_index=(si)
     @@source_index = si
   end
@@ -26,13 +35,13 @@ module Gem
   def self.win_platform=(val)
     @@win_platform = val
   end
-  
+
   module DefaultUserInteraction
     @ui = MockGemUi.new
   end
 end
 
-class RubyGemTestCase < Test::Unit::TestCase
+class RubyGemTestCase < MiniTest::Unit::TestCase
 
   include Gem::DefaultUserInteraction
 
@@ -53,6 +62,7 @@ class RubyGemTestCase < Test::Unit::TestCase
     @latest_usrcache = File.join(@gemhome, ".gem", "latest_user_cache")
     @userhome = File.join @tempdir, 'userhome'
 
+    @orig_ENV_HOME = ENV['HOME']
     ENV['HOME'] = @userhome
     Gem.instance_variable_set :@user_home, nil
 
@@ -89,6 +99,27 @@ class RubyGemTestCase < Test::Unit::TestCase
                                               'private_key.pem')
     @public_cert = File.expand_path File.join(File.dirname(__FILE__),
                                               'public_cert.pem')
+
+    Gem.post_install_hooks.clear
+    Gem.post_uninstall_hooks.clear
+    Gem.pre_install_hooks.clear
+    Gem.pre_uninstall_hooks.clear
+
+    Gem.post_install do |installer|
+      @post_install_hook_arg = installer
+    end
+
+    Gem.post_uninstall do |uninstaller|
+      @post_uninstall_hook_arg = uninstaller
+    end
+
+    Gem.pre_install do |installer|
+      @pre_install_hook_arg = installer
+    end
+
+    Gem.pre_uninstall do |uninstaller|
+      @pre_uninstall_hook_arg = uninstaller
+    end
   end
 
   def teardown
@@ -106,6 +137,12 @@ class RubyGemTestCase < Test::Unit::TestCase
     ENV.delete 'GEM_PATH'
 
     Gem.clear_paths
+
+    if @orig_ENV_HOME then
+      ENV['HOME'] = @orig_ENV_HOME
+    else
+      ENV.delete 'HOME'
+    end
   end
 
   def install_gem gem
@@ -435,7 +472,17 @@ class RubyGemTestCase < Test::Unit::TestCase
   end
 
   @@ruby = rubybin
-  @@rake = ENV["rake"] || (@@ruby + " " + File.expand_path("../../../bin/rake", __FILE__))
+  env_rake = ENV['rake']
+  ruby19_rake = File.expand_path("../../../bin/rake", __FILE__)
+  @@rake = if env_rake then
+             ENV["rake"]
+           elsif File.exist? ruby19_rake then
+             @@ruby + " " + ruby19_rake
+           else
+             'rake'
+           end
 
 end
+
+MiniTest::Unit.autorun
 

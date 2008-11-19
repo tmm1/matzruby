@@ -77,11 +77,6 @@ extern "C" {
 #  endif
 #endif
 
-#if defined(__VMS)
-# pragma builtins
-# define alloca __alloca
-#endif
-
 #if SIZEOF_LONG == SIZEOF_VOIDP
 typedef unsigned long VALUE;
 typedef unsigned long ID;
@@ -265,7 +260,7 @@ VALUE rb_ull2inum(unsigned LONG_LONG);
 #define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
 #define SYM2ID(x) RSHIFT((unsigned long)x,RUBY_SPECIAL_SHIFT)
 
-/* special contants - i.e. non-zero and non-fixnum constants */
+/* special constants - i.e. non-zero and non-fixnum constants */
 enum ruby_special_consts {
     RUBY_Qfalse = 0,
     RUBY_Qtrue  = 2,
@@ -377,6 +372,13 @@ void rb_check_safe_str(VALUE);
 } while (0)
 /* obsolete macro - use SafeStringValue(v) */
 #define Check_SafeStr(v) rb_check_safe_str((VALUE)(v))
+
+VALUE rb_str_export(VALUE);
+#define ExportStringValue(v) do {\
+    SafeStringValue(v);\
+   (v) = rb_str_export(v);\
+} while (0)
+VALUE rb_str_export_locale(VALUE);
 
 VALUE rb_get_path(VALUE);
 #define FilePathValue(v) ((v) = rb_get_path(v))
@@ -509,7 +511,7 @@ VALUE rb_newobj(void);
     if (FL_TEST(obj, FL_EXIVAR)) rb_copy_generic_ivar((VALUE)clone,(VALUE)obj);\
 } while (0)
 #define DUPSETUP(dup,obj) do {\
-    OBJSETUP(dup,rb_obj_class(obj),(RBASIC(obj)->flags)&(T_MASK|FL_EXIVAR|FL_TAINT|FL_UNTRUSTED));\
+    OBJSETUP(dup,rb_obj_class(obj), (RBASIC(obj)->flags)&(T_MASK|FL_EXIVAR|FL_TAINT|FL_UNTRUSTED)); \
     if (FL_TEST(obj, FL_EXIVAR)) rb_copy_generic_ivar((VALUE)dup,(VALUE)obj);\
 } while (0)
 
@@ -601,17 +603,34 @@ struct RString {
      RSTRING(str)->as.heap.ptr)
 #define RSTRING_END(str) (RSTRING_PTR(str)+RSTRING_LEN(str))
 
+#define RARRAY_EMBED_LEN_MAX 3
 struct RArray {
     struct RBasic basic;
-    long len;
     union {
-	long capa;
-	VALUE shared;
-    } aux;
-    VALUE *ptr;
+	struct {
+	    long len;
+	    union {
+		long capa;
+		VALUE shared;
+	    } aux;
+	    VALUE *ptr;
+	} heap;
+	VALUE ary[RARRAY_EMBED_LEN_MAX];
+    } as;
 };
-#define RARRAY_LEN(a) RARRAY(a)->len
-#define RARRAY_PTR(a) RARRAY(a)->ptr
+#define RARRAY_EMBED_FLAG FL_USER1
+/* FL_USER2 is for ELTS_SHARED */
+#define RARRAY_EMBED_LEN_MASK (FL_USER4|FL_USER3)
+#define RARRAY_EMBED_LEN_SHIFT (FL_USHIFT+3)
+#define RARRAY_LEN(a) \
+    ((RBASIC(a)->flags & RARRAY_EMBED_FLAG) ? \
+     (long)((RBASIC(a)->flags >> RARRAY_EMBED_LEN_SHIFT) & \
+	 (RARRAY_EMBED_LEN_MASK >> RARRAY_EMBED_LEN_SHIFT)) : \
+     RARRAY(a)->as.heap.len)
+#define RARRAY_PTR(a) \
+    ((RBASIC(a)->flags & RARRAY_EMBED_FLAG) ? \
+     RARRAY(a)->as.ary : \
+     RARRAY(a)->as.heap.ptr)
 
 struct RRegexp {
     struct RBasic basic;
@@ -650,7 +669,7 @@ struct RRational {
 struct RComplex {
     struct RBasic basic;
     VALUE real;
-    VALUE image;
+    VALUE imag;
 };
 
 struct RData {
@@ -834,6 +853,26 @@ VALUE rb_define_module_under(VALUE, const char*);
 void rb_include_module(VALUE,VALUE);
 void rb_extend_object(VALUE,VALUE);
 
+struct rb_global_variable;
+
+typedef VALUE rb_gvar_getter_t(ID id, void *data, struct rb_global_variable *gvar);
+typedef void  rb_gvar_setter_t(VALUE val, ID id, void *data, struct rb_global_variable *gvar);
+typedef void  rb_gvar_marker_t(VALUE *var);
+
+VALUE rb_gvar_undef_getter(ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_undef_setter(VALUE val, ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_undef_marker(VALUE *var);
+
+VALUE rb_gvar_val_getter(ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_val_setter(VALUE val, ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_val_marker(VALUE *var);
+
+VALUE rb_gvar_var_getter(ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_var_setter(VALUE val, ID id, void *data, struct rb_global_variable *gvar);
+void  rb_gvar_var_marker(VALUE *var);
+
+void  rb_gvar_readonly_setter(VALUE val, ID id, void *data, struct rb_global_variable *gvar);
+
 void rb_define_variable(const char*,VALUE*);
 void rb_define_virtual_variable(const char*,VALUE(*)(ANYARGS),void(*)(ANYARGS));
 void rb_define_hooked_variable(const char*,VALUE*,VALUE(*)(ANYARGS),void(*)(ANYARGS));
@@ -852,7 +891,7 @@ void rb_define_alias(VALUE,const char*,const char*);
 void rb_define_attr(VALUE,const char*,int,int);
 
 void rb_global_variable(VALUE*);
-void rb_register_mark_object(VALUE);
+void rb_gc_register_mark_object(VALUE);
 void rb_gc_register_address(VALUE*);
 void rb_gc_unregister_address(VALUE*);
 
@@ -951,6 +990,90 @@ void *ruby_options(int, char**);
 int ruby_run_node(void *);
 
 #include "ruby/public_object.h"
+#if 0
+RUBY_EXTERN VALUE rb_mKernel;
+RUBY_EXTERN VALUE rb_mComparable;
+RUBY_EXTERN VALUE rb_mEnumerable;
+RUBY_EXTERN VALUE rb_mErrno;
+RUBY_EXTERN VALUE rb_mFileTest;
+RUBY_EXTERN VALUE rb_mGC;
+RUBY_EXTERN VALUE rb_mMath;
+RUBY_EXTERN VALUE rb_mProcess;
+
+RUBY_EXTERN VALUE rb_cBasicObject;
+RUBY_EXTERN VALUE rb_cObject;
+RUBY_EXTERN VALUE rb_cArray;
+RUBY_EXTERN VALUE rb_cBignum;
+RUBY_EXTERN VALUE rb_cBinding;
+RUBY_EXTERN VALUE rb_cClass;
+RUBY_EXTERN VALUE rb_cCont;
+RUBY_EXTERN VALUE rb_cDir;
+RUBY_EXTERN VALUE rb_cData;
+RUBY_EXTERN VALUE rb_cFalseClass;
+RUBY_EXTERN VALUE rb_cEncoding;
+RUBY_EXTERN VALUE rb_cEnumerator;
+RUBY_EXTERN VALUE rb_cFile;
+RUBY_EXTERN VALUE rb_cFixnum;
+RUBY_EXTERN VALUE rb_cFloat;
+RUBY_EXTERN VALUE rb_cHash;
+RUBY_EXTERN VALUE rb_cInteger;
+RUBY_EXTERN VALUE rb_cIO;
+RUBY_EXTERN VALUE rb_cMatch;
+RUBY_EXTERN VALUE rb_cMethod;
+RUBY_EXTERN VALUE rb_cModule;
+RUBY_EXTERN VALUE rb_cNameErrorMesg;
+RUBY_EXTERN VALUE rb_cNilClass;
+RUBY_EXTERN VALUE rb_cNumeric;
+RUBY_EXTERN VALUE rb_cProc;
+RUBY_EXTERN VALUE rb_cRange;
+RUBY_EXTERN VALUE rb_cRational;
+RUBY_EXTERN VALUE rb_cComplex;
+RUBY_EXTERN VALUE rb_cRegexp;
+RUBY_EXTERN VALUE rb_cStat;
+RUBY_EXTERN VALUE rb_cString;
+RUBY_EXTERN VALUE rb_cStruct;
+RUBY_EXTERN VALUE rb_cSymbol;
+RUBY_EXTERN VALUE rb_cThread;
+RUBY_EXTERN VALUE rb_cTime;
+RUBY_EXTERN VALUE rb_cTrueClass;
+RUBY_EXTERN VALUE rb_cUnboundMethod;
+
+RUBY_EXTERN VALUE rb_eException;
+RUBY_EXTERN VALUE rb_eStandardError;
+RUBY_EXTERN VALUE rb_eSystemExit;
+RUBY_EXTERN VALUE rb_eInterrupt;
+RUBY_EXTERN VALUE rb_eSignal;
+RUBY_EXTERN VALUE rb_eFatal;
+RUBY_EXTERN VALUE rb_eArgError;
+RUBY_EXTERN VALUE rb_eEOFError;
+RUBY_EXTERN VALUE rb_eIndexError;
+RUBY_EXTERN VALUE rb_eStopIteration;
+RUBY_EXTERN VALUE rb_eKeyError;
+RUBY_EXTERN VALUE rb_eRangeError;
+RUBY_EXTERN VALUE rb_eIOError;
+RUBY_EXTERN VALUE rb_eRuntimeError;
+RUBY_EXTERN VALUE rb_eSecurityError;
+RUBY_EXTERN VALUE rb_eSystemCallError;
+RUBY_EXTERN VALUE rb_eThreadError;
+RUBY_EXTERN VALUE rb_eTypeError;
+RUBY_EXTERN VALUE rb_eZeroDivError;
+RUBY_EXTERN VALUE rb_eNotImpError;
+RUBY_EXTERN VALUE rb_eNoMemError;
+RUBY_EXTERN VALUE rb_eNoMethodError;
+RUBY_EXTERN VALUE rb_eFloatDomainError;
+RUBY_EXTERN VALUE rb_eLocalJumpError;
+RUBY_EXTERN VALUE rb_eSysStackError;
+RUBY_EXTERN VALUE rb_eRegexpError;
+RUBY_EXTERN VALUE rb_eEncodingError;
+RUBY_EXTERN VALUE rb_eEncCompatError;
+
+RUBY_EXTERN VALUE rb_eScriptError;
+RUBY_EXTERN VALUE rb_eNameError;
+RUBY_EXTERN VALUE rb_eSyntaxError;
+RUBY_EXTERN VALUE rb_eLoadError;
+
+RUBY_EXTERN VALUE rb_stdin, rb_stdout, rb_stderr;
+#endif
 
 static inline VALUE
 rb_class_of(VALUE obj)
@@ -997,6 +1120,15 @@ rb_special_const_p(VALUE obj)
 /* hook for external modules */
 static char *dln_libs_to_be_linked[] = { EXTLIB, 0 };
 #endif
+
+#if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__)
+/* to link startup code with ObjC support */
+#define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend();}
+#else
+#define RUBY_GLOBAL_SETUP
+#endif
+
+void ruby_sysinit(int *, char ***);
 
 #define RUBY_VM 1 /* YARV */
 #define HAVE_NATIVETHREAD

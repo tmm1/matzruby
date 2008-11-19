@@ -63,6 +63,11 @@ static int (*history_get_offset_func)(int);
 static char **readline_attempted_completion_function(const char *text,
                                                      int start, int end);
 
+#define OutputStringValue(str) do {\
+    SafeStringValue(str);\
+    str = rb_str_conv_enc(str, rb_enc_get(str), rb_locale_encoding());\
+} while (0)\
+
 #ifdef HAVE_RL_EVENT_HOOK
 #define BUSY_WAIT 0
 
@@ -214,7 +219,7 @@ readline_readline(int argc, VALUE *argv, VALUE self)
 
     rb_secure(4);
     if (rb_scan_args(argc, argv, "02", &tmp, &add_hist) > 0) {
-	SafeStringValue(tmp);
+	OutputStringValue(tmp);
 	prompt = RSTRING_PTR(tmp);
     }
 
@@ -241,8 +246,7 @@ readline_readline(int argc, VALUE *argv, VALUE self)
 	add_history(buff);
     }
     if (buff) {
-	result = rb_tainted_str_new2(buff);
-	rb_enc_associate(result, rb_locale_encoding());
+	result = rb_locale_str_new_cstr(buff);
     }
     else
 	result = Qnil;
@@ -381,7 +385,7 @@ readline_attempted_completion_function(const char *text, int start, int end)
     rl_attempted_completion_over = 1;
 #endif
     case_fold = RTEST(rb_attr_get(mReadline, completion_case_fold));
-    ary = rb_funcall(proc, rb_intern("call"), 1, rb_tainted_str_new2(text));
+    ary = rb_funcall(proc, rb_intern("call"), 1, rb_locale_str_new_cstr(text));
     if (TYPE(ary) != T_ARRAY)
 	ary = rb_Array(ary);
     matches = RARRAY_LEN(ary);
@@ -569,7 +573,7 @@ readline_s_set_completion_append_character(VALUE self, VALUE str)
 	rl_completion_append_character = '\0';
     }
     else {
-	SafeStringValue(str);
+	OutputStringValue(str);
 	if (RSTRING_LEN(str) == 0) {
 	    rl_completion_append_character = '\0';
 	} else {
@@ -604,7 +608,7 @@ readline_s_get_completion_append_character(VALUE self)
     if (rl_completion_append_character == '\0')
 	return Qnil;
 
-    str = rb_str_new("", 1);
+    str = rb_str_new(0, 1);
     RSTRING_PTR(str)[0] = rl_completion_append_character;
     return str;
 #else
@@ -632,7 +636,7 @@ readline_s_set_basic_word_break_characters(VALUE self, VALUE str)
     static char *basic_word_break_characters = NULL;
 
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (basic_word_break_characters == NULL) {
 	basic_word_break_characters =
 	    ALLOC_N(char, RSTRING_LEN(str) + 1);
@@ -669,7 +673,7 @@ readline_s_get_basic_word_break_characters(VALUE self, VALUE str)
     rb_secure(4);
     if (rl_basic_word_break_characters == NULL)
 	return Qnil;
-    return rb_tainted_str_new2(rl_basic_word_break_characters);
+    return rb_locale_str_new_cstr(rl_basic_word_break_characters);
 #else
     rb_notimplement();
     return Qnil; /* not reached */
@@ -695,7 +699,7 @@ readline_s_set_completer_word_break_characters(VALUE self, VALUE str)
     static char *completer_word_break_characters = NULL;
 
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (completer_word_break_characters == NULL) {
 	completer_word_break_characters =
 	    ALLOC_N(char, RSTRING_LEN(str) + 1);
@@ -732,7 +736,7 @@ readline_s_get_completer_word_break_characters(VALUE self, VALUE str)
     rb_secure(4);
     if (rl_completer_word_break_characters == NULL)
 	return Qnil;
-    return rb_tainted_str_new2(rl_completer_word_break_characters);
+    return rb_locale_str_new_cstr(rl_completer_word_break_characters);
 #else
     rb_notimplement();
     return Qnil; /* not reached */
@@ -756,7 +760,7 @@ readline_s_set_basic_quote_characters(VALUE self, VALUE str)
     static char *basic_quote_characters = NULL;
 
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (basic_quote_characters == NULL) {
 	basic_quote_characters =
 	    ALLOC_N(char, RSTRING_LEN(str) + 1);
@@ -793,7 +797,7 @@ readline_s_get_basic_quote_characters(VALUE self, VALUE str)
     rb_secure(4);
     if (rl_basic_quote_characters == NULL)
 	return Qnil;
-    return rb_tainted_str_new2(rl_basic_quote_characters);
+    return rb_locale_str_new_cstr(rl_basic_quote_characters);
 #else
     rb_notimplement();
     return Qnil; /* not reached */
@@ -820,7 +824,7 @@ readline_s_set_completer_quote_characters(VALUE self, VALUE str)
     static char *completer_quote_characters = NULL;
 
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (completer_quote_characters == NULL) {
 	completer_quote_characters =
 	    ALLOC_N(char, RSTRING_LEN(str) + 1);
@@ -857,7 +861,7 @@ readline_s_get_completer_quote_characters(VALUE self, VALUE str)
     rb_secure(4);
     if (rl_completer_quote_characters == NULL)
 	return Qnil;
-    return rb_tainted_str_new2(rl_completer_quote_characters);
+    return rb_locale_str_new_cstr(rl_completer_quote_characters);
 #else
     rb_notimplement();
     return Qnil; /* not reached */
@@ -882,7 +886,7 @@ readline_s_set_filename_quote_characters(VALUE self, VALUE str)
     static char *filename_quote_characters = NULL;
 
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (filename_quote_characters == NULL) {
 	filename_quote_characters =
 	    ALLOC_N(char, RSTRING_LEN(str) + 1);
@@ -919,7 +923,7 @@ readline_s_get_filename_quote_characters(VALUE self, VALUE str)
     rb_secure(4);
     if (rl_filename_quote_characters == NULL)
 	return Qnil;
-    return rb_tainted_str_new2(rl_filename_quote_characters);
+    return rb_locale_str_new_cstr(rl_filename_quote_characters);
 #else
     rb_notimplement();
     return Qnil; /* not reached */
@@ -929,7 +933,7 @@ readline_s_get_filename_quote_characters(VALUE self, VALUE str)
 static VALUE
 hist_to_s(VALUE self)
 {
-    return rb_str_new2("HISTORY");
+    return rb_str_new_cstr("HISTORY");
 }
 
 static int
@@ -961,7 +965,7 @@ hist_get(VALUE self, VALUE index)
     if (entry == NULL) {
 	rb_raise(rb_eIndexError, "invalid index");
     }
-    return rb_tainted_str_new2(entry->line);
+    return rb_locale_str_new_cstr(entry->line);
 }
 
 static VALUE
@@ -973,7 +977,7 @@ hist_set(VALUE self, VALUE index, VALUE str)
 
     rb_secure(4);
     i = NUM2INT(index);
-    SafeStringValue(str);
+    OutputStringValue(str);
     if (i < 0) {
         i += history_length;
     }
@@ -994,7 +998,7 @@ static VALUE
 hist_push(VALUE self, VALUE str)
 {
     rb_secure(4);
-    SafeStringValue(str);
+    OutputStringValue(str);
     add_history(RSTRING_PTR(str));
     return self;
 }
@@ -1007,7 +1011,7 @@ hist_push_method(int argc, VALUE *argv, VALUE self)
     rb_secure(4);
     while (argc--) {
 	str = *argv++;
-	SafeStringValue(str);
+	OutputStringValue(str);
 	add_history(RSTRING_PTR(str));
     }
     return self;
@@ -1023,7 +1027,7 @@ rb_remove_history(int index)
     rb_secure(4);
     entry = remove_history(index);
     if (entry) {
-        val = rb_tainted_str_new2(entry->line);
+        val = rb_locale_str_new_cstr(entry->line);
         free((void *) entry->line);
         free(entry);
         return val;
@@ -1070,7 +1074,7 @@ hist_each(VALUE self)
         entry = history_get(history_get_offset_func(i));
         if (entry == NULL)
             break;
-	rb_yield(rb_tainted_str_new2(entry->line));
+	rb_yield(rb_locale_str_new_cstr(entry->line));
     }
     return self;
 }
@@ -1129,7 +1133,7 @@ filename_completion_proc_call(VALUE self, VALUE str)
     if (matches) {
 	result = rb_ary_new();
 	for (i = 0; matches[i]; i++) {
-	    rb_ary_push(result, rb_tainted_str_new2(matches[i]));
+	    rb_ary_push(result, rb_locale_str_new_cstr(matches[i]));
 	    free(matches[i]);
 	}
 	free(matches);
@@ -1154,7 +1158,7 @@ username_completion_proc_call(VALUE self, VALUE str)
     if (matches) {
 	result = rb_ary_new();
 	for (i = 0; matches[i]; i++) {
-	    rb_ary_push(result, rb_tainted_str_new2(matches[i]));
+	    rb_ary_push(result, rb_locale_str_new_cstr(matches[i]));
 	    free(matches[i]);
 	}
 	free(matches);
@@ -1271,19 +1275,27 @@ Init_readline()
     rb_define_const(mReadline, "USERNAME_COMPLETION_PROC", ucomp);
     history_get_offset_func = history_get_offset_history_base;
 #if defined HAVE_RL_LIBRARY_VERSION
-    version = rb_str_new2(rl_library_version);
-#if defined HAVE_CLEAR_HISTORY
+    version = rb_str_new_cstr(rl_library_version);
+#if defined HAVE_CLEAR_HISTORY || defined HAVE_REMOVE_HISTORY
     if (strncmp(rl_library_version, EDIT_LINE_LIBRARY_VERSION, 
 		strlen(EDIT_LINE_LIBRARY_VERSION)) == 0) {
 	add_history("1");
 	if (history_get(history_get_offset_func(0)) == NULL) {
 	    history_get_offset_func = history_get_offset_0;
 	}
+#if !defined HAVE_CLEAR_HISTORY
 	clear_history();
+#else
+	{
+	    HIST_ENTRY *entry = remove_history(0);
+	    free(entry->line);
+	    free(entry);
+	}
+#endif
     }
 #endif
 #else
-    version = rb_str_new2("2.0 or prior version");
+    version = rb_str_new_cstr("2.0 or prior version");
 #endif
     /* Version string of GNU Readline or libedit. */
     rb_define_const(mReadline, "VERSION", version);

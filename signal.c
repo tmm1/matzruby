@@ -12,7 +12,6 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "ruby/node.h"
 #include "vm_core.h"
 #include "eval_intern.h"
 #include <signal.h>
@@ -46,11 +45,7 @@ typedef int rb_atomic_t;
 #endif
 
 #ifndef NSIG
-# ifdef DJGPP
-#  define NSIG SIGMAX
-# else
-#  define NSIG (_SIGMAX + 1)      /* For QNX */
-# endif
+# define NSIG (_SIGMAX + 1)      /* For QNX */
 #endif
 
 static const struct signals {
@@ -304,10 +299,8 @@ interrupt_init(int argc, VALUE *argv, VALUE self)
 void
 ruby_default_signal(int sig)
 {
-#ifndef MACOS_UNUSE_SIGNAL
     signal(sig, SIG_DFL);
     raise(sig);
-#endif
 }
 
 /*
@@ -406,7 +399,7 @@ rb_f_kill(int argc, VALUE *argv)
     return INT2FIX(i-1);
 }
 
-struct {
+static struct {
     rb_atomic_t cnt[RUBY_NSIG];
     rb_atomic_t size;
 } signal_buff;
@@ -617,15 +610,8 @@ sigpipe(int sig)
 static void
 signal_exec(VALUE cmd, int safe, int sig)
 {
-    rb_proc_t *proc;
-    VALUE signum = INT2FIX(sig);
-
-    if (TYPE(cmd) == T_STRING) {
-	rb_eval_cmd(cmd, rb_ary_new3(1, signum), safe);
-	return;
-    }
-    GetProcPtr(cmd, proc);
-    vm_invoke_proc(GET_THREAD(), proc, proc->block.self, 1, &signum, 0);
+    VALUE signum = INT2NUM(sig);
+    rb_eval_cmd(cmd, rb_ary_new3(1, signum), safe);
 }
 
 void
@@ -1093,7 +1079,6 @@ ruby_sig_finalize()
 void
 Init_signal(void)
 {
-#ifndef MACOS_UNUSE_SIGNAL
 
     install_sighandler(SIGINT, sighandler);
 #ifdef SIGHUP
@@ -1136,8 +1121,6 @@ Init_signal(void)
 #elif defined(SIGCHLD)
     init_sigchld(SIGCHLD);
 #endif
-
-#endif /* MACOS_UNUSE_SIGNAL */
 }
 
 void

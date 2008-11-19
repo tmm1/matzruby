@@ -1988,7 +1988,7 @@ rb_file_chown(VALUE obj, VALUE owner, VALUE group)
     o = NIL_P(owner) ? -1 : NUM2INT(owner);
     g = NIL_P(group) ? -1 : NUM2INT(group);
     GetOpenFile(obj, fptr);
-#if defined(DJGPP) || defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
+#if defined(__CYGWIN32__) || defined(_WIN32) || defined(__EMX__)
     if (NIL_P(fptr->pathv)) return Qnil;
     if (chown(RSTRING_PTR(fptr->pathv), o, g) == -1)
 	rb_sys_fail_path(fptr->pathv);
@@ -2460,11 +2460,7 @@ rb_file_s_umask(int argc, VALUE *argv)
 #endif
 
 #ifndef CharNext		/* defined as CharNext[AW] on Windows. */
-# if defined(DJGPP)
-#   define CharNext(p) ((p) + mblen(p, RUBY_MBCHAR_MAXSIZE))
-# else
-#   define CharNext(p) ((p) + 1)
-# endif
+# define CharNext(p) ((p) + 1)
 #endif
 
 #ifdef DOSISH_DRIVE_LETTER
@@ -3002,16 +2998,19 @@ rb_file_s_absolute_path(int argc, VALUE *argv)
 static int
 rmext(const char *p, int l1, const char *e)
 {
-    int l2;
+    int l0, l2;
 
     if (!e) return 0;
 
+    for (l0 = 0; l0 < l1; ++l0) {
+	if (p[l0] != '.') break;
+    }
     l2 = strlen(e);
     if (l2 == 2 && e[1] == '*') {
 	unsigned char c = *e;
 	e = p + l1;
 	do {
-	    if (e <= p) return 0;
+	    if (e <= p + l0) return 0;
 	} while (*--e != c);
 	return e - p;
     }
@@ -3188,6 +3187,7 @@ rb_file_s_extname(VALUE klass, VALUE fname)
 	name = ++p;
 
     e = 0;
+    while (*p && *p == '.') p++;
     while (*p) {
 	if (*p == '.' || istrailinggabage(*p)) {
 #if USE_NTFS
@@ -4513,15 +4513,6 @@ rb_path_check(const char *path)
     return 1;
 }
 
-#if defined(__MACOS__) || defined(riscos)
-static int
-is_macos_native_path(const char *path)
-{
-    if (strchr(path, ':')) return 1;
-    return 0;
-}
-#endif
-
 static int
 file_load_ok(const char *path)
 {
@@ -4615,16 +4606,6 @@ rb_find_file(VALUE path)
 	OBJ_FREEZE(path);
 	f = StringValueCStr(path);
     }
-
-#if defined(__MACOS__) || defined(riscos)
-    if (is_macos_native_path(f)) {
-	if (rb_safe_level() >= 1 && !fpath_check(f)) {
-	    rb_raise(rb_eSecurityError, "loading from unsafe file %s", f);
-	}
-	if (file_load_ok(f)) return path;
-	return 0;
-    }
-#endif
 
     if (is_absolute_path(f) || is_explicit_relative(f)) {
 	if (rb_safe_level() >= 1 && !fpath_check(f)) {

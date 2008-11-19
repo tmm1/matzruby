@@ -276,9 +276,9 @@ if defined? GDBM
       }
     end
 
-    def test_index
+    def test_key
       assert_equal('bar', @gdbm['foo'] = 'bar')
-      assert_equal('foo', @gdbm.index('bar'))
+      assert_equal('foo', @gdbm.key('bar'))
       assert_nil(@gdbm['bar'])
     end
 
@@ -354,7 +354,7 @@ if defined? GDBM
 
       n = 0
       ret = @gdbm.each_value {|val|
-        assert_not_nil(key = @gdbm.index(val))
+        assert_not_nil(key = @gdbm.key(val))
         assert_not_nil(i = keys.index(key))
         assert_equal(val, values[i])
 
@@ -687,7 +687,7 @@ if defined? GDBM
     def test_reader_open
       GDBM.open("#{@tmproot}/a.dbm") {} # create a db.
       v = GDBM.open("#{@tmproot}/a.dbm", nil, GDBM::READER) {|d|
-        assert_raises(GDBMError) { d["k"] = "v" }
+        assert_raise(GDBMError) { d["k"] = "v" }
         true
       }
       assert(v)
@@ -708,7 +708,7 @@ if defined? GDBM
     def test_freeze
       GDBM.open("#{@tmproot}/a.dbm") {|d|
         d.freeze
-        assert_raises(RuntimeError) { d["k"] = "v" }
+        assert_raise(RuntimeError) { d["k"] = "v" }
       }
     end
   end

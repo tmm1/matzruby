@@ -40,7 +40,8 @@ module JSON
   # Convert a UTF8 encoded Ruby string _string_ to a JSON string, encoded with
   # UTF16 big endian characters as \u????, and return it.
   def utf8_to_json(string) # :nodoc:
-    string = string.gsub(/["\\\/\x0-\x1f]/) { MAP[$&] }
+    string = string.dup.force_encoding(Encoding::ASCII_8BIT)
+    string.gsub!(/["\\\/\x0-\x1f]/) { MAP[$&] }
     string.gsub!(/(
                     (?:
                       [\xc2-\xdf][\x80-\xbf]    |
@@ -50,12 +51,11 @@ module JSON
                     [\x80-\xc1\xf5-\xff]       # invalid
                   )/nx) { |c|
       c.size == 1 and raise GeneratorError, "invalid utf8 byte: '#{c}'"
-      s = JSON::UTF8toUTF16.iconv(c).unpack('H*')[0]
-      s.gsub!(/.{4}/n, '\\\\u\&')
+      c.unpack("U*").map{|c|
+        c>0xFFFF ? ('\ud%03x\ud%03x'%[0x7C0+c/1024,0xC00+c%1024]) : ('\u%04x'%c)
+      }.join("")
     }
     string
-  rescue Iconv::Failure => e
-    raise GeneratorError, "Caught #{e.class}: #{e}"
   end
   module_function :utf8_to_json
 

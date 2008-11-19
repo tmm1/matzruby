@@ -11,8 +11,9 @@
 
 #undef RUBY_EXPORT
 
-#include "ruby/mvm.h"
+#include "ruby/vm.h"
 
+#include "debug.h"
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif

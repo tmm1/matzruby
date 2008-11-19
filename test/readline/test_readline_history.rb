@@ -53,7 +53,7 @@ class Readline::TestHistory < Test::Unit::TestCase
        ["clear", []],
       ]
     method_args.each do |method_name, args|
-      assert_raises(SecurityError, NotImplementedError,
+      assert_raise(SecurityError, NotImplementedError,
                     "method=<#{method_name}>") do
         Thread.start {
           $SAFE = 4
@@ -63,7 +63,7 @@ class Readline::TestHistory < Test::Unit::TestCase
       end
     end
 
-    assert_raises(SecurityError, NotImplementedError,
+    assert_raise(SecurityError, NotImplementedError,
                   "method=<each>") do
       Thread.start {
         $SAFE = 4
@@ -123,14 +123,14 @@ class Readline::TestHistory < Test::Unit::TestCase
   end
 
   def test_set__out_of_range
-    assert_raises(IndexError, NotImplementedError, "index=<0>") do
+    assert_raise(IndexError, NotImplementedError, "index=<0>") do
       HISTORY[0] = "set: 0"
     end
     
     lines = push_history(5)
     invalid_indexes = [5, 6, 100, -6, -7, -100]
     invalid_indexes.each do |i|
-      assert_raises(IndexError, NotImplementedError, "index=<#{i}>") do
+      assert_raise(IndexError, NotImplementedError, "index=<#{i}>") do
         HISTORY[i] = "set: #{i}"
       end
     end
@@ -205,16 +205,18 @@ class Readline::TestHistory < Test::Unit::TestCase
   end
 
   def test_each
-    HISTORY.each do |s|
+    e = HISTORY.each do |s|
       assert(false) # not reachable
     end
+    assert_equal(HISTORY, e)
     lines = push_history(5)
     i = 0
-    HISTORY.each do |s|
+    e = HISTORY.each do |s|
       assert_equal(HISTORY[i], s)
       assert_equal(lines[i], s)
       i += 1
     end
+    assert_equal(HISTORY, e)
   end
 
   def test_each__enumerator
@@ -268,14 +270,14 @@ class Readline::TestHistory < Test::Unit::TestCase
   end
 
   def test_delete_at__out_of_range
-    assert_raises(IndexError, NotImplementedError, "index=<0>") do
+    assert_raise(IndexError, NotImplementedError, "index=<0>") do
       HISTORY.delete_at(0)
     end
       
     lines = push_history(5)
     invalid_indexes = [5, 6, 100, -6, -7, -100]
     invalid_indexes.each do |i|
-      assert_raises(IndexError, NotImplementedError, "index=<#{i}>") do
+      assert_raise(IndexError, NotImplementedError, "index=<#{i}>") do
         HISTORY.delete_at(i)
       end
     end
@@ -283,7 +285,7 @@ class Readline::TestHistory < Test::Unit::TestCase
     invalid_indexes = [100_000_000_000_000_000_000,
                        -100_000_000_000_000_000_000]
     invalid_indexes.each do |i|
-      assert_raises(RangeError, NotImplementedError, "index=<#{i}>") do
+      assert_raise(RangeError, NotImplementedError, "index=<#{i}>") do
         HISTORY.delete_at(i)
       end
     end

@@ -31,7 +31,7 @@ LIB = $(pathlist:;=/lib;)
 srcdir = ..
 !endif
 !ifndef RUBY_INSTALL_NAME
-RUBY_INSTALL_NAME = ruby$(RUBY_SUFFIX)
+RUBY_INSTALL_NAME = $(PROGRAM_PREFIX)ruby$(RUBY_SUFFIX)
 !endif
 !if !defined(RUBYW_INSTALL_NAME) || "$(RUBYW_INSTALL_NAME)" == "$(RUBY_INSTALL_NAME)"
 RUBYW_INSTALL_NAME = $(RUBY_INSTALL_NAME:ruby=rubyw)
@@ -214,10 +214,10 @@ MINIRUBY = $(RUBY) -I$(MAKEDIR) -rfake
 RUNRUBY = $(MINIRUBY)
 !else
 MINIRUBY = .\miniruby$(EXEEXT) -I$(srcdir)/lib
-RUNRUBY = .\$(PROGRAM) -I"$(EXTOUT)/$(arch)"
+RUNRUBY = .\$(PROGRAM) -I$(srcdir)/lib -I"$(EXTOUT)/$(arch)"
 !endif
 MINIRUBY = $(MINIRUBY) $(MINIRUBYOPT)
-RUNRUBY = $(RUNRUBY) "$(srcdir)/runruby.rb" --extout="$(EXTOUT)" --
+RUNRUBY = $(RUNRUBY) "$(srcdir)/runruby.rb" --extout="$(EXTOUT)" $(RUNRUBYOPT) --
 !ifndef RUBY
 RUBY = ruby
 !endif
@@ -373,9 +373,7 @@ $(CONFIG_H): $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.sub
 #define FUNC_FASTCALL(x) __fastcall x
 #define RUBY_EXTERN extern __declspec(dllimport)
 #define HAVE_DECL_SYS_NERR 1
-!if !defined(WIN32_WCE)
 #define HAVE_LIMITS_H 1
-!endif
 #define HAVE_FCNTL_H 1
 #define HAVE_SYS_UTIME_H 1
 #define HAVE_FLOAT_H 1
@@ -409,9 +407,7 @@ $(CONFIG_H): $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.sub
 !endif
 #define GETGROUPS_T int
 #define RETSIGTYPE void
-!if !defined(WIN32_WCE)
 #define HAVE_ALLOCA 1
-!endif
 #define HAVE_DUP2 1
 #define HAVE_MEMCMP 1
 #define HAVE_MEMMOVE 1
@@ -444,9 +440,7 @@ $(CONFIG_H): $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.sub
 #define HAVE_TIMES 1
 #define HAVE_FCNTL 1
 #define HAVE_LINK 1
-!if !defined(WIN32_WCE)
 #define HAVE__SETJMP 1
-!endif
 #define HAVE_TELLDIR 1
 #define HAVE_SEEKDIR 1
 #define HAVE_MKTIME 1
@@ -470,44 +464,21 @@ $(CONFIG_H): $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.sub
 #define THREAD_SPECIFIC __declspec(thread)
 #define DEFAULT_KCODE KCODE_NONE
 #define DLEXT ".so"
-#define RUBY_LIB "/lib/ruby/$(ruby_version)"
-#define RUBY_SITE_LIB "/lib/ruby/site_ruby"
-#define RUBY_SITE_LIB2 "/lib/ruby/site_ruby/$(ruby_version)"
-#define RUBY_VENDOR_LIB "/lib/ruby/vendor_ruby"
-#define RUBY_VENDOR_LIB2 "/lib/ruby/vendor_ruby/$(ruby_version)"
+#define RUBY_LIB "/lib/$(RUBY_INSTALL_NAME)/$(ruby_version)"
+#define RUBY_SITE_LIB "/lib/$(RUBY_INSTALL_NAME)/site_ruby"
+#define RUBY_SITE_LIB2 "/lib/$(RUBY_INSTALL_NAME)/site_ruby/$(ruby_version)"
+#define RUBY_VENDOR_LIB "/lib/$(RUBY_INSTALL_NAME)/vendor_ruby"
+#define RUBY_VENDOR_LIB2 "/lib/$(RUBY_INSTALL_NAME)/vendor_ruby/$(ruby_version)"
 #define RUBY_PLATFORM "$(arch)"
-#define RUBY_ARCHLIB "/lib/ruby/$(ruby_version)/$(ARCH)-$(PLATFORM)"
-#define RUBY_SITE_ARCHLIB "/lib/ruby/site_ruby/$(ruby_version)/$(ARCH)-$(RT)"
-#define RUBY_VENDOR_ARCHLIB "/lib/ruby/vendor_ruby/$(ruby_version)/$(ARCH)-$(RT)"
+#define RUBY_ARCHLIB "/lib/$(RUBY_INSTALL_NAME)/$(ruby_version)/$(ARCH)-$(PLATFORM)"
+#define RUBY_SITE_ARCHLIB "/lib/$(RUBY_INSTALL_NAME)/site_ruby/$(ruby_version)/$(ARCH)-$(RT)"
+#define RUBY_VENDOR_ARCHLIB "/lib/$(RUBY_INSTALL_NAME)/vendor_ruby/$(ruby_version)/$(ARCH)-$(RT)"
 #define LIBRUBY_SO "$(LIBRUBY_SO)"
 #if 0
 $(BANG)if "$(RUBY_SO_NAME)"!="$$(RUBY_SO_NAME)" || "$(ARCH)-$(PLATFORM)"!="$$(ARCH)-$$(PLATFORM)"
 config.h: nul
 $(BANG)endif
 #endif
-!if defined(WIN32_WCE)
-#define GC_MALLOC_LIMIT 4000000
-#define stricmp _stricmp
-#define fopen   wce_fopen
-#define open	   _open
-#define read	   _read
-#define write	   _write
-#define lseek      _lseek
-
-#if _WIN32_WCE < 300
-  #define isascii(c) ( (c>=0x00&&c<=0x7f)?1:0 )
-  #define isspace(c) ( ((c>=0x09&&c<=0x0d)||c==0x20)?1:0 )
-  #define isdigit(c) ( (c>=0x30&&c<=0x39)?1:0 )
-  #define isupper(c) ( (c>='A'&&c<='Z')?1:0 )
-  #define isalpha(c) ( ((c>='A'&&c<='Z')||(c>='a'&&c<='z'))?1:0 )
-  #define isprint(c) ( (c>=0x20&&c<=0x7e)?1:0 )
-  #define isalnum(c) ( (isalpha(c)||isdigit(c))?1:0 )
-  #define iscntrl(c) ( ((c>=0x00&&c<=0x1f)||c==0x7f)?1:0 )
-  #define islower(c) ( (c>='a'&&c<='z')?1:0 )
-  #define ispunct(c) ( !(isalnum(c)||isspace(c))?1:0 )
-  #define isxdigit(c) ( ((c>=0&&c<=9)||(c>='A'&&c<='F')||(c>='a'&&c<='f'))?1:0 )
-#endif
-!endif
 <<
 	@exit > $(@:/=\)
 
@@ -530,9 +501,6 @@ config.status: $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.su
 	@exit <<$@
 # Generated automatically by Makefile.sub.
 s,@SHELL@,$$(COMSPEC),;t t
-!if defined(WIN32_WCE)
-s,@MAIN_DOES_NOTHING@,int WinMain(HINSTANCE h, HINSTANCE hp, LPWSTR s, int n) {return 0;},;t t
-!endif
 s,@BUILD_FILE_SEPARATOR@,\,;t t
 s,@PATH_SEPARATOR@,;,;t t
 s,@CFLAGS@,$(CFLAGS),;t t
@@ -544,7 +512,7 @@ s,@LDFLAGS@,,;t t
 s,@LIBS@,$(LIBS),;t t
 s,@exec_prefix@,$${prefix},;t t
 s,@prefix@,$(prefix),;t t
-s,@program_transform_name@,s,$$,$(RUBY_SUFFIX),,;t t
+s,@program_transform_name@,s,.*,$(RUBY_PREFIX)&$(RUBY_SUFFIX),,;t t
 s,@bindir@,$${exec_prefix}/bin,;t t
 s,@sbindir@,$${exec_prefix}/sbin,;t t
 s,@libexecdir@,$${exec_prefix}/libexec,;t t
@@ -650,9 +618,9 @@ s,@EXPORT_PREFIX@, ,;t t
 s,@arch@,$(ARCH)-$(PLATFORM),;t t
 s,@sitearch@,$(ARCH)-$(RT),;t t
 s,@ruby_version@,$(ruby_version),;t t
-s,@sitedir@,$${prefix}/lib/ruby/site_ruby,;t t
-s,@vendordir@,$${prefix}/lib/ruby/vendor_ruby,;t t
-s,@rubyhdrdir@,$$(includedir)/ruby-$$(ruby_version),;t t
+s,@sitedir@,$${prefix}/lib/$${RUBY_INSTALL_NAME}/site_ruby,;t t
+s,@vendordir@,$${prefix}/lib/$${RUBY_INSTALL_NAME}/vendor_ruby,;t t
+s,@rubyhdrdir@,$$(includedir)/$${RUBY_INSTALL_NAME}-$$(ruby_version),;t t
 s,@sitehdrdir@,$$(rubyhdrdir)/site_ruby,;t t
 s,@vendorhdrdir@,$$(rubyhdrdir)/vendor_ruby,;t t
 s,@configure_args@,--with-make-prog=nmake --enable-shared $(configure_args),;t t
@@ -734,9 +702,6 @@ $(RUBY_INSTALL_NAME).rc $(RUBYW_INSTALL_NAME).rc $(RUBY_SO_NAME).rc: $(RBCONFIG)
 			-ruby_name=$(RUBY_INSTALL_NAME) \
 			-rubyw_name=$(RUBYW_INSTALL_NAME) \
 			-so_name=$(RUBY_SO_NAME) \
-!if defined(WIN32_WCE)
-			-wce_ver=$(SUBSYSVERSION) \
-!endif
 			. $(icondirs) $(win_srcdir)
 
 fake.rb: $(MKFILES)

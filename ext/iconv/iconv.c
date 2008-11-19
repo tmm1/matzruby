@@ -66,6 +66,12 @@
  * 4. Shorthand for (3).
  *
  *      Iconv.iconv(to, from, *input.to_a)
+ *
+ * == Attentions
+ *
+ * Even if some extentions of implementation dependent are useful,
+ * DON'T USE those extentions in libraries and scripts to widely distribute.
+ * If you want to use those feature, use String#encode.
  */
 
 /* Invalid value for iconv_t is -1 but 0 for VALUE, I hope VALUE is
@@ -138,9 +144,10 @@ charset_map_get(void)
 static VALUE
 strip_glibc_option(VALUE *code)
 {
-    VALUE val = *code;
+    VALUE val = StringValue(*code);
     const char *ptr = RSTRING_PTR(val), *pend = RSTRING_END(val);
     const char *slash = memchr(ptr, '/', pend - ptr);
+
     if (slash && slash < pend - 1 && slash[1] ==  '/') {
 	VALUE opt = rb_str_subseq(val, slash - ptr, pend - slash);
 	val = rb_str_subseq(val, 0, slash - ptr);
@@ -153,7 +160,7 @@ strip_glibc_option(VALUE *code)
 static char *
 map_charset(VALUE *code)
 {
-    VALUE val = *code;
+    VALUE val = StringValue(*code);
 
     if (RHASH_SIZE(charset_map)) {
 	VALUE key = rb_funcall2(val, rb_intern("downcase"), 0, 0);

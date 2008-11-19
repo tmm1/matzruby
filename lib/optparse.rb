@@ -301,7 +301,8 @@ class OptionParser
     end
 
     def self.incompatible_argument_styles(arg, t)
-      raise ArgumentError, "#{arg}: incompatible argument styles\n  #{self}, #{t}"
+      raise(ArgumentError, "#{arg}: incompatible argument styles\n  #{self}, #{t}",
+            ParseError.filter_backtrace(caller(2)))
     end
 
     def self.pattern
@@ -529,7 +530,8 @@ class OptionParser
     #
     def accept(t, pat = /.*/nm, &block)
       if pat
-        pat.respond_to?(:match) or raise TypeError, "has no `match'"
+        pat.respond_to?(:match) or
+          raise TypeError, "has no `match'", ParseError.filter_backtrace(caller(2))
       else
         pat = t if t.respond_to?(:match)
       end
@@ -632,7 +634,7 @@ class OptionParser
       list.each do |opt|
         if opt.respond_to?(:summarize) # perhaps OptionParser::Switch
           opt.summarize(*args, &block)
-        elsif !opt
+        elsif !opt or opt.empty?
           yield("")
         elsif opt.respond_to?(:each_line)
           opt.each_line(&block)
@@ -987,17 +989,14 @@ class OptionParser
   #
   def notwice(obj, prv, msg)
     unless !prv or prv == obj
-      begin
-        raise ArgumentError, "argument #{msg} given twice: #{obj}"
-      rescue
-        $@[0, 2] = nil
-        raise
-      end
+      raise(ArgumentError, "argument #{msg} given twice: #{obj}",
+            ParseError.filter_backtrace(caller(2)))
     end
     obj
   end
   private :notwice
 
+  SPLAT_PROC = proc {|*a| a}
   #
   # Creates an OptionParser::Switch from the parameters. The parsed argument
   # value is passed to the given block, where it can be processed.
@@ -1076,9 +1075,13 @@ class OptionParser
       end
 
       # directly specified pattern(any object possible to match)
-      if !(String === o) and o.respond_to?(:match)
+      if (!(String === o || Symbol === o)) and o.respond_to?(:match)
         pattern = notwice(o, pattern, 'pattern')
-        conv = pattern.method(:convert).to_proc if pattern.respond_to?(:convert)
+        if pattern.respond_to?(:convert)
+          conv = pattern.method(:convert).to_proc
+        else
+          conv = SPLAT_PROC
+        end
         next
       end
 
@@ -1097,7 +1100,7 @@ class OptionParser
         end
         o.each {|pat, *v| pattern[pat] = v.fetch(0) {pat}}
       when Module
-        raise ArgumentError, "unsupported argument type: #{o}"
+        raise ArgumentError, "unsupported argument type: #{o}", ParseError.filter_backtrace(caller(4))
       when *ArgumentStyle.keys
         style = notwice(ArgumentStyle[o], style, 'style')
       when /^--no-([^\[\]=\s]*)(.+)?/
@@ -1162,7 +1165,9 @@ class OptionParser
       s = (style || default_style).new(pattern || default_pattern,
                                        conv, sdesc, ldesc, arg, desc, block)
     elsif !block
-      raise ArgumentError, "no switch given" if style or pattern
+      if style or pattern
+        raise ArgumentError, "no switch given", ParseError.filter_backtrace(caller)
+      end
       s = desc
     else
       short << pattern
@@ -1603,6 +1608,17 @@ class OptionParser
     def recover(argv)
       argv[0, 0] = @args
       argv
+    end
+
+    def self.filter_backtrace(array)
+      unless $DEBUG
+        array.delete_if(&%r"\A#{Regexp.quote(__FILE__)}:"o.method(:=~))
+      end
+      array
+    end
+
+    def set_backtrace(array)
+      super(self.class.filter_backtrace(array))
     end
 
     def set_option(opt, eq)

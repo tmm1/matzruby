@@ -9,11 +9,12 @@ CONFIG = RbConfig::MAKEFILE_CONFIG
 ORIG_LIBPATH = ENV['LIB']
 
 CXX_EXT = %w[cc cxx cpp]
-if /mswin|bccwin|mingw|msdosdjgpp|human|os2/ !~ CONFIG['build_os']
+if /mswin|bccwin|mingw|os2/ !~ CONFIG['build_os']
   CXX_EXT.concat(%w[C])
 end
 SRC_EXT = %w[c m] << CXX_EXT
-$static = $config_h = nil
+$static = nil
+$config_h = '$(arch_hdrdir)/ruby/config.h'
 $default_static = $static
 
 unless defined? $configure_args
@@ -59,7 +60,6 @@ $mswin = /mswin/ =~ RUBY_PLATFORM
 $bccwin = /bccwin/ =~ RUBY_PLATFORM
 $mingw = /mingw/ =~ RUBY_PLATFORM
 $cygwin = /cygwin/ =~ RUBY_PLATFORM
-$human = /human/ =~ RUBY_PLATFORM
 $netbsd = /netbsd/ =~ RUBY_PLATFORM
 $os2 = /os2/ =~ RUBY_PLATFORM
 $beos = /beos/ =~ RUBY_PLATFORM
@@ -323,9 +323,11 @@ EOM
 end
 
 def create_tmpsrc(src)
+  src = "#{COMMON_HEADERS}\n#{src}"
   src = yield(src) if block_given?
-  src[0, 0] = COMMON_HEADERS + "\n"
-  src = src.gsub(/[ \t]+$/, '').gsub(/\A\n+|^\n+$/, '').sub(/[^\n]\z/, "\\&\n")
+  src.gsub!(/[ \t]+$/, '')
+  src.gsub!(/\A\n+|^\n+$/, '')
+  src.sub!(/[^\n]\z/, "\\&\n")
   count = 0
   begin
     open(CONFTEST_C, "wb") do |cfile|
@@ -1300,7 +1302,7 @@ def configuration(srcdir)
       if CONFIG['target_os'] != 'cygwin'
         vpath = vpath.map {|p| p.sub(/.*/, '$(shell cygpath -u \&)')}
       end
-    when 'msdosdjgpp', 'mingw32'
+    when 'mingw32'
       CONFIG['PATH_SEPARATOR'] = ';'
     end
   end
@@ -1342,7 +1344,7 @@ VPATH = #{vpath.join(CONFIG['PATH_SEPARATOR'])}
   else
     sep = ""
   end
-  extconf_h = $extconf_h ? "-DRUBY_EXTCONF_H=\\\"$(RUBY_EXTCONF_H)\\\" " : $defs.join(" ")<<" "
+  extconf_h = $extconf_h ? "-DRUBY_EXTCONF_H=\\\"$(RUBY_EXTCONF_H)\\\" " : $defs.join(" ") << " "
   mk << %{
 CC = #{CONFIG['CC']}
 CXX = #{CONFIG['CXX']}
@@ -1442,7 +1444,7 @@ def depend_rules(depend)
   end
   depend.each_line do |line|
     line.gsub!(/\.o\b/, ".#{$OBJEXT}")
-    line.gsub!(/\$\((?:hdr|top)dir\)\/config.h/, $config_h) if $config_h
+    line.gsub!(/\$\((?:hdr|top)dir\)\/config.h/, $config_h)
     line.gsub!(%r"\$\(hdrdir\)/(?!ruby(?![^:;/\s]))(?=[-\w]+\.h)", '\&ruby/')
     if $nmake && /\A\s*\$\(RM|COPY\)/ =~ line
       line.gsub!(%r"[-\w\./]{2,}"){$&.tr("/", "\\")}
@@ -1618,8 +1620,8 @@ TARGET_SO     = #{($extout ? '$(RUBYARCHDIR)/' : '')}$(DLLIB)
 CLEANLIBS     = #{n}.#{CONFIG['DLEXT']} #{config_string('cleanlibs') {|t| t.gsub(/\$\*/) {n}}}
 CLEANOBJS     = *.#{$OBJEXT} #{config_string('cleanobjs') {|t| t.gsub(/\$\*/, '$(TARGET)')}} *.bak
 
-all:		#{$extout ? "install" : target ? "$(DLLIB)" : "Makefile"}
-static:		$(STATIC_LIB)#{$extout ? " install-rb" : ""}
+all:    #{$extout ? "install" : target ? "$(DLLIB)" : "Makefile"}
+static: $(STATIC_LIB)#{$extout ? " install-rb" : ""}
 "
   mfile.print CLEANINGS
   dirs = []
@@ -1743,7 +1745,7 @@ site-install-rb: install-rb
     if RULE_SUBST
       headers.each {|h| h.sub!(/.*/, &RULE_SUBST.method(:%))}
     end
-    headers << $config_h if $config_h
+    headers << $config_h
     headers << '$(RUBY_EXTCONF_H)' if $extconf_h
     mfile.print "$(OBJS): ", headers.join(' '), "\n"
   end
@@ -1889,14 +1891,14 @@ MAIN_DOES_NOTHING = config_string('MAIN_DOES_NOTHING') || 'int main() {return 0;
 sep = config_string('BUILD_FILE_SEPARATOR') {|s| ":/=#{s}" if sep != "/"} || ""
 CLEANINGS = "
 clean:
-		@-$(RM) $(CLEANLIBS#{sep}) $(CLEANOBJS#{sep}) $(CLEANFILES#{sep})
+\t\t@-$(RM) $(CLEANLIBS#{sep}) $(CLEANOBJS#{sep}) $(CLEANFILES#{sep})
 
-distclean:	clean
-		@-$(RM_RF) conftest.dSYM
-		@-$(RM) Makefile $(RUBY_EXTCONF_H) conftest.* mkmf.log
-		@-$(RM) core ruby$(EXEEXT) *~ $(DISTCLEANFILES#{sep})
+distclean: clean
+\t\t@-$(RM_RF) conftest.dSYM
+\t\t@-$(RM) Makefile $(RUBY_EXTCONF_H) conftest.* mkmf.log
+\t\t@-$(RM) core ruby$(EXEEXT) *~ $(DISTCLEANFILES#{sep})
 
-realclean:	distclean
+realclean: distclean
 "
 
 if not $extmk and /\A(extconf|makefile).rb\z/ =~ File.basename($0)

@@ -199,9 +199,9 @@ class TestSDBM < Test::Unit::TestCase
     }
   end
 
-  def test_index
+  def test_key
     assert_equal('bar', @sdbm['foo'] = 'bar')
-    assert_equal('foo', @sdbm.index('bar'))
+    assert_equal('foo', @sdbm.key('bar'))
     assert_nil(@sdbm['bar'])
   end
 
@@ -277,7 +277,7 @@ class TestSDBM < Test::Unit::TestCase
 
     n = 0
     ret = @sdbm.each_value {|val|
-      assert_not_nil(key = @sdbm.index(val))
+      assert_not_nil(key = @sdbm.key(val))
       assert_not_nil(i = keys.index(key))
       assert_equal(val, values[i])
 
@@ -365,14 +365,11 @@ class TestSDBM < Test::Unit::TestCase
   def test_delete_with_block
     key = 'no called block'
     @sdbm[key] = 'foo'
-    assert_equal('foo', @sdbm.delete(key) {|k| k.replace 'called block'})
-    assert_equal('no called block', key)
+    assert_equal('foo', @sdbm.delete(key) {|k| k.replace 'called block'; :blockval})
     assert_equal(0, @sdbm.size)
 
     key = 'no called block'
-    assert_equal(:blockval,
-		  @sdbm.delete(key) {|k| k.replace 'called block'; :blockval})
-    assert_equal('called block', key)
+    assert_equal(:blockval, @sdbm.delete(key) {|k| k.replace 'called block'; :blockval})
     assert_equal(0, @sdbm.size)
   end
 
@@ -531,12 +528,6 @@ class TestSDBM < Test::Unit::TestCase
     @sdbm.close
     assert_equal(true, @sdbm.closed?)
     @sdbm = SDBM.new(@path)
-  end
-
-  def test_index
-    assert_equal(nil, @sdbm.index("foo"))
-    @sdbm["bar"] = "foo"
-    assert_equal("bar", @sdbm.index("foo"))
   end
 
   def test_readonly

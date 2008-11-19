@@ -1,8 +1,9 @@
-require 'test/unit'
+require 'rubygems'
+require 'minitest/unit'
 require 'tmpdir'
 require 'rdoc/ri/driver'
 
-class TestRDocRIDriver < Test::Unit::TestCase
+class TestRDocRIDriver < MiniTest::Unit::TestCase
 
   def setup
     @tmpdir = File.join Dir.tmpdir, "test_rdoc_ri_driver_#{$$}"
@@ -14,7 +15,7 @@ class TestRDocRIDriver < Test::Unit::TestCase
     FileUtils.mkdir_p @home_ri
     FileUtils.mkdir_p @cache_dir
 
-    @driver = RDoc::RI::Driver.new
+    @driver = RDoc::RI::Driver.new(RDoc::RI::Driver.process_args([]))
     @driver.homepath = @home_ri
   end
 
@@ -90,3 +91,4 @@ class TestRDocRIDriver < Test::Unit::TestCase
 
 end
 
+MiniTest::Unit.autorun

@@ -109,7 +109,7 @@ fdbm_initialize(int argc, VALUE *argv, VALUE obj)
     if (!NIL_P(vflags))
         flags = NUM2INT(vflags);
 
-    SafeStringValue(file);
+    FilePathValue(file);
 
     if (flags & RUBY_DBM_RW_BIT) {
         flags &= ~RUBY_DBM_RW_BIT;
@@ -164,7 +164,7 @@ fdbm_fetch(VALUE obj, VALUE keystr, VALUE ifnone)
     struct dbmdata *dbmp;
     DBM *dbm;
 
-    StringValue(keystr);
+    ExportStringValue(keystr);
     key.dptr = RSTRING_PTR(keystr);
     key.dsize = RSTRING_LEN(keystr);
 
@@ -198,13 +198,13 @@ fdbm_fetch_m(int argc, VALUE *argv, VALUE obj)
 }
 
 static VALUE
-fdbm_index(VALUE obj, VALUE valstr)
+fdbm_key(VALUE obj, VALUE valstr)
 {
     datum key, val;
     struct dbmdata *dbmp;
     DBM *dbm;
 
-    StringValue(valstr);
+    ExportStringValue(valstr);
     val.dptr = RSTRING_PTR(valstr);
     val.dsize = RSTRING_LEN(valstr);
 
@@ -217,6 +217,13 @@ fdbm_index(VALUE obj, VALUE valstr)
 	}
     }
     return Qnil;
+}
+
+static VALUE
+fdbm_index(VALUE hash, VALUE value)
+{
+    rb_warn("DBM#index is deprecated; use DBM#key");
+    return fdbm_key(hash, value);
 }
 
 static VALUE
@@ -272,7 +279,7 @@ fdbm_delete(VALUE obj, VALUE keystr)
     VALUE valstr;
 
     fdbm_modify(obj);
-    StringValue(keystr);
+    ExportStringValue(keystr);
     key.dptr = RSTRING_PTR(keystr);
     key.dsize = RSTRING_LEN(keystr);
 
@@ -346,7 +353,7 @@ fdbm_delete_if(VALUE obj)
 
     for (i = 0; i < RARRAY_LEN(ary); i++) {
 	keystr = RARRAY_PTR(ary)[i];
-	StringValue(keystr);
+	ExportStringValue(keystr);
 	key.dptr = RSTRING_PTR(keystr);
 	key.dsize = RSTRING_LEN(keystr);
 	if (dbm_delete(dbm, key)) {
@@ -599,7 +606,7 @@ fdbm_has_key(VALUE obj, VALUE keystr)
     struct dbmdata *dbmp;
     DBM *dbm;
 
-    StringValue(keystr);
+    ExportStringValue(keystr);
     key.dptr = RSTRING_PTR(keystr);
     key.dsize = RSTRING_LEN(keystr);
 
@@ -616,7 +623,7 @@ fdbm_has_value(VALUE obj, VALUE valstr)
     struct dbmdata *dbmp;
     DBM *dbm;
 
-    StringValue(valstr);
+    ExportStringValue(valstr);
     val.dptr = RSTRING_PTR(valstr);
     val.dsize = RSTRING_LEN(valstr);
 
@@ -692,6 +699,7 @@ Init_dbm(void)
     rb_define_method(rb_cDBM, "[]=", fdbm_store, 2);
     rb_define_method(rb_cDBM, "store", fdbm_store, 2);
     rb_define_method(rb_cDBM, "index",  fdbm_index, 1);
+    rb_define_method(rb_cDBM, "key",  fdbm_key, 1);
     rb_define_method(rb_cDBM, "select",  fdbm_select, 0);
     rb_define_method(rb_cDBM, "values_at", fdbm_values_at, -1);
     rb_define_method(rb_cDBM, "length", fdbm_length, 0);

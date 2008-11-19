@@ -37,9 +37,10 @@ class TestVariable < Test::Unit::TestCase
     assert_instance_of(Fixnum, $$)
     
     # read-only variable
-    assert_raises(NameError) do
+    assert_raise(NameError) do
       $$ = 5
     end
+    assert_normal_exit("$*=0; $*", "[ruby-dev:36698]")
 
     foobar = "foobar"
     $_ = foobar

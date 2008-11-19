@@ -105,9 +105,8 @@ class TestM17NComb < Test::Unit::TestCase
     u("\xc2"), u("\x80"),
 
     # for transitivity test
-    u("\xe0\xa0\xa1"),
-    e("\xe0\xa0\xa1"),
-    s("\xe0\xa0\xa1"),
+    u("\xe0\xa0\xa1"), e("\xe0\xa0\xa1"), s("\xe0\xa0\xa1"), # [ruby-dev:32693]
+    e("\xa1\xa1"), a("\xa1\xa1"), s("\xa1\xa1"), # [ruby-dev:36484]
 
     #"aa".force_encoding("utf-16be"),
     #"aaaa".force_encoding("utf-32be"),
@@ -116,6 +115,7 @@ class TestM17NComb < Test::Unit::TestCase
 
   def combination(*args, &b)
     AllPairs.each(*args, &b)
+    #AllPairs.exhaustive_each(*args, &b)
   end
 
   def encdump(str)
@@ -261,7 +261,7 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_plus
     combination(STRINGS, STRINGS) {|s1, s2|
       if s1.encoding != s2.encoding && !s1.ascii_only? && !s2.ascii_only?
-        assert_raise(EncodingCompatibilityError) { s1 + s2 }
+        assert_raise(Encoding::CompatibilityError) { s1 + s2 }
       else
         t = enccall(s1, :+, s2)
         assert(t.valid_encoding?) if s1.valid_encoding? && s2.valid_encoding?
@@ -318,10 +318,9 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_eq
     combination(STRINGS, STRINGS) {|s1, s2|
       desc_eq = "#{encdump s1} == #{encdump s2}"
-      if s1.ascii_only? && s2.ascii_only? && a(s1) == a(s2)
-        assert(s1 == s2, desc_eq)
-        assert(s1.eql?(s2), desc_eq)
-      elsif s1.encoding == s2.encoding && a(s1) == a(s2)
+      if a(s1) == a(s2) and
+          (s1.ascii_only? && s2.ascii_only? or
+           s1.encoding == s2.encoding) then
         assert(s1 == s2, desc_eq)
         assert(!(s1 != s2))
         assert_equal(0, s1 <=> s2)
@@ -344,7 +343,7 @@ class TestM17NComb < Test::Unit::TestCase
         assert_equal(a(s), a(s1) + a(s2))
         assert_str_enc_propagation(s, s1, s2)
       else
-        assert_raise(EncodingCompatibilityError) { s << s2 }
+        assert_raise(Encoding::CompatibilityError) { s << s2 }
       end
     }
   end
@@ -396,7 +395,7 @@ class TestM17NComb < Test::Unit::TestCase
           end
         end
       else
-        assert_raise(EncodingCompatibilityError) { s1[s2] }
+        assert_raise(Encoding::CompatibilityError) { s1[s2] }
       end
     }
   end
@@ -481,7 +480,7 @@ class TestM17NComb < Test::Unit::TestCase
             end
           end
         else
-          assert_raise(EncodingCompatibilityError) { t[i] = s2 }
+          assert_raise(Encoding::CompatibilityError) { t[i] = s2 }
         end
       }
     }
@@ -513,7 +512,7 @@ class TestM17NComb < Test::Unit::TestCase
           end
         end
       else
-        assert_raise(EncodingCompatibilityError) { t[i,len] = s2 }
+        assert_raise(Encoding::CompatibilityError) { t[i,len] = s2 }
       end
     }
   end
@@ -526,7 +525,7 @@ class TestM17NComb < Test::Unit::TestCase
         !s2.ascii_only? ? s2.encoding : nil,
         !s3.ascii_only? ? s3.encoding : nil].uniq.compact
       if 1 < encs.length
-        assert_raise(EncodingCompatibilityError, IndexError) { t[s2] = s3 }
+        assert_raise(Encoding::CompatibilityError, IndexError) { t[s2] = s3 }
       else
         if encs.empty?
           encs = [
@@ -565,7 +564,7 @@ class TestM17NComb < Test::Unit::TestCase
           end
         end
       else
-        assert_raise(EncodingCompatibilityError, RangeError,
+        assert_raise(Encoding::CompatibilityError, RangeError,
                      "t=#{encdump(s1)};t[#{first}..#{last}]=#{encdump(s2)}") {
           t[first..last] = s2
         }
@@ -592,7 +591,7 @@ class TestM17NComb < Test::Unit::TestCase
           end
         end
       else
-        assert_raise(EncodingCompatibilityError, RangeError,
+        assert_raise(Encoding::CompatibilityError, RangeError,
                      "t=#{encdump(s1)};t[#{first}...#{last}]=#{encdump(s2)}") {
           t[first...last] = s2
         }
@@ -655,7 +654,7 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.center(width, s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.center(width, s2) }
         next
       end
       t = enccall(s1, :center, width, s2)
@@ -676,7 +675,7 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.ljust(width, s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.ljust(width, s2) }
         next
       end
       t = enccall(s1, :ljust, width, s2)
@@ -697,7 +696,7 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.rjust(width, s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.rjust(width, s2) }
         next
       end
       t = enccall(s1, :rjust, width, s2)
@@ -711,7 +710,7 @@ class TestM17NComb < Test::Unit::TestCase
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s1.ascii_only? && !s2.ascii_only? && !Encoding.compatible?(s1,s2)
         if s1.bytesize > s2.bytesize 
-          assert_raise(EncodingCompatibilityError) { s1.chomp(s2) }
+          assert_raise(Encoding::CompatibilityError) { s1.chomp(s2) }
         end
         next
       end
@@ -777,11 +776,11 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_count
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s1.valid_encoding? || !s2.valid_encoding?
-        assert_raise(ArgumentError, EncodingCompatibilityError) { s1.count(s2) }
+        assert_raise(ArgumentError, Encoding::CompatibilityError) { s1.count(s2) }
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.count(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.count(s2) }
         next
       end
       n = enccall(s1, :count, s2)
@@ -809,11 +808,11 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !s1.valid_encoding? || !s2.valid_encoding?
-        assert_raise(ArgumentError, EncodingCompatibilityError) { s1.delete(s2) }
+        assert_raise(ArgumentError, Encoding::CompatibilityError) { s1.delete(s2) }
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.delete(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.delete(s2) }
         next
       end
       t = enccall(s1, :delete, s2)
@@ -855,11 +854,11 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_each_line
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s1.valid_encoding? || !s2.valid_encoding?
-        assert_raise(ArgumentError, EncodingCompatibilityError) { s1.each_line(s2) {} }
+        assert_raise(ArgumentError, Encoding::CompatibilityError) { s1.each_line(s2) {} }
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.each_line(s2) {} }
+        assert_raise(Encoding::CompatibilityError) { s1.each_line(s2) {} }
         next
       end
       lines = []
@@ -908,9 +907,9 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_include?
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.include?(s2) }
-        assert_raise(EncodingCompatibilityError) { s1.index(s2) }
-        assert_raise(EncodingCompatibilityError) { s1.rindex(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.include?(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.index(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.rindex(s2) }
         next
       end
       t = enccall(s1, :include?, s2)
@@ -941,7 +940,7 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_index
     combination(STRINGS, STRINGS, -2..2) {|s1, s2, pos|
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.index(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.index(s2) }
         next
       end
       t = enccall(s1, :index, s2, pos)
@@ -974,7 +973,7 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_rindex
     combination(STRINGS, STRINGS, -2..2) {|s1, s2, pos|
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.rindex(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.rindex(s2) }
         next
       end
       t = enccall(s1, :rindex, s2, pos)
@@ -1023,11 +1022,11 @@ class TestM17NComb < Test::Unit::TestCase
       t2 = s1.dup
       begin
         t1[nth, 0] = s2
-      rescue EncodingCompatibilityError, IndexError => e1
+      rescue Encoding::CompatibilityError, IndexError => e1
       end
       begin
         t2.insert(nth, s2)
-      rescue EncodingCompatibilityError, IndexError => e2
+      rescue Encoding::CompatibilityError, IndexError => e2
       end
       assert_equal(t1, t2, "t=#{encdump s1}; t.insert(#{nth},#{encdump s2}); t")
       assert_equal(e1.class, e2.class, "begin #{encdump s1}.insert(#{nth},#{encdump s2}); rescue ArgumentError, IndexError => e; e end")
@@ -1041,7 +1040,7 @@ class TestM17NComb < Test::Unit::TestCase
         t1.insert(nth, s2)
         slen = s2.length
         assert_equal(t1[nth-slen+1,slen], s2, "t=#{encdump s1}; t.insert(#{nth},#{encdump s2}); t")
-      rescue EncodingCompatibilityError, IndexError => e
+      rescue Encoding::CompatibilityError, IndexError => e
       end
     }
   end
@@ -1158,11 +1157,11 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_split
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s2.valid_encoding?
-        assert_raise(RegexpError) { s1.split(s2) }
+        assert_raise(ArgumentError, RegexpError) { s1.split(s2) }
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(ArgumentError) { s1.split(s2) }
+        assert_raise(ArgumentError, Encoding::CompatibilityError) { s1.split(s2) }
         next
       end
       if !s1.valid_encoding?
@@ -1186,11 +1185,11 @@ class TestM17NComb < Test::Unit::TestCase
   def test_str_squeeze
     combination(STRINGS, STRINGS) {|s1, s2|
       if !s1.valid_encoding? || !s2.valid_encoding?
-        assert_raise(ArgumentError, EncodingCompatibilityError, "#{encdump s1}.squeeze(#{encdump s2})") { s1.squeeze(s2) }
+        assert_raise(ArgumentError, Encoding::CompatibilityError, "#{encdump s1}.squeeze(#{encdump s2})") { s1.squeeze(s2) }
         next
       end
       if !s1.ascii_only? && !s2.ascii_only? && s1.encoding != s2.encoding
-        assert_raise(EncodingCompatibilityError) { s1.squeeze(s2) }
+        assert_raise(Encoding::CompatibilityError) { s1.squeeze(s2) }
         next
       end
       t = enccall(s1, :squeeze, s2)
@@ -1280,7 +1279,7 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !str_enc_compatible?(s1, s2, s3)
-        assert_raise(EncodingCompatibilityError, desc) { s1.tr(s2, s3) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.tr(s2, s3) }
         next
       end
       if !s1.valid_encoding?
@@ -1309,11 +1308,11 @@ class TestM17NComb < Test::Unit::TestCase
         next
       end
       if !s1.valid_encoding?
-        assert_raise(ArgumentError, EncodingCompatibilityError, desc) { s1.tr_s(s2, s3) }
+        assert_raise(ArgumentError, Encoding::CompatibilityError, desc) { s1.tr_s(s2, s3) }
         next
       end
       if !str_enc_compatible?(s1, s2, s3)
-        assert_raise(EncodingCompatibilityError, desc) { s1.tr(s2, s3) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.tr(s2, s3) }
         next
       end
       if s2.empty?
@@ -1395,21 +1394,25 @@ class TestM17NComb < Test::Unit::TestCase
       [
         [
           "#{encdump s1}.sub(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { s1.sub(r2, s3) }
+          lambda { s1.sub(r2, s3) },
+          false
         ],
         [
           "#{encdump s1}.sub(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { s1.sub(r2) { s3 } }
+          lambda { s1.sub(r2) { s3 } },
+          false
         ],
         [
           "#{encdump s1}.gsub(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { s1.gsub(r2, s3) }
+          lambda { s1.gsub(r2, s3) },
+          true
         ],
         [
           "#{encdump s1}.gsub(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { s1.gsub(r2) { s3 } }
+          lambda { s1.gsub(r2) { s3 } },
+          true
         ]
-      ].each {|desc, doit|
+      ].each {|desc, doit, g|
         if !s1.valid_encoding?
           assert_raise(ArgumentError, desc) { doit.call }
           next
@@ -1422,8 +1425,8 @@ class TestM17NComb < Test::Unit::TestCase
           assert_equal(s1, doit.call)
           next
         end
-        if !str_enc_compatible?(s1.gsub(r2, ''), s3)
-          assert_raise(EncodingCompatibilityError, desc) { doit.call }
+        if !str_enc_compatible?(g ? s1.gsub(r2, '') : s1.sub(r2, ''), s3)
+          assert_raise(Encoding::CompatibilityError, desc) { doit.call }
           next
         end
         t = nil
@@ -1449,21 +1452,25 @@ class TestM17NComb < Test::Unit::TestCase
       [
         [
           "t=#{encdump s1}.dup;t.sub!(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { t=s1.dup; [t, t.sub!(r2, s3)] }
+          lambda { t=s1.dup; [t, t.sub!(r2, s3)] },
+          false
         ],
         [
           "t=#{encdump s1}.dup;t.sub!(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { t=s1.dup; [t, t.sub!(r2) { s3 }] }
+          lambda { t=s1.dup; [t, t.sub!(r2) { s3 }] },
+          false
         ],
         [
           "t=#{encdump s1}.dup;t.gsub!(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { t=s1.dup; [t, t.gsub!(r2, s3)] }
+          lambda { t=s1.dup; [t, t.gsub!(r2, s3)] },
+          true
         ],
         [
           "t=#{encdump s1}.dup;t.gsub!(Regexp.new(#{encdump s2}), #{encdump s3})",
-          lambda { t=s1.dup; [t, t.gsub!(r2) { s3 }] }
+          lambda { t=s1.dup; [t, t.gsub!(r2) { s3 }] },
+          true
         ]
-      ].each {|desc, doit|
+      ].each {|desc, doit, g|
         if !s1.valid_encoding?
           assert_raise(ArgumentError, desc) { doit.call }
           next
@@ -1476,8 +1483,8 @@ class TestM17NComb < Test::Unit::TestCase
           assert_equal([s1, nil], doit.call)
           next
         end
-        if !str_enc_compatible?(s1.gsub(r2, ''), s3)
-          assert_raise(EncodingCompatibilityError, desc) { doit.call }
+        if !str_enc_compatible?(g ? s1.gsub(r2, '') : s1.sub(r2, ''), s3)
+          assert_raise(Encoding::CompatibilityError, desc) { doit.call }
           next
         end
         t = ret = nil
@@ -1538,7 +1545,7 @@ class TestM17NComb < Test::Unit::TestCase
     combination(STRINGS, STRINGS) {|s1, s2|
       desc = "#{encdump s1}.end_with?(#{encdump s2})"
       if !str_enc_compatible?(s1, s2)
-        assert_raise(EncodingCompatibilityError, desc) { s1.end_with?(s2) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.end_with?(s2) }
         next
       end
       if s1.length < s2.length
@@ -1557,7 +1564,7 @@ class TestM17NComb < Test::Unit::TestCase
     combination(STRINGS, STRINGS) {|s1, s2|
       desc = "#{encdump s1}.start_with?(#{encdump s2})"
       if !str_enc_compatible?(s1, s2)
-        assert_raise(EncodingCompatibilityError, desc) { s1.start_with?(s2) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.start_with?(s2) }
         next
       end
       s1 = s1.dup.force_encoding("ASCII-8BIT")
@@ -1592,7 +1599,7 @@ class TestM17NComb < Test::Unit::TestCase
     combination(STRINGS, STRINGS) {|s1, s2|
       desc = "#{encdump s1}.partition(#{encdump s2})"
       if !str_enc_compatible?(s1, s2)
-        assert_raise(EncodingCompatibilityError, desc) { s1.partition(s2) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.partition(s2) }
         next
       end
       i = enccall(s1, :index, s2)
@@ -1608,7 +1615,7 @@ class TestM17NComb < Test::Unit::TestCase
     combination(STRINGS, STRINGS) {|s1, s2|
       desc = "#{encdump s1}.rpartition(#{encdump s2})"
       if !str_enc_compatible?(s1, s2)
-        assert_raise(EncodingCompatibilityError, desc) { s1.rpartition(s2) }
+        assert_raise(Encoding::CompatibilityError, desc) { s1.rpartition(s2) }
         next
       end
       i = enccall(s1, :rindex, s2)

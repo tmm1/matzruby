@@ -1,5 +1,9 @@
 #!/usr/bin/env ruby
 require 'test/unit'
-(r = Test::Unit::AutoRunner.new(true)).process_args(ARGV) or
-  abort r.options.banner + " tests..."
-exit r.run
+Test::Unit.setup_argv {|files|
+  if files.empty?
+    puts "Usage: testrb [options] tests..."
+    exit 1
+  end
+  files
+}

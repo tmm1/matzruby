@@ -10,9 +10,8 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "ruby/node.h"
 #include "ruby/st.h"
-#include "vm_core.h"
+#include "node.h"
 #include <ctype.h>
 
 static VALUE
@@ -68,6 +67,8 @@ struct clone_method_data {
     st_table *tbl;
     VALUE klass;
 };
+
+VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
 
 static int
 clone_method(ID mid, NODE *body, struct clone_method_data *data)
@@ -187,7 +188,25 @@ VALUE
 rb_make_metaclass(VALUE obj, VALUE super)
 {
     if (BUILTIN_TYPE(obj) == T_CLASS && FL_TEST(obj, FL_SINGLETON)) {
-	return RBASIC(obj)->klass = rb_cClass;
+        VALUE metaclass, meta_of_super;
+        if (RBASIC(obj)->klass == obj) { /* for meta^(n)-class of Class */
+            metaclass = rb_class_boot(obj);
+            RBASIC(metaclass)->klass = metaclass;
+        }
+        else {
+            metaclass = rb_class_boot(super);
+            RBASIC(metaclass)->klass = rb_singleton_class(RBASIC(obj)->klass);
+        }
+        FL_SET(metaclass, FL_SINGLETON);
+        rb_singleton_class_attached(metaclass, obj);
+        RBASIC(obj)->klass = metaclass;
+
+        meta_of_super = RCLASS(obj)->ptr->super;
+        while (FL_TEST(meta_of_super, T_ICLASS)) {
+            meta_of_super = RCLASS(meta_of_super)->ptr->super;
+        }
+        RCLASS(metaclass)->ptr->super = rb_singleton_class(meta_of_super);
+        return metaclass;
     }
     else {
 	VALUE metasuper;
@@ -248,7 +267,7 @@ rb_define_class(const char *name, VALUE super)
 	rb_warn("no super class for `%s', Object assumed", name);
     }
     klass = rb_define_class_id(id, super);
-    rb_register_mark_object(klass);
+    rb_gc_register_mark_object(klass);
     rb_name_class(klass, id);
     rb_const_set(rb_cObject, id, klass);
     rb_class_inherited(super, klass);
@@ -320,7 +339,7 @@ rb_define_module(const char *name)
 	rb_raise(rb_eTypeError, "%s is not a module", rb_obj_classname(module));
     }
     module = rb_define_module_id(id);
-    rb_register_mark_object(module);
+    rb_gc_register_mark_object(module);
     rb_const_set(rb_cObject, id, module);
 
     return module;
@@ -620,9 +639,9 @@ class_instance_method_list(int argc, VALUE *argv, VALUE mod, int (*func) (ID, lo
  *  call-seq:
  *     mod.instance_methods(include_super=true)   => array
  *  
- *  Returns an array containing the names of public instance methods in
- *  the receiver. For a module, these are the public methods; for a
- *  class, they are the instance (not singleton) methods. With no
+ *  Returns an array containing the names of instance methods that is callable
+ *  from outside in the receiver. For a module, these are the public methods;
+ *  for a class, they are the instance (not singleton) methods. With no
  *  argument, or with an argument that is <code>false</code>, the
  *  instance methods in <i>mod</i> are returned, otherwise the methods
  *  in <i>mod</i> and <i>mod</i>'s superclasses are returned.

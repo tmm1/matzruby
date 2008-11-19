@@ -5,6 +5,10 @@ require_relative 'envutil'
 $m0 = Module.nesting
 
 class TestModule < Test::Unit::TestCase
+  def _wrap_assertion
+    yield
+  end
+
   def assert_method_defined?(klass, mid, message="")
     message = build_message(message, "#{klass}\##{mid} expected to be defined.")
     _wrap_assertion do
@@ -204,14 +208,6 @@ class TestModule < Test::Unit::TestCase
     Other.class_eval("CLASS_EVAL = 1")
     assert_equal(1, Other::CLASS_EVAL)
     assert(Other.constants.include?(:CLASS_EVAL))
-  end
-
-  def test_class_variable_set
-    # TODO
-  end
-
-  def test_class_variable_get
-    # TODO
   end
 
   def test_const_defined?
@@ -441,7 +437,7 @@ class TestModule < Test::Unit::TestCase
     assert_raise(NameError) { c1.const_defined?(:foo) }
   end
 
-  def test_class_variable_get2
+  def test_class_variable_get
     c = Class.new
     c.class_eval { @@foo = :foo }
     assert_equal(:foo, c.class_variable_get(:@@foo))
@@ -449,7 +445,7 @@ class TestModule < Test::Unit::TestCase
     assert_raise(NameError) { c.class_variable_get(:foo) }
   end
 
-  def test_class_variable_set2
+  def test_class_variable_set
     c = Class.new
     c.class_variable_set(:@@foo, :foo)
     assert_equal(:foo, c.class_eval { @@foo })
@@ -462,6 +458,13 @@ class TestModule < Test::Unit::TestCase
     assert_equal(true, c.class_variable_defined?(:@@foo))
     assert_equal(false, c.class_variable_defined?(:@@bar))
     assert_raise(NameError) { c.class_variable_defined?(:foo) }
+  end
+
+  def test_remove_class_variable
+    c = Class.new
+    c.class_eval { @@foo = :foo }
+    c.class_eval { remove_class_variable(:@@foo) }
+    assert_equal(false, c.class_variable_defined?(:@@foo))
   end
 
   def test_export_method
@@ -540,10 +543,11 @@ class TestModule < Test::Unit::TestCase
   end
 
   def test_mod_constants
-    Module.const_set(:Foo, :foo)
-    assert_equal([:Foo], Module.constants(true))
-    assert_equal([:Foo], Module.constants(false))
-    Module.instance_eval { remove_const(:Foo) }
+    m = Module.new
+    m.const_set(:Foo, :foo)
+    assert_equal([:Foo], m.constants(true))
+    assert_equal([:Foo], m.constants(false))
+    m.instance_eval { remove_const(:Foo) }
   end
 
   def test_frozen_class

@@ -1,4 +1,3 @@
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'rubygems/local_remote_options'
 require 'rubygems/command'
@@ -17,6 +16,18 @@ class TestGemLocalRemoteOptions < RubyGemTestCase
 
     args = %w[-l -r -b -B 10 --source http://gems.example.com -p --update-sources]
     assert @cmd.handles?(args)
+  end
+
+  def test_both_eh
+    assert_equal false, @cmd.both?
+
+    @cmd.options[:domain] = :local
+
+    assert_equal false, @cmd.both?
+
+    @cmd.options[:domain] = :both
+
+    assert_equal true, @cmd.both?
   end
 
   def test_local_eh
@@ -74,7 +85,7 @@ class TestGemLocalRemoteOptions < RubyGemTestCase
 
     s1 = 'htp://more-gems.example.com'
 
-    assert_raise OptionParser::InvalidArgument do
+    assert_raises OptionParser::InvalidArgument do
       @cmd.handle_options %W[--source #{s1}]
     end
 

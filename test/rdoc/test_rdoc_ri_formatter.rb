@@ -1,9 +1,10 @@
 require 'stringio'
-require 'test/unit'
+require 'rubygems'
+require 'minitest/unit'
 require 'rdoc/ri/formatter'
 require 'rdoc/markup/to_flow'
 
-class TestRDocRIFormatter < Test::Unit::TestCase
+class TestRDocRIFormatter < MiniTest::Unit::TestCase
 
   def setup
     @output = StringIO.new
@@ -97,7 +98,7 @@ class TestRDocRIFormatter < Test::Unit::TestCase
   end
 
   def test_display_flow_item_unknown
-    e = assert_raise RDoc::Error do
+    e = assert_raises RDoc::Error do
       @f.display_flow_item Object.new
     end
 
@@ -189,7 +190,7 @@ class TestRDocRIFormatter < Test::Unit::TestCase
     list = RDoc::Markup::Flow::LIST.new :UNKNOWN
     list << RDoc::Markup::Flow::LI.new(nil, 'a b c')
 
-    e = assert_raise ArgumentError do
+    e = assert_raises ArgumentError do
       @f.display_list list
     end
 
@@ -245,7 +246,7 @@ class TestRDocRIFormatter < Test::Unit::TestCase
   def test_raw_print_line
     @f.raw_print_line 'a b c'
 
-    assert_equal "a b c\n", @output.string
+    assert_equal "a b c", @output.string
   end
 
   def test_strip_attributes_b
@@ -316,3 +317,4 @@ class TestRDocRIFormatter < Test::Unit::TestCase
 
 end
 
+MiniTest::Unit.autorun

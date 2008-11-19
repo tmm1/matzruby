@@ -5,7 +5,6 @@
 #++
 
 require 'stringio'
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'rubygems/specification'
 
@@ -336,8 +335,8 @@ end
   def test_equals2
     assert_equal @a1, @a1
     assert_equal @a1, @a1.dup
-    assert_not_equal @a1, @a2
-    assert_not_equal @a1, Object.new
+    refute_equal @a1, @a2
+    refute_equal @a1, Object.new
   end
 
   # The cgikit specification was reported to be causing trouble in at least
@@ -369,16 +368,16 @@ end
     spec = @a1.dup
     spec.default_executable = 'xx'
 
-    assert_not_equal @a1, spec
-    assert_not_equal spec, @a1
+    refute_equal @a1, spec
+    refute_equal spec, @a1
   end
 
   def test_equals2_extensions
     spec = @a1.dup
     spec.extensions = 'xx'
 
-    assert_not_equal @a1, spec
-    assert_not_equal spec, @a1
+    refute_equal @a1, spec
+    refute_equal spec, @a1
   end
 
   def test_executables
@@ -500,13 +499,13 @@ end
   end
 
   def test_has_rdoc_eh
-    assert_equal true, @a1.has_rdoc?
+    assert @a1.has_rdoc?
   end
 
   def test_hash
     assert_equal @a1.hash, @a1.hash
     assert_equal @a1.hash, @a1.dup.hash
-    assert_not_equal @a1.hash, @a2.hash
+    refute_equal @a1.hash, @a2.hash
   end
 
   def test_lib_files
@@ -634,7 +633,10 @@ end
 
     ruby_code = @a2.to_ruby
 
-    expected = "Gem::Specification.new do |s|
+    expected = <<-SPEC
+# -*- encoding: utf-8 -*-
+
+Gem::Specification.new do |s|
   s.name = %q{a}
   s.version = \"2\"
 
@@ -654,7 +656,7 @@ end
     current_version = Gem::Specification::CURRENT_SPECIFICATION_VERSION
     s.specification_version = #{Gem::Specification::CURRENT_SPECIFICATION_VERSION}
 
-    if current_version >= 3 then
+    if Gem::Version.new(Gem::RubyGemsVersion) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<b>, [\"= 1\"])
     else
       s.add_dependency(%q<b>, [\"= 1\"])
@@ -663,7 +665,7 @@ end
     s.add_dependency(%q<b>, [\"= 1\"])
   end
 end
-"
+    SPEC
 
     assert_equal expected, ruby_code
 
@@ -679,7 +681,10 @@ end
     local = Gem::Platform.local
     expected_platform = "[#{local.cpu.inspect}, #{local.os.inspect}, #{local.version.inspect}]"
 
-    expected = "Gem::Specification.new do |s|
+    expected = <<-SPEC
+# -*- encoding: utf-8 -*-
+
+Gem::Specification.new do |s|
   s.name = %q{a}
   s.version = \"1\"
   s.platform = Gem::Platform.new(#{expected_platform})
@@ -706,7 +711,7 @@ end
     current_version = Gem::Specification::CURRENT_SPECIFICATION_VERSION
     s.specification_version = 2
 
-    if current_version >= 3 then
+    if Gem::Version.new(Gem::RubyGemsVersion) >= Gem::Version.new('1.2.0') then
       s.add_runtime_dependency(%q<rake>, [\"> 0.4\"])
       s.add_runtime_dependency(%q<jabber4r>, [\"> 0.0.0\"])
       s.add_runtime_dependency(%q<pqa>, [\"> 0.4\", \"<= 0.6\"])
@@ -721,7 +726,7 @@ end
     s.add_dependency(%q<pqa>, [\"> 0.4\", \"<= 0.6\"])
   end
 end
-"
+    SPEC
 
     assert_equal expected, ruby_code
 
@@ -809,7 +814,7 @@ end
 
       @a1.authors = [Object.new]
 
-      e = assert_raise Gem::InvalidSpecificationException do
+      e = assert_raises Gem::InvalidSpecificationException do
         @a1.validate
       end
 
@@ -843,7 +848,7 @@ end
   end
 
   def test_validate_empty
-    e = assert_raise Gem::InvalidSpecificationException do
+    e = assert_raises Gem::InvalidSpecificationException do
       Gem::Specification.new.validate
     end
 
@@ -866,7 +871,7 @@ end
 
   def test_validate_empty_require_paths
     @a1.require_paths = []
-    e = assert_raise Gem::InvalidSpecificationException do
+    e = assert_raises Gem::InvalidSpecificationException do
       @a1.validate
     end
 
@@ -926,7 +931,7 @@ end
 
   def test_validate_rubygems_version
     @a1.rubygems_version = "3"
-    e = assert_raise Gem::InvalidSpecificationException do
+    e = assert_raises Gem::InvalidSpecificationException do
       @a1.validate
     end
 

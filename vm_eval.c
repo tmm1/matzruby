@@ -11,19 +11,13 @@
 
 **********************************************************************/
 
-#include "ruby/ruby.h"
-#include "ruby/node.h"
-#include "ruby/st.h"
-
-#include "vm_method.c"
-
 static inline VALUE method_missing(VALUE obj, ID id, int argc, const VALUE *argv, int call_status);
 static inline VALUE rb_vm_set_finish_env(rb_thread_t * th);
 static inline VALUE vm_yield_with_cref(rb_thread_t *th, int argc, const VALUE *argv, const NODE *cref);
 static inline VALUE vm_yield(rb_thread_t *th, int argc, const VALUE *argv);
 static inline VALUE vm_backtrace(rb_thread_t *th, int lev);
 static NODE *vm_cref_push(rb_thread_t *th, VALUE klass, int noex);
-static VALUE vm_eval_body(rb_thread_t *th);
+static VALUE vm_exec(rb_thread_t *th);
 static void vm_set_eval_stack(rb_thread_t * th, VALUE iseqval, const NODE *cref);
 
 static inline VALUE
@@ -58,7 +52,7 @@ vm_call0(rb_thread_t * th, VALUE klass, VALUE recv, VALUE id, ID oid,
 	}
 
 	vm_setup_method(th, reg_cfp, argc, blockptr, 0, iseqval, recv, klass);
-	val = vm_eval_body(th);
+	val = vm_exec(th);
 	break;
       }
       case NODE_CFUNC: {
@@ -742,7 +736,7 @@ eval_string_with_cref(VALUE self, VALUE src, VALUE scope, NODE *cref, const char
 
 	/* kick */
 	CHECK_STACK_OVERFLOW(th->cfp, iseq->stack_max);
-	result = vm_eval_body(th);
+	result = vm_exec(th);
     }
     POP_TAG();
     th->mild_compile_error = mild_compile_error;
@@ -1327,6 +1321,7 @@ rb_make_backtrace(void)
 void
 Init_vm_eval(void)
 {
+    rb_define_global_function("eval", rb_f_eval, -1);
     rb_define_global_function("catch", rb_f_catch, -1);
     rb_define_global_function("throw", rb_f_throw, -1);
 
@@ -1342,6 +1337,8 @@ Init_vm_eval(void)
 
     rb_define_method(rb_cModule, "module_exec", rb_mod_module_exec, -1);
     rb_define_method(rb_cModule, "class_exec", rb_mod_module_exec, -1);
+    rb_define_method(rb_cModule, "module_eval", rb_mod_module_eval, -1);
+    rb_define_method(rb_cModule, "class_eval", rb_mod_module_eval, -1);
 
     rb_define_global_function("caller", rb_f_caller, -1);
 }

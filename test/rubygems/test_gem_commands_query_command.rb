@@ -1,4 +1,3 @@
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'rubygems/commands/query_command'
 
@@ -99,7 +98,7 @@ pl (1)
   def test_execute_installed
     @cmd.handle_options %w[-n c --installed]
 
-    e = assert_raise Gem::SystemExitException do
+    e = assert_raises Gem::SystemExitException do
       use_ui @ui do
         @cmd.execute
       end
@@ -115,7 +114,7 @@ pl (1)
   def test_execute_installed_no_name
     @cmd.handle_options %w[--installed]
 
-    e = assert_raise Gem::SystemExitException do
+    e = assert_raises Gem::SystemExitException do
       use_ui @ui do
         @cmd.execute
       end
@@ -130,7 +129,7 @@ pl (1)
   def test_execute_installed_not_installed
     @cmd.handle_options %w[-n not_installed --installed]
 
-    e = assert_raise Gem::SystemExitException do
+    e = assert_raises Gem::SystemExitException do
       use_ui @ui do
         @cmd.execute
       end
@@ -145,7 +144,7 @@ pl (1)
   def test_execute_installed_version
     @cmd.handle_options %w[-n c --installed --version 1.2]
 
-    e = assert_raise Gem::SystemExitException do
+    e = assert_raises Gem::SystemExitException do
       use_ui @ui do
         @cmd.execute
       end
@@ -160,7 +159,7 @@ pl (1)
   def test_execute_installed_version_not_installed
     @cmd.handle_options %w[-n c --installed --version 2]
 
-    e = assert_raise Gem::SystemExitException do
+    e = assert_raises Gem::SystemExitException do
       use_ui @ui do
         @cmd.execute
       end
@@ -180,7 +179,7 @@ pl (1)
     @fetcher.data["#{@gem_repo}Marshal.#{Gem.marshal_version}"] =
       si.dump
 
-    @fetcher.data["#{@gem_repo}latest_specs.#{Gem.marshal_version}.gz"] = nil
+    @fetcher.data.delete "#{@gem_repo}latest_specs.#{Gem.marshal_version}.gz"
 
     @cmd.handle_options %w[-r]
 
@@ -265,6 +264,27 @@ pl (1)
     assert_equal '', @ui.error
   end
 
+  def test_execute_local_notty
+    @cmd.handle_options %w[]
+
+    @ui.outs.tty = false
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    expected = <<-EOF
+a (2, 1)
+a_evil (9)
+b (2)
+c (1.2)
+pl (1)
+    EOF
+
+    assert_equal expected, @ui.output
+    assert_equal '', @ui.error
+  end
+
   def test_execute_no_versions
     @cmd.handle_options %w[-r --no-versions]
 
@@ -278,6 +298,24 @@ pl (1)
 
 a
 pl
+    EOF
+
+    assert_equal expected, @ui.output
+    assert_equal '', @ui.error
+  end
+
+  def test_execute_notty
+    @cmd.handle_options %w[-r]
+
+    @ui.outs.tty = false
+
+    use_ui @ui do
+      @cmd.execute
+    end
+
+    expected = <<-EOF
+a (2)
+pl (1)
     EOF
 
     assert_equal expected, @ui.output

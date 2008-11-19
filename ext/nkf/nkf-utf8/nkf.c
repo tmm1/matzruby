@@ -33,7 +33,7 @@
  ***********************************************************************/
 #define NKF_IDENT "$Id$"
 #define NKF_VERSION "2.0.8"
-#define NKF_RELEASE_DATE "2008-02-08"
+#define NKF_RELEASE_DATE "2008-11-07"
 #define COPY_RIGHT \
     "Copyright (C) 1987, FUJITSU LTD. (I.Ichikawa),2000 S. Kono, COW\n" \
     "Copyright (C) 2002-2008 Kono, Furukawa, Naruse, mastodon"
@@ -41,6 +41,15 @@
 #include "config.h"
 #include "nkf.h"
 #include "utf8tbl.h"
+#ifdef __WIN32__
+#include <windows.h>
+#include <locale.h>
+#endif
+#if defined(__OS2__)
+# define INCL_DOS
+# define INCL_DOSERRORS
+# include <os2.h>
+#endif
 
 /* state of output_mode and input_mode
 
@@ -263,6 +272,8 @@ struct {
 #define	    DEFAULT_ENCIDX ISO_2022_JP
 #elif defined(DEFAULT_CODE_SJIS)
 #define	    DEFAULT_ENCIDX SHIFT_JIS
+#elif defined(DEFAULT_CODE_WINDOWS_31J)
+#define	    DEFAULT_ENCIDX WINDOWS_31J
 #elif defined(DEFAULT_CODE_EUC)
 #define	    DEFAULT_ENCIDX EUC_JP
 #elif defined(DEFAULT_CODE_UTF8)
@@ -332,7 +343,6 @@ static const char *input_codename = NULL; /* NULL: unestablished, "": BINARY */
 static nkf_encoding *input_encoding = NULL;
 static nkf_encoding *output_encoding = NULL;
 
-static int kanji_convert(FILE *f);
 #if defined(UTF8_INPUT_ENABLE) || defined(UTF8_OUTPUT_ENABLE)
 /* UCS Mapping
  * 0: Shift_JIS, eucJP-ascii
@@ -421,8 +431,8 @@ static nkf_char (*i_uungetc)(nkf_char c ,FILE *f) = std_ungetc;
 #define nkf_char_euc3_new(c) ((c) | PREFIX_EUCG3)
 #define nkf_char_unicode_new(c) ((c) | CLASS_UNICODE)
 #define nkf_char_unicode_p(c) ((c & CLASS_MASK) == CLASS_UNICODE)
-#define nkf_char_unicode_bmp_p(c) ((c & VALUE_MASK) <= NKF_INT32_C(UNICODE_BMP_MAX))
-#define nkf_char_unicode_value_p(c) ((c & VALUE_MASK) <= NKF_INT32_C(UNICODE_MAX))
+#define nkf_char_unicode_bmp_p(c) ((c & VALUE_MASK) <= UNICODE_BMP_MAX)
+#define nkf_char_unicode_value_p(c) ((c & VALUE_MASK) <= UNICODE_MAX)
 
 #ifdef NUMCHAR_OPTION
 static int numchar_f = FALSE;
@@ -719,7 +729,31 @@ nkf_locale_charmap()
 #ifdef HAVE_LANGINFO_H
     return nl_langinfo(CODESET);
 #elif defined(__WIN32__)
-    return sprintf("CP%d", GetACP());
+    char buf[16];
+    char *str;
+    int len = sprintf(buf, "CP%d", GetACP());
+    if (len > 0) {
+      str = malloc(len + 1);
+      strcpy(str, buf);
+      str[len] = '\0';
+      return str;
+    }
+    else return NULL;
+#elif defined(__OS2__)
+# if defined(INT_IS_SHORT)
+    /* OS/2 1.x */
+    return NULL;
+# else
+    /* OS/2 32bit */
+    static char buf[16];
+    ULONG ulCP[1], ulncp;
+    DosQueryCp(sizeof(ulCP), ulCP, &ulncp);
+    if (ulCP[0] == 932 || ulCP[0] == 943)
+        strcpy(buf, "Shift_JIS");
+    else
+        sprintf(buf, "CP%lu", ulCP[0]);
+    return buf;
+# endif
 #else
     return NULL;
 #endif
@@ -732,10 +766,15 @@ nkf_locale_encoding()
     char *encname = nkf_locale_charmap();
     if (encname)
 	enc = nkf_enc_find(encname);
-    if (enc < 0) enc = 0;
     return enc;
 }
 #endif /* DEFAULT_CODE_LOCALE */
+
+static nkf_encoding*
+nkf_utf8_encoding()
+{
+    return &nkf_encoding_table[UTF_8];
+}
 
 static nkf_encoding*
 nkf_default_encoding()
@@ -743,9 +782,10 @@ nkf_default_encoding()
     nkf_encoding *enc = 0;
 #ifdef DEFAULT_CODE_LOCALE
     enc = nkf_locale_encoding();
-#elif DEFAULT_ENCIDX
+#elif defined(DEFAULT_ENCIDX)
     enc = nkf_enc_from_index(DEFAULT_ENCIDX);
 #endif
+    if (!enc) enc = nkf_utf8_encoding();
     return enc;
 }
 
@@ -843,7 +883,7 @@ show_configuration(void)
 	    "    Default output encoding:     "
 #ifdef DEFAULT_CODE_LOCALE
 	    "LOCALE (%s)\n", nkf_enc_name(nkf_default_encoding())
-#elif DEFAULT_ENCIDX
+#elif defined(DEFAULT_ENCIDX)
 	    "CONFIG (%s)\n", nkf_enc_name(nkf_default_encoding())
 #else
 	    "NONE\n"
@@ -915,7 +955,8 @@ get_backup_filename(const char *suffix, const char *filename)
 	}
 	backup_filename[j] = '\0';
     }else{
-	backup_filename = malloc(filename_length + strlen(suffix) + 1);
+	j = filename_length + strlen(suffix);
+	backup_filename = malloc(j + 1);
 	strcpy(backup_filename, filename);
 	strcat(backup_filename, suffix);
 	backup_filename[j] = '\0';
@@ -1472,6 +1513,7 @@ s2e_conv(nkf_char c2, nkf_char c1, nkf_char *p2, nkf_char *p1)
     nkf_char val;
 #endif
     static const char shift_jisx0213_s1a3_table[5][2] ={ { 1, 8}, { 3, 4}, { 5,12}, {13,14}, {15, 0} };
+    if (0xFC < c1) return 1;
 #ifdef SHIFTJIS_CP932
     if (!cp932inv_f && is_ibmext_in_sjis(c2)){
 	val = shiftjis_cp932[c2 - CP932_TABLE_BEGIN][c1 - 0x40];
@@ -1482,10 +1524,10 @@ s2e_conv(nkf_char c2, nkf_char c1, nkf_char *p2, nkf_char *p1)
     }
     if (cp932inv_f
 	&& CP932INV_TABLE_BEGIN <= c2 && c2 <= CP932INV_TABLE_END){
-	nkf_char c = cp932inv[c2 - CP932INV_TABLE_BEGIN][c1 - 0x40];
-	if (c){
-	    c2 = c >> 8;
-	    c1 = c & 0xff;
+	val = cp932inv[c2 - CP932INV_TABLE_BEGIN][c1 - 0x40];
+	if (val){
+	    c2 = val >> 8;
+	    c1 = val & 0xff;
 	}
     }
 #endif /* SHIFTJIS_CP932 */
@@ -1537,7 +1579,7 @@ s2e_conv(nkf_char c2, nkf_char c1, nkf_char *p2, nkf_char *p1)
 
 #if defined(UTF8_INPUT_ENABLE) || defined(UTF8_OUTPUT_ENABLE)
 static void
-nkf_unicode_to_utf8(nkf_char val, int *p1, int *p2, int *p3, int *p4)
+nkf_unicode_to_utf8(nkf_char val, nkf_char *p1, nkf_char *p2, nkf_char *p3, nkf_char *p4)
 {
     val &= VALUE_MASK;
     if (val < 0x80){
@@ -1569,7 +1611,7 @@ nkf_unicode_to_utf8(nkf_char val, int *p1, int *p2, int *p3, int *p4)
 }
 
 static nkf_char
-nkf_utf8_to_unicode(int c1, int c2, int c3, int c4)
+nkf_utf8_to_unicode(nkf_char c1, nkf_char c2, nkf_char c3, nkf_char c4)
 {
     nkf_char wc;
     if (c1 <= 0x7F) {
@@ -1870,7 +1912,7 @@ w2e_conv(nkf_char c2, nkf_char c1, nkf_char c0, nkf_char *p2, nkf_char *p1)
 static nkf_char
 w16e_conv(nkf_char val, nkf_char *p2, nkf_char *p1)
 {
-    int c1, c2, c3, c4;
+    nkf_char c1, c2, c3, c4;
     nkf_char ret = 0;
     val &= VALUE_MASK;
     if (val < 0x80) {
@@ -2087,7 +2129,7 @@ unicode_iconv(nkf_char wc)
 #define NKF_ICONV_NEED_TWO_MORE_BYTES -2
 #define UTF16_TO_UTF32(lead, trail) (((lead) << 10) + (trail) - NKF_INT32_C(0x35FDC00))
 static size_t
-nkf_iconv_utf_16(int c1, int c2, int c3, int c4)
+nkf_iconv_utf_16(nkf_char c1, nkf_char c2, nkf_char c3, nkf_char c4)
 {
     nkf_char wc;
 
@@ -2130,7 +2172,7 @@ w_iconv32(nkf_char c2, nkf_char c1, nkf_char c0)
 }
 
 static size_t
-nkf_iconv_utf_32(int c1, int c2, int c3, int c4)
+nkf_iconv_utf_32(nkf_char c1, nkf_char c2, nkf_char c3, nkf_char c4)
 {
     nkf_char wc;
 
@@ -2414,7 +2456,7 @@ s_oconv(nkf_char c2, nkf_char c1)
 static void
 w_oconv(nkf_char c2, nkf_char c1)
 {
-    int c3, c4;
+    nkf_char c3, c4;
     nkf_char val;
 
     if (output_bom_f) {
@@ -2501,6 +2543,7 @@ w_oconv16(nkf_char c2, nkf_char c1)
 	c1 = val & 0xff;
 	if (!val) return;
     }
+
     if (output_endian == ENDIAN_LITTLE){
 	(*o_putc)(c1);
 	(*o_putc)(c2);
@@ -4098,7 +4141,7 @@ numchar_getc(FILE *f)
     nkf_char (*g)(FILE *) = i_ngetc;
     nkf_char (*u)(nkf_char c ,FILE *f) = i_nungetc;
     int i = 0, j;
-    nkf_char buf[8];
+    nkf_char buf[12];
     long c = -1;
 
     buf[i] = (*g)(f);
@@ -5251,7 +5294,7 @@ kanji_convert(FILE *f)
 {
     nkf_char c1=0, c2=0, c3=0, c4=0;
     int shift_mode = 0; /* 0, 1, 2, 3 */
-    char g2 = 0;
+    int g2 = 0;
     int is_8bit = FALSE;
 
     if (input_encoding && !nkf_enc_asciicompat(input_encoding)) {
@@ -5325,6 +5368,10 @@ kanji_convert(FILE *f)
 		/* 2nd byte of 7 bit code or SJIS */
 		SEND;
 	    }
+	}
+	else if (nkf_char_unicode_p(c1)) {
+	    (*oconv)(0, c1);
+	    NEXT;
 	}
 	else {
 	    /* first byte */
@@ -5550,7 +5597,7 @@ kanji_convert(FILE *f)
 			   C%7 : 0 1 2 3 4 5 6
 			   NUM : 2 0 3 4 5 X 1
 			 */
-			static const int jphone_emoji_first_table[7] =
+			static const nkf_char jphone_emoji_first_table[7] =
 			{0xE1E0, 0xDFE0, 0xE2E0, 0xE3E0, 0xE4E0, 0xDFE0, 0xE0E0};
 			c3 = nkf_char_unicode_new(jphone_emoji_first_table[c1 % 7]);
 			if ((c1 = (*i_getc)(f)) == EOF) LAST;
@@ -5739,7 +5786,8 @@ options(unsigned char *cp)
 		}
 		if (strcmp(long_option[i].name, "oc=") == 0){
 		    enc = nkf_enc_find((char *)p);
-		    if (enc <= 0) continue;
+		    /* if (enc <= 0) continue; */
+		    if (!enc) continue;
 		    output_encoding = enc;
 		    continue;
 		}
@@ -6085,9 +6133,9 @@ options(unsigned char *cp)
 		    cp++;
 		    input_endian = ENDIAN_BIG;
 		}
-		enc_idx = enc_idx == UTF_16
+		enc_idx = (enc_idx == UTF_16
 		    ? (input_endian == ENDIAN_LITTLE ? UTF_16LE : UTF_16BE)
-		    : (input_endian == ENDIAN_LITTLE ? UTF_32LE : UTF_32BE);
+		    : (input_endian == ENDIAN_LITTLE ? UTF_32LE : UTF_32BE));
 		input_encoding = nkf_enc_from_index(enc_idx);
 	    }
 	    continue;

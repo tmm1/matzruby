@@ -1,9 +1,25 @@
 require 'rbconfig'
 exit if CROSS_COMPILING
+
 require 'test/unit'
 
-rcsid = %w$Id$
-Version = rcsid[2].scan(/\d+/).collect!(&method(:Integer)).freeze
-Release = rcsid[3].freeze
+src_testdir = File.dirname(File.expand_path(__FILE__))
+srcdir = File.dirname(src_testdir)
 
-exit Test::Unit::AutoRunner.run(true, File.dirname($0))
+Test::Unit.setup_argv {|files|
+  if files.empty?
+    [src_testdir]
+  else
+    files.map {|f|
+      if File.exist? "#{src_testdir}/#{f}"
+        "#{src_testdir}/#{f}"
+      elsif File.exist? "#{srcdir}/#{f}"
+        "#{srcdir}/#{f}"
+      elsif File.exist? f
+        f
+      else
+        raise ArgumentError, "not found: #{f}"
+      end
+    }
+  end
+}

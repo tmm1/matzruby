@@ -1,5 +1,3 @@
-/* vim: set cin et sw=4 ts=4: */
-
 #include "unicode.h"
 
 /*
@@ -105,7 +103,7 @@ char *JSON_convert_UTF16_to_UTF8 (
                         + (ch2 - UNI_SUR_LOW_START) + halfBase;
                     ++tmpPtr;
                 } else if (flags == strictConversion) { /* it's an unpaired high surrogate */
-		    ruby_xfree(tmp);
+                    ruby_xfree(tmp);
                     rb_raise(rb_path2class("JSON::ParserError"),
                             "source sequence is illegal/malformed near %s", source);
                 }

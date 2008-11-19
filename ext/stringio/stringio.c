@@ -13,6 +13,7 @@
 
 #include "ruby.h"
 #include "ruby/io.h"
+#include "ruby/encoding.h"
 #if defined(HAVE_FCNTL_H) || defined(_WIN32)
 #include <fcntl.h>
 #elif defined(HAVE_SYS_FCNTL_H)
@@ -700,7 +701,7 @@ strio_ungetc(VALUE self, VALUE c)
     struct StringIO *ptr = readable(StringIO(self));
     long lpos, clen;
     char *p, *pend;
-    rb_encoding *enc;
+    rb_encoding *enc, *enc2;
 
     if (NIL_P(c)) return Qnil;
     if (FIXNUM_P(c)) {
@@ -713,10 +714,14 @@ strio_ungetc(VALUE self, VALUE c)
     }
     else {
 	SafeStringValue(c);
-	enc = rb_enc_check(ptr->string, c);
+	enc = rb_enc_get(ptr->string);
+	enc2 = rb_enc_get(c);
+	if (enc != enc2 && enc != rb_ascii8bit_encoding()) {
+	    c = rb_str_conv_enc(c, enc2, enc);
+	}
     }
     /* get logical position */
-    lpos = 0; p = RSTRING_PTR(ptr->string); pend = p + ptr->pos - 1;
+    lpos = 0; p = RSTRING_PTR(ptr->string); pend = p + ptr->pos;
     for (;;) {
 	clen = rb_enc_mbclen(p, pend, enc);
 	if (p+clen >= pend) break;
@@ -727,6 +732,19 @@ strio_ungetc(VALUE self, VALUE c)
     ptr->pos = p - RSTRING_PTR(ptr->string);
 
     return Qnil;
+}
+
+/*
+ * call-seq:
+ *   strio.ungetbyte(fixnum)   -> nil
+ *
+ * See IO#ungetbyte
+ */
+static VALUE
+strio_ungetbyte(VALUE self, VALUE c)
+{
+    NUM2INT(c);
+    return strio_ungetc(self, c);
 }
 
 /*
@@ -992,9 +1010,15 @@ strio_write(VALUE self, VALUE str)
 {
     struct StringIO *ptr = writable(StringIO(self));
     long len, olen;
+    rb_encoding *enc, *enc2;
 
     if (TYPE(str) != T_STRING)
 	str = rb_obj_as_string(str);
+    enc = rb_enc_get(ptr->string);
+    enc2 = rb_enc_get(str);
+    if (enc != enc2 && enc != rb_ascii8bit_encoding()) {
+	str = rb_str_conv_enc(str, enc2, enc);
+    }
     len = RSTRING_LEN(str);
     if (len == 0) return INT2FIX(0);
     check_modifiable(ptr);
@@ -1217,6 +1241,51 @@ strio_truncate(VALUE self, VALUE len)
 }
 
 /*
+ *  call-seq:
+ *     strio.external_encoding   => encoding
+ *
+ *  Returns the Encoding object that represents the encoding of the file.
+ *  If strio is write mode and no encoding is specified, returns <code>nil</code>.
+ */
+
+static VALUE
+strio_external_encoding(VALUE self)
+{
+    return rb_enc_from_encoding(rb_enc_get(StringIO(self)->string));
+}
+
+/*
+ *  call-seq:
+ *     strio.internal_encoding   => encoding
+ *
+ *  Returns the Encoding of the internal string if conversion is
+ *  specified.  Otherwise returns nil.
+ */
+
+static VALUE
+strio_internal_encoding(VALUE self)
+{
+     return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     strio.set_encoding(ext_enc)                => strio
+ *
+ *  Tagged with the encoding specified.
+ */
+
+static VALUE
+strio_set_encoding(VALUE self, VALUE ext_enc)
+{
+    rb_encoding* enc;
+    VALUE str = StringIO(self)->string;
+    enc = rb_to_encoding(ext_enc);
+    rb_enc_associate(str, enc);
+    return self;
+}
+
+/*
  * Pseudo I/O on String object.
  */
 void
@@ -1266,6 +1335,7 @@ Init_stringio()
     rb_define_method(StringIO, "chars", strio_each_char, 0);
     rb_define_method(StringIO, "getc", strio_getc, 0);
     rb_define_method(StringIO, "ungetc", strio_ungetc, 1);
+    rb_define_method(StringIO, "ungetbyte", strio_ungetbyte, 1);
     rb_define_method(StringIO, "readchar", strio_readchar, 0);
     rb_define_method(StringIO, "getbyte", strio_getbyte, 0);
     rb_define_method(StringIO, "readbyte", strio_readbyte, 0);
@@ -1291,4 +1361,8 @@ Init_stringio()
     rb_define_method(StringIO, "size", strio_size, 0);
     rb_define_method(StringIO, "length", strio_size, 0);
     rb_define_method(StringIO, "truncate", strio_truncate, 1);
+
+    rb_define_method(StringIO, "external_encoding", strio_external_encoding, 0);
+    rb_define_method(StringIO, "internal_encoding", strio_internal_encoding, 0);
+    rb_define_method(StringIO, "set_encoding", strio_set_encoding, 1);
 }

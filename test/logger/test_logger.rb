@@ -23,6 +23,10 @@ class TestLogger < Test::Unit::TestCase
     @logger = Logger.new(nil)
   end
 
+  def test_const_progname
+    assert %r!\Alogger\.rb/\S+\z! === Logger::ProgName
+  end
+
   class Log
     attr_reader :label, :datetime, :pid, :severity, :progname, :msg
     def initialize(line)
@@ -266,7 +270,7 @@ class TestLogDevice < Test::Unit::TestCase
     logdev = d(STDERR)
     assert_equal(STDERR, logdev.dev)
     assert_nil(logdev.filename)
-    assert_raises(TypeError) do
+    assert_raise(TypeError) do
       d(nil)
     end
     #

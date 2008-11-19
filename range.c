@@ -635,7 +635,7 @@ rb_range_beg_len(VALUE range, long *begp, long *lenp, long len, int err)
   out_of_range:
     if (err) {
 	rb_raise(rb_eRangeError, "%ld..%s%ld out of range",
-		 b, excl ? "." : "", e);
+		 NUM2LONG(b), excl ? "." : "", NUM2LONG(e));
     }
     return Qnil;
 }
@@ -662,6 +662,24 @@ range_to_s(VALUE range)
     return str;
 }
 
+static VALUE
+inspect_range(VALUE range, VALUE dummy, int recur)
+{
+    VALUE str, str2;
+
+    if (recur) {
+	return rb_str_new2(EXCL(range) ? "(... ... ...)" : "(... .. ...)");
+    }
+    str = rb_inspect(RANGE_BEG(range));
+    str2 = rb_inspect(RANGE_END(range));
+    str = rb_str_dup(str);
+    rb_str_cat(str, "...", EXCL(range) ? 3 : 2);
+    rb_str_append(str, str2);
+    OBJ_INFECT(str, str2);
+
+    return str;
+}
+
 /*
  * call-seq:
  *   rng.inspect  => string
@@ -675,16 +693,7 @@ range_to_s(VALUE range)
 static VALUE
 range_inspect(VALUE range)
 {
-    VALUE str, str2;
-
-    str = rb_inspect(RANGE_BEG(range));
-    str2 = rb_inspect(RANGE_END(range));
-    str = rb_str_dup(str);
-    rb_str_cat(str, "...", EXCL(range) ? 3 : 2);
-    rb_str_append(str, str2);
-    OBJ_INFECT(str, str2);
-
-    return str;
+    return rb_exec_recursive(inspect_range, range, 0);
 }
 
 /*

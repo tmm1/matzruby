@@ -504,11 +504,11 @@ proc_call(int argc, VALUE *argv, VALUE procval)
 {
     rb_proc_t *proc;
     rb_block_t *blockptr = 0;
+    rb_iseq_t *iseq;
     GetProcPtr(procval, proc);
 
-    if (BUILTIN_TYPE(proc->block.iseq) == T_NODE ||
-	proc->block.iseq->arg_block != -1) {
-
+    iseq = proc->block.iseq;
+    if (BUILTIN_TYPE(iseq) == T_NODE || iseq->arg_block != -1) {
 	if (rb_block_given_p()) {
 	    rb_proc_t *proc;
 	    VALUE procval;
@@ -615,21 +615,34 @@ get_proc_iseq(VALUE self)
     return iseq;
 }
 
-VALUE
-rb_proc_location(VALUE self)
+static VALUE
+iseq_location(rb_iseq_t *iseq)
 {
-    rb_iseq_t *iseq = get_proc_iseq(self);
     VALUE loc[2];
 
     if (!iseq) return Qnil;
     loc[0] = iseq->filename;
     if (iseq->insn_info_table) {
-	loc[1] = INT2FIX(iseq->insn_info_table[0].line_no);
+	loc[1] = INT2FIX(rb_iseq_first_lineno(iseq));
     }
     else {
 	loc[1] = Qnil;
     }
     return rb_ary_new4(2, loc);
+}
+
+/*
+ * call-seq:
+ *    prc.source_location  => [String, Fixnum]
+ *
+ * returns the ruby source filename and line number containing this proc
+ * or nil if this proc was not defined in ruby (i.e. native)
+ */
+
+VALUE
+rb_proc_location(VALUE self)
+{
+    return iseq_location(get_proc_iseq(self));
 }
 
 /*
@@ -648,12 +661,15 @@ proc_eq(VALUE self, VALUE other)
     }
     else {
 	if (TYPE(other)          == T_DATA &&
-	    RBASIC(other)->klass == rb_cProc &&
-	    CLASS_OF(self)       == CLASS_OF(other)) {
+	    RDATA(other)->dmark  == proc_mark) {
 	    rb_proc_t *p1, *p2;
 	    GetProcPtr(self, p1);
 	    GetProcPtr(other, p2);
-	    if (p1->block.iseq == p2->block.iseq && p1->envval == p2->envval) {
+	    if (p1->envval == p2->envval &&
+		p1->block.iseq->iseq_size == p2->block.iseq->iseq_size &&
+		p1->block.iseq->local_size == p2->block.iseq->local_size &&
+		MEMCMP(p1->block.iseq->iseq, p2->block.iseq->iseq, VALUE,
+		       p1->block.iseq->iseq_size) == 0) {
 		return Qtrue;
 	    }
 	}
@@ -705,7 +721,7 @@ proc_to_s(VALUE self)
 	int line_no = 0;
 	
 	if (iseq->insn_info_table) {
-	    line_no = iseq->insn_info_table[0].line_no;
+	    line_no = rb_iseq_first_lineno(iseq);
 	}
 	str = rb_sprintf("#<%s:%p@%s:%d%s>", cname, (void *)self,
 			 RSTRING_PTR(iseq->filename),
@@ -1432,6 +1448,39 @@ rb_obj_method_arity(VALUE obj, ID id)
     return rb_mod_method_arity(CLASS_OF(obj), id);
 }
 
+static rb_iseq_t *
+get_method_iseq(VALUE method)
+{
+    struct METHOD *data;
+    NODE *body;
+    rb_iseq_t *iseq;
+
+    Data_Get_Struct(method, struct METHOD, data);
+    body = data->body;
+    switch (nd_type(body)) {
+      case RUBY_VM_METHOD_NODE:
+	GetISeqPtr((VALUE)body->nd_body, iseq);
+	if (RUBY_VM_NORMAL_ISEQ_P(iseq)) break;
+      default:
+	return 0;
+    }
+    return iseq;
+}
+
+/*
+ * call-seq:
+ *    meth.source_location  => [String, Fixnum]
+ *
+ * returns the ruby source filename and line number containing this method
+ * or nil if this method was not defined in ruby (i.e. native)
+ */
+
+VALUE
+rb_method_location(VALUE method)
+{
+    return iseq_location(get_method_iseq(method));
+}
+
 /*
  *  call-seq:
  *   meth.to_s      =>  string
@@ -1623,11 +1672,7 @@ static VALUE curry(VALUE dummy, VALUE args, int argc, VALUE *argv, VALUE passed_
 static VALUE
 make_curry_proc(VALUE proc, VALUE passed, VALUE arity)
 {
-    VALUE args = rb_ary_new2(3);
-    RARRAY_PTR(args)[0] = proc;
-    RARRAY_PTR(args)[1] = passed;
-    RARRAY_PTR(args)[2] = arity;
-    RARRAY_LEN(args) = 3;
+    VALUE args = rb_ary_new3(3, proc, passed, arity);
     rb_ary_freeze(passed);
     rb_ary_freeze(args);
     return rb_proc_new(curry, args);
@@ -1768,6 +1813,7 @@ InitVM_Proc(rb_vm_t *vm)
     rb_define_method(rb_cProc, "lambda?", proc_lambda_p, 0);
     rb_define_method(rb_cProc, "binding", proc_binding, 0);
     rb_define_method(rb_cProc, "curry", proc_curry, -1);
+    rb_define_method(rb_cProc, "source_location", rb_proc_location, 0);
 
     /* Exceptions */
     rb_eLocalJumpError = rb_define_class("LocalJumpError", rb_eStandardError);
@@ -1802,6 +1848,7 @@ InitVM_Proc(rb_vm_t *vm)
     rb_define_method(rb_cMethod, "name", method_name, 0);
     rb_define_method(rb_cMethod, "owner", method_owner, 0);
     rb_define_method(rb_cMethod, "unbind", method_unbind, 0);
+    rb_define_method(rb_cMethod, "source_location", rb_method_location, 0);
     rb_define_method(rb_mKernel, "method", rb_obj_method, 1);
     rb_define_method(rb_mKernel, "public_method", rb_obj_public_method, 1);
 
@@ -1819,6 +1866,7 @@ InitVM_Proc(rb_vm_t *vm)
     rb_define_method(rb_cUnboundMethod, "name", method_name, 0);
     rb_define_method(rb_cUnboundMethod, "owner", method_owner, 0);
     rb_define_method(rb_cUnboundMethod, "bind", umethod_bind, 1);
+    rb_define_method(rb_cUnboundMethod, "source_location", rb_method_location, 0);
 
     /* Module#*_method */
     rb_define_method(rb_cModule, "instance_method", rb_mod_instance_method, 1);

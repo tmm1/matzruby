@@ -45,7 +45,7 @@ unsigned long ruby_scan_oct(const char *, int, int *);
 #define scan_hex ruby_scan_hex
 unsigned long ruby_scan_hex(const char *, int, int *);
 
-#if defined(MSDOS) || defined(__CYGWIN32__) || defined(_WIN32)
+#if defined(__CYGWIN32__) || defined(_WIN32)
 void ruby_add_suffix(VALUE str, const char *suffix);
 #endif
 
@@ -56,8 +56,8 @@ void ruby_setenv(const char *, const char *);
 void ruby_unsetenv(const char *);
 #undef setenv
 #undef unsetenv
-#define setenv(name,val) ruby_setenv(name,val)
-#define unsetenv(name,val) ruby_unsetenv(name);
+#define setenv(name,val,replace) ruby_setenv(name,val)
+#define unsetenv(name) ruby_unsetenv(name)
 
 char *ruby_strdup(const char *);
 #undef strdup

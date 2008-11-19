@@ -1,11 +1,9 @@
-#!/usr/bin/env ruby
 #--
 # Copyright 2006 by Chad Fowler, Rich Kilmer, Jim Weirich and others.
 # All rights reserved.
 # See LICENSE.txt for permissions.
 #++
 
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'webrick'
 require 'zlib'
@@ -111,9 +109,14 @@ gems:
     @fetcher = Gem::RemoteFetcher.fetcher
   end
 
+  def teardown
+    super
+    Gem.configuration[:http_proxy] = nil
+  end
+
   def test_self_fetcher
     fetcher = Gem::RemoteFetcher.fetcher
-    assert_not_nil fetcher
+    refute_nil fetcher
     assert_kind_of Gem::RemoteFetcher, fetcher
   end
 
@@ -124,7 +127,7 @@ gems:
 
     fetcher = Gem::RemoteFetcher.fetcher
 
-    assert_not_nil fetcher
+    refute_nil fetcher
     assert_kind_of Gem::RemoteFetcher, fetcher
     assert_equal proxy_uri, fetcher.instance_variable_get(:@proxy_uri).to_s
   end
@@ -132,8 +135,11 @@ gems:
   def test_self_fetcher_with_proxy_URI
     proxy_uri = URI.parse 'http://proxy.example.com'
     Gem.configuration[:http_proxy] = proxy_uri
+    Gem::RemoteFetcher.fetcher = nil
+
     fetcher = Gem::RemoteFetcher.fetcher
-    assert_not_nil fetcher
+    refute_nil fetcher
+
     assert_kind_of Gem::RemoteFetcher, fetcher
     assert_equal proxy_uri, fetcher.instance_variable_get(:@proxy_uri)
   end
@@ -141,7 +147,7 @@ gems:
   def test_fetch_size_bad_uri
     fetcher = Gem::RemoteFetcher.new nil
 
-    e = assert_raise ArgumentError do
+    e = assert_raises ArgumentError do
       fetcher.fetch_size 'gems.example.com/yaml'
     end
 
@@ -155,7 +161,7 @@ gems:
     end
 
     uri = 'http://gems.example.com/yaml'
-    e = assert_raise Gem::RemoteFetcher::FetchError do
+    e = assert_raises Gem::RemoteFetcher::FetchError do
       fetcher.fetch_size uri
     end
 
@@ -268,15 +274,15 @@ gems:
     ensure
       File.chmod 0755, File.join(@gemhome, 'cache')
     end
-    
+
     def test_download_read_only
       File.chmod 0555, File.join(@gemhome, 'cache')
       File.chmod 0555, File.join(@gemhome)
 
       fetcher = util_fuck_with_fetcher File.read(@a1_gem)
       fetcher.download(@a1, 'http://gems.example.com')
-      assert File.exist?(File.join(@userhome, '.gem',
-                                   'cache', "#{@a1.full_name}.gem"))
+      assert File.exist?(File.join(Gem.user_dir, 'cache',
+                                   "#{@a1.full_name}.gem"))
     ensure
       File.chmod 0755, File.join(@gemhome)
       File.chmod 0755, File.join(@gemhome, 'cache')
@@ -310,7 +316,7 @@ gems:
   def test_download_unsupported
     inst = Gem::RemoteFetcher.fetcher
 
-    e = assert_raise Gem::InstallError do
+    e = assert_raises Gem::InstallError do
       inst.download @a1, 'ftp://gems.rubyforge.org'
     end
 
@@ -391,6 +397,16 @@ gems:
     assert_equal 'foo', fetcher.fetch_path(@uri + 'foo.gz')
   end
 
+  def test_fetch_path_gzip_unmodified
+    fetcher = Gem::RemoteFetcher.new nil
+
+    def fetcher.open_uri_or_path(uri, mtime, head = nil)
+      nil
+    end
+
+    assert_equal nil, fetcher.fetch_path(@uri + 'foo.gz', Time.at(0))
+  end
+
   def test_fetch_path_io_error
     fetcher = Gem::RemoteFetcher.new nil
 
@@ -398,7 +414,7 @@ gems:
       raise EOFError
     end
 
-    e = assert_raise Gem::RemoteFetcher::FetchError do
+    e = assert_raises Gem::RemoteFetcher::FetchError do
       fetcher.fetch_path 'uri'
     end
 
@@ -413,7 +429,7 @@ gems:
       raise SocketError
     end
 
-    e = assert_raise Gem::RemoteFetcher::FetchError do
+    e = assert_raises Gem::RemoteFetcher::FetchError do
       fetcher.fetch_path 'uri'
     end
 
@@ -428,7 +444,7 @@ gems:
       raise Errno::ECONNREFUSED, 'connect(2)'
     end
 
-    e = assert_raise Gem::RemoteFetcher::FetchError do
+    e = assert_raises Gem::RemoteFetcher::FetchError do
       fetcher.fetch_path 'uri'
     end
 
@@ -441,10 +457,10 @@ gems:
     fetcher = Gem::RemoteFetcher.new nil
 
     def fetcher.open_uri_or_path(uri, mtime, head = nil)
-      ''
+      nil
     end
 
-    assert_equal '', fetcher.fetch_path(URI.parse(@gem_repo), Time.at(0))
+    assert_equal nil, fetcher.fetch_path(URI.parse(@gem_repo), Time.at(0))
   end
 
   def test_get_proxy_from_env_empty
@@ -504,7 +520,7 @@ gems:
     def conn.request(req)
       unless defined? @requested then
         @requested = true
-        res = Net::HTTPRedirection.new nil, 301, nil
+        res = Net::HTTPMovedPermanently.new nil, 301, nil
         res.add_field 'Location', 'http://gems.example.com/real_path'
         res
       else
@@ -528,7 +544,7 @@ gems:
     conn = Object.new
     def conn.started?() true end
     def conn.request(req)
-      res = Net::HTTPRedirection.new nil, 301, nil
+      res = Net::HTTPMovedPermanently.new nil, 301, nil
       res.add_field 'Location', 'http://gems.example.com/redirect'
       res
     end
@@ -536,7 +552,7 @@ gems:
     conn = { 'gems.example.com:80' => conn }
     fetcher.instance_variable_set :@connections, conn
 
-    e = assert_raise Gem::RemoteFetcher::FetchError do
+    e = assert_raises Gem::RemoteFetcher::FetchError do
       fetcher.open_uri_or_path 'http://gems.example.com/redirect'
     end
 

@@ -12,10 +12,10 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
-#include "ruby/node.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
 #include "vm_core.h"
+#include "node.h"
 
 void rb_vm_change_state(void);
 #define rb_global_tbl GET_VM()->global_tbl
@@ -146,6 +146,7 @@ classname(VALUE klass)
     if (RCLASS_IV_TBL(klass)) {
 	if (!st_lookup(RCLASS_IV_TBL(klass), classpath, &path)) {
 	    ID classid;
+	    st_data_t n;
 
 	    CONST_ID(classid, "__classid__");
 
@@ -155,7 +156,8 @@ classname(VALUE klass)
 	    path = rb_str_dup(rb_id2str(SYM2ID(path)));
 	    OBJ_FREEZE(path);
 	    st_insert(RCLASS_IV_TBL(klass), classpath, path);
-	    st_delete(RCLASS_IV_TBL(klass), (st_data_t*)&classid, 0);
+	    n = classid;
+	    st_delete(RCLASS_IV_TBL(klass), &n, 0);
 	}
 	if (TYPE(path) != T_STRING) {
 	    rb_bug("class path is not set properly");
@@ -287,9 +289,15 @@ rb_obj_classname(VALUE obj)
     return rb_class2name(CLASS_OF(obj));
 }
 
+#define global_variable rb_global_variable
+
+#define gvar_getter_t rb_gvar_getter_t
+#define gvar_setter_t rb_gvar_setter_t
+#define gvar_marker_t rb_gvar_marker_t
+
 struct trace_var {
     int removed;
-    void (*func)();
+    void (*func)(VALUE arg, VALUE val);
     VALUE data;
     struct trace_var *next;
 };
@@ -302,24 +310,29 @@ struct global_variable {
     int   counter;
     int flags;
     void *data;
-    VALUE (*getter)();
-    void  (*setter)();
-    void  (*marker)();
+    gvar_getter_t *getter;
+    gvar_setter_t *setter;
+    gvar_marker_t *marker;
     int block_trace;
     struct trace_var *trace;
 };
 
-static VALUE undef_getter(ID id);
-static void  undef_setter(VALUE val, ID id, void *data, struct global_variable *var);
-static void  undef_marker(void);
+#define undef_getter	rb_gvar_undef_getter
+#define undef_setter	rb_gvar_undef_setter
+#define undef_marker	rb_gvar_undef_marker
 
-static VALUE val_getter(ID id, VALUE val);
-static void  val_setter(VALUE val, ID id, void *data, struct global_variable *var);
-static void  val_marker(VALUE data);
+#define val_getter	rb_gvar_val_getter
+#define val_setter	rb_gvar_val_setter
+#define val_marker	rb_gvar_val_marker
 
-static VALUE var_getter(ID id, VALUE *var);
-static void  var_setter(VALUE val, ID id, VALUE *var);
-static void  var_marker(VALUE *var);
+#define var_getter	rb_gvar_var_getter
+#define var_setter	rb_gvar_var_setter
+#define var_marker	rb_gvar_var_marker
+
+#define readonly_setter rb_gvar_readonly_setter
+
+#define global_entry rb_global_entry
+#define global_variable rb_global_variable
 
 struct global_entry*
 rb_global_entry(ID id)
@@ -350,15 +363,15 @@ rb_global_entry(ID id)
     return entry;
 }
 
-static VALUE
-undef_getter(ID id)
+VALUE
+undef_getter(ID id, void *data, struct global_variable *var)
 {
     rb_warning("global variable `%s' not initialized", rb_id2name(id));
 
     return Qnil;
 }
 
-static void
+void
 undef_setter(VALUE val, ID id, void *data, struct global_variable *var)
 {
     var->getter = val_getter;
@@ -368,56 +381,58 @@ undef_setter(VALUE val, ID id, void *data, struct global_variable *var)
     var->data = (void*)val;
 }
 
-static void
-undef_marker(void)
+void
+undef_marker(VALUE *var)
 {
 }
 
-static VALUE
-val_getter(ID id, VALUE val)
+VALUE
+val_getter(ID id, void *data, struct global_variable *var)
 {
-    return val;
+    return (VALUE)data;
 }
 
-static void
+void
 val_setter(VALUE val, ID id, void *data, struct global_variable *var)
 {
     var->data = (void*)val;
 }
 
-static void
-val_marker(VALUE data)
+void
+val_marker(VALUE *var)
 {
+    VALUE data = (VALUE)var;
     if (data) rb_gc_mark_maybe(data);
 }
 
-static VALUE
-var_getter(ID id, VALUE *var)
+VALUE
+var_getter(ID id, void *data, struct global_variable *gvar)
 {
+    VALUE *var = data;
     if (!var) return Qnil;
     return *var;
 }
 
-static void
-var_setter(VALUE val, ID id, VALUE *var)
+void
+var_setter(VALUE val, ID id, void *data, struct global_variable *gvar)
 {
-    *var = val;
+    *(VALUE *)data = val;
 }
 
-static void
+void
 var_marker(VALUE *var)
 {
     if (var) rb_gc_mark_maybe(*var);
 }
 
 static void
-vm_marker(void *var)
+vm_marker(VALUE *var)
 {
     rb_gc_mark(*rb_vm_specific_ptr((int)(VALUE)var));
 }
 
-static void
-readonly_setter(VALUE val, ID id, void *var)
+void
+readonly_setter(VALUE val, ID id, void *data, struct global_variable *gvar)
 {
     rb_name_error(id, "%s is a read-only variable", rb_id2name(id));
 }
@@ -495,8 +510,8 @@ rb_define_hooked_variable(
 	gvar->data = (void*)var;
 	gvar->marker = var_marker;
     }
-    gvar->getter = getter?getter:var_getter;
-    gvar->setter = setter?setter:var_setter;
+    gvar->getter = getter?(gvar_getter_t *)getter:var_getter;
+    gvar->setter = setter?(gvar_setter_t *)setter:var_setter;
 
     RB_GC_GUARD(tmp);
 }
@@ -1310,7 +1325,8 @@ VALUE
 rb_obj_remove_instance_variable(VALUE obj, VALUE name)
 {
     VALUE val = Qnil;
-    ID id = rb_to_id(name);
+    const ID id = rb_to_id(name);
+    st_data_t n, v;
     struct st_table *iv_index_tbl;
     st_data_t index;
 
@@ -1335,8 +1351,9 @@ rb_obj_remove_instance_variable(VALUE obj, VALUE name)
 	break;
       case T_CLASS:
       case T_MODULE:
-	if (RCLASS_IV_TBL(obj) && st_delete(RCLASS_IV_TBL(obj), (st_data_t*)&id, &val)) {
-	    return val;
+	n = id;
+	if (RCLASS_IV_TBL(obj) && st_delete(RCLASS_IV_TBL(obj), &n, &v)) {
+	    return (VALUE)v;
 	}
 	break;
       default:
@@ -1454,22 +1471,17 @@ rb_autoload(VALUE mod, ID id, const char *file)
 static NODE*
 autoload_delete(VALUE mod, ID id)
 {
-    VALUE val;
-    st_data_t load = 0;
+    st_data_t val, load = 0, n = id;
 
-    st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, 0);
+    st_delete(RCLASS_IV_TBL(mod), &n, 0);
     if (st_lookup(RCLASS_IV_TBL(mod), autoload, &val)) {
-	struct st_table *tbl = check_autoload_table(val);
+	struct st_table *tbl = check_autoload_table((VALUE)val);
 
-	st_delete(tbl, (st_data_t*)&id, &load);
+	st_delete(tbl, &n, &load);
 
 	if (tbl->num_entries == 0) {
-	    DATA_PTR(val) = 0;
-	    st_free_table(tbl);
-	    id = autoload;
-	    if (st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-		rb_gc_force_recycle(val);
-	    }
+	    n = autoload;
+	    st_delete(RCLASS_IV_TBL(mod), &n, &val);
 	}
     }
 
@@ -1491,12 +1503,12 @@ rb_autoload_load(VALUE klass, ID id)
 static VALUE
 autoload_file(VALUE mod, ID id)
 {
-    VALUE val, file;
+    VALUE file;
     struct st_table *tbl;
-    st_data_t load;
+    st_data_t val, load, n = id;
 
     if (!st_lookup(RCLASS_IV_TBL(mod), autoload, &val) ||
-	!(tbl = check_autoload_table(val)) || !st_lookup(tbl, id, &load)) {
+	!(tbl = check_autoload_table((VALUE)val)) || !st_lookup(tbl, n, &load)) {
 	return Qnil;
     }
     file = ((NODE *)load)->nd_lit;
@@ -1509,14 +1521,10 @@ autoload_file(VALUE mod, ID id)
     }
 
     /* already loaded but not defined */
-    st_delete(tbl, (st_data_t*)&id, 0);
+    st_delete(tbl, &n, 0);
     if (!tbl->num_entries) {
-	DATA_PTR(val) = 0;
-	st_free_table(tbl);
-	id = autoload;
-	if (st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-	    rb_gc_force_recycle(val);
-	}
+	n = autoload;
+	st_delete(RCLASS_IV_TBL(mod), &n, &val);
     }
     return Qnil;
 }
@@ -1595,8 +1603,9 @@ rb_const_get_at(VALUE klass, ID id)
 VALUE
 rb_mod_remove_const(VALUE mod, VALUE name)
 {
-    ID id = rb_to_id(name);
+    const ID id = rb_to_id(name);
     VALUE val;
+    st_data_t v, n = id;
 
     rb_vm_change_state();
 
@@ -1607,7 +1616,8 @@ rb_mod_remove_const(VALUE mod, VALUE name)
 	rb_raise(rb_eSecurityError, "Insecure: can't remove constant");
     if (OBJ_FROZEN(mod)) rb_error_frozen("class/module");
 
-    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
+    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), &n, &v)) {
+	val = (VALUE)v;
 	if (val == Qundef) {
 	    autoload_delete(mod, id);
 	    val = Qnil;
@@ -2002,7 +2012,7 @@ rb_mod_class_variables(VALUE obj)
  *       @@var = 99
  *       puts @@var
  *       remove_class_variable(:@@var)
- *       puts(defined? @@var)
+ *       p(defined? @@var)
  *     end
  *     
  *  <em>produces:</em>
@@ -2014,8 +2024,8 @@ rb_mod_class_variables(VALUE obj)
 VALUE
 rb_mod_remove_cvar(VALUE mod, VALUE name)
 {
-    ID id = rb_to_id(name);
-    VALUE val;
+    const ID id = rb_to_id(name);
+    st_data_t val, n = id;
 
     if (!rb_is_class_id(id)) {
 	rb_name_error(id, "wrong class variable name %s", rb_id2name(id));
@@ -2024,8 +2034,8 @@ rb_mod_remove_cvar(VALUE mod, VALUE name)
 	rb_raise(rb_eSecurityError, "Insecure: can't remove class variable");
     if (OBJ_FROZEN(mod)) rb_error_frozen("class/module");
 
-    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), (st_data_t*)&id, &val)) {
-	return val;
+    if (RCLASS_IV_TBL(mod) && st_delete(RCLASS_IV_TBL(mod), &n, &val)) {
+	return (VALUE)val;
     }
     if (rb_cvar_defined(mod, id)) {
 	rb_name_error(id, "cannot remove %s for %s",

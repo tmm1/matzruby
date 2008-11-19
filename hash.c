@@ -11,7 +11,6 @@
 
 **********************************************************************/
 
-#include "eval_intern.h"
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
@@ -37,8 +36,6 @@ static ID id_hash, id_yield, id_default;
 static int
 rb_any_cmp(VALUE a, VALUE b)
 {
-    VALUE args[2];
-
     if (a == b) return 0;
     if (FIXNUM_P(a) && FIXNUM_P(b)) {
 	return a != b;
@@ -52,8 +49,6 @@ rb_any_cmp(VALUE a, VALUE b)
 	return a != b;
     }
 
-    args[0] = a;
-    args[1] = b;
     return !rb_eql(a, b);
 }
 
@@ -506,7 +501,7 @@ rb_hash_lookup(VALUE hash, VALUE key)
  */
 
 static VALUE
-rb_hash_fetch(int argc, VALUE *argv, VALUE hash)
+rb_hash_fetch_m(int argc, VALUE *argv, VALUE hash)
 {
     VALUE key, if_none;
     VALUE val;
@@ -526,6 +521,12 @@ rb_hash_fetch(int argc, VALUE *argv, VALUE hash)
 	return if_none;
     }
     return val;
+}
+
+VALUE
+rb_hash_fetch(VALUE hash, VALUE key)
+{
+    return rb_hash_fetch_m(1, &key, hash);
 }
 
 /*
@@ -614,6 +615,8 @@ rb_hash_default_proc(VALUE hash)
     }
     return Qnil;
 }
+
+VALUE rb_obj_is_proc(VALUE proc);
 
 /*
  *  call-seq:
@@ -1800,6 +1803,13 @@ extern char **environ;
 #define GET_ENVIRON(e) (e)
 #define FREE_ENVIRON(e)
 #endif
+#ifdef ENV_IGNORECASE
+#define ENVMATCH(s1, s2) (STRCASECMP(s1, s2) == 0)
+#define ENVNMATCH(s1, s2, n) (STRNCASECMP(s1, s2, n) == 0)
+#else
+#define ENVMATCH(n1, n2) (strcmp(n1, n2) == 0)
+#define ENVNMATCH(s1, s2, n) (memcmp(s1, s2, n) == 0)
+#endif
 
 static VALUE
 env_str_new(const char *ptr, long len)
@@ -1833,12 +1843,7 @@ env_delete(VALUE obj, VALUE name)
 	VALUE value = env_str_new2(val);
 
 	ruby_setenv(nam, 0);
-#ifdef ENV_IGNORECASE
-	if (STRCASECMP(nam, PATH_ENV) == 0)
-#else
-	if (strcmp(nam, PATH_ENV) == 0)
-#endif
-	{
+	if (ENVMATCH(nam, PATH_ENV)) {
 	    path_tainted = 0;
 	}
 	return value;
@@ -1869,12 +1874,7 @@ rb_f_getenv(VALUE obj, VALUE name)
     }
     env = getenv(nam);
     if (env) {
-#ifdef ENV_IGNORECASE
-	if (STRCASECMP(nam, PATH_ENV) == 0 && !rb_env_path_tainted())
-#else
-	if (strcmp(nam, PATH_ENV) == 0 && !rb_env_path_tainted())
-#endif
-	{
+	if (ENVMATCH(nam, PATH_ENV) && !rb_env_path_tainted()) {
 	    VALUE str = rb_str_new2(env);
 
 	    rb_obj_freeze(str);
@@ -1911,11 +1911,7 @@ env_fetch(int argc, VALUE *argv)
 	}
 	return if_none;
     }
-#ifdef ENV_IGNORECASE
-    if (STRCASECMP(nam, PATH_ENV) == 0 && !rb_env_path_tainted())
-#else
-    if (strcmp(nam, PATH_ENV) == 0 && !rb_env_path_tainted())
-#endif
+    if (ENVMATCH(nam, PATH_ENV) && !rb_env_path_tainted())
 	return rb_str_new2(env);
     return env_str_new2(env);
 }
@@ -1944,13 +1940,7 @@ envix(const char *nam)
 
     env = GET_ENVIRON(environ);
     for (i = 0; env[i]; i++) {
-	if (
-#ifdef ENV_IGNORECASE
-	    STRNCASECMP(env[i],nam,len) == 0
-#else
-	    memcmp(env[i],nam,len) == 0
-#endif
-	    && env[i][len] == '=')
+	if (ENVNMATCH(env[i],nam,len) && env[i][len] == '=')
 	    break;			/* memcmp must come first to avoid */
     }					/* potential SEGV's */
     FREE_ENVIRON(environ);
@@ -2023,18 +2013,7 @@ ruby_setenv(const char *name, const char *value)
     }
     len = strlen(name) + strlen(value) + 2;
     environ[i] = ALLOC_N(char, len);
-#ifndef MSDOS
     snprintf(environ[i],len,"%s=%s",name,value); /* all that work just for this */
-#else
-    /* MS-DOS requires environment variable names to be in uppercase */
-    /* [Tom Dinger, 27 August 1990: Well, it doesn't _require_ it, but
-     * some utilities and applications may break because they only look
-     * for upper case strings. (Fixed strupr() bug here.)]
-     */
-    strcpy(environ[i],name); strupr(environ[i]);
-    sprintf(environ[i] + strlen(name),"=%s", value);
-#endif /* MSDOS */
-
 #endif /* WIN32 */
 }
 
@@ -2054,7 +2033,8 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
     }
 
     if (NIL_P(val)) {
-	rb_raise(rb_eTypeError, "cannot assign nil; use Hash#delete instead");
+	env_delete(obj, nm);
+	return Qnil;
     }
     StringValue(nm);
     StringValue(val);
@@ -2066,11 +2046,7 @@ env_aset(VALUE obj, VALUE nm, VALUE val)
 	rb_raise(rb_eArgError, "bad environment variable value");
 
     ruby_setenv(name, value);
-#ifdef ENV_IGNORECASE
-    if (STRCASECMP(name, PATH_ENV) == 0) {
-#else
-    if (strcmp(name, PATH_ENV) == 0) {
-#endif
+    if (ENVMATCH(name, PATH_ENV)) {
 	if (OBJ_TAINTED(val)) {
 	    /* already tainted, no check */
 	    path_tainted = 1;
@@ -2618,7 +2594,7 @@ InitVM_Hash(rb_vm_t *vm)
     rb_define_method(rb_cHash,"[]", rb_hash_aref, 1);
     rb_define_method(rb_cHash,"hash", rb_hash_hash, 0);
     rb_define_method(rb_cHash,"eql?", rb_hash_eql, 1);
-    rb_define_method(rb_cHash,"fetch", rb_hash_fetch, -1);
+    rb_define_method(rb_cHash,"fetch", rb_hash_fetch_m, -1);
     rb_define_method(rb_cHash,"[]=", rb_hash_aset, 2);
     rb_define_method(rb_cHash,"store", rb_hash_aset, 2);
     rb_define_method(rb_cHash,"default", rb_hash_default, -1);
@@ -2666,7 +2642,6 @@ InitVM_Hash(rb_vm_t *vm)
     rb_define_method(rb_cHash,"compare_by_identity", rb_hash_compare_by_id, 0);
     rb_define_method(rb_cHash,"compare_by_identity?", rb_hash_compare_by_id_p, 0);
 
-#ifndef __MACOS__ /* environment variables nothing on MacOS. */
     origenviron = environ;
     envtbl = rb_obj_alloc(rb_cObject);
     rb_extend_object(envtbl, rb_mEnumerable);
@@ -2712,8 +2687,4 @@ InitVM_Hash(rb_vm_t *vm)
     rb_define_singleton_method(envtbl,"rassoc", env_rassoc, 1);
 
     rb_define_global_const("ENV", envtbl);
-#else /* __MACOS__ */
-	envtbl = rb_hash_s_new(0, NULL, rb_cHash);
-    rb_define_global_const("ENV", envtbl);
-#endif  /* ifndef __MACOS__  environment variables nothing on MacOS. */
 }

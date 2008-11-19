@@ -21,6 +21,19 @@ class CGICoreTest < Test::Unit::TestCase
     $stdout = STDOUT
   end
 
+  def test_cgi_parse_illegal_query
+    @environ = {
+      'REQUEST_METHOD'  => 'GET',
+      'QUERY_STRING'    => 'a=111&&b=222&c&d=',
+      'HTTP_COOKIE'     => '_session_id=12345; name1=val1&val2;',
+      'SERVER_SOFTWARE' => 'Apache 2.2.0',
+      'SERVER_PROTOCOL' => 'HTTP/1.1',
+    }
+    ENV.update(@environ)
+    cgi = CGI.new
+    assert_equal(["a","b","d"],cgi.keys.sort) if RUBY_VERSION>="1.9"
+    assert_equal("",cgi["d"])
+  end
 
   def test_cgi_core_params_GET
     @environ = {
@@ -99,6 +112,44 @@ class CGICoreTest < Test::Unit::TestCase
     assert_equal([], cgi.params['*notfound*'])
   end
 
+  def test_cgi_core_params_encoding_check
+    query_str = 'str=%BE%BE%B9%BE'
+    @environ = {
+        'REQUEST_METHOD'  => 'POST',
+        'CONTENT_LENGTH'  => query_str.length.to_s,
+        'SERVER_SOFTWARE' => 'Apache 2.2.0',
+        'SERVER_PROTOCOL' => 'HTTP/1.1',
+    }
+    ENV.update(@environ)
+    $stdin = StringIO.new
+    $stdin << query_str
+    $stdin.rewind
+    if RUBY_VERSION>="1.9.0"
+      hash={}
+      cgi = CGI.new(:accept_charset=>"UTF-8"){|key,val|hash[key]=val}
+      ## cgi[]
+      assert_equal("\xBE\xBE\xB9\xBE".force_encoding("UTF-8"), cgi['str'])
+      ## cgi.params
+      assert_equal(["\xBE\xBE\xB9\xBE".force_encoding("UTF-8")], cgi.params['str'])
+      ## accept-charset error
+      assert_equal({"str"=>"\xBE\xBE\xB9\xBE".force_encoding("UTF-8")},hash)
+
+      $stdin.rewind
+      assert_raise(CGI::InvalidEncoding) do 
+        cgi = CGI.new(:accept_charset=>"UTF-8")
+      end
+
+      $stdin.rewind
+      cgi = CGI.new(:accept_charset=>"EUC-JP")
+      ## cgi[]
+      assert_equal("\xBE\xBE\xB9\xBE".force_encoding("EUC-JP"), cgi['str'])
+      ## cgi.params
+      assert_equal(["\xBE\xBE\xB9\xBE".force_encoding("EUC-JP")], cgi.params['str'])
+    else
+      assert(true)
+    end
+  end
+
 
   def test_cgi_core_cookie
     @environ = {
@@ -110,7 +161,7 @@ class CGICoreTest < Test::Unit::TestCase
     }
     ENV.update(@environ)
     cgi = CGI.new
-    assert_not_nil(cgi.cookies)
+    assert_not_equal(nil,cgi.cookies)
     [ ['_session_id', ['12345'],        ],
       ['name1',       ['val1', 'val2'], ],
     ].each do |key, expected|

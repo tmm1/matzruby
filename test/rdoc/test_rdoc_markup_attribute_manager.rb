@@ -1,9 +1,14 @@
-require "test/unit"
+require "rubygems"
+require "minitest/unit"
 require "rdoc/markup/inline"
+require "rdoc/markup/to_html_crossref"
 
-class TestRDocMarkupAttributeManager < Test::Unit::TestCase
+class TestRDocMarkupAttributeManager < MiniTest::Unit::TestCase
 
   def setup
+    @orig_special = RDoc::Markup::AttributeManager::SPECIAL
+    RDoc::Markup::AttributeManager::SPECIAL.replace Hash.new
+
     @am = RDoc::Markup::AttributeManager.new
 
     @bold_on  = @am.changed_attribute_by_name([], [:BOLD])
@@ -25,6 +30,10 @@ class TestRDocMarkupAttributeManager < Test::Unit::TestCase
     @am.add_word_pair("{", "}", :WOMBAT)
     @wombat_on    = @am.changed_attribute_by_name([], [:WOMBAT])
     @wombat_off   = @am.changed_attribute_by_name([:WOMBAT], [])
+  end
+
+  def teardown
+    RDoc::Markup::AttributeManager::SPECIAL.replace @orig_special
   end
 
   def crossref(text)
@@ -52,7 +61,7 @@ class TestRDocMarkupAttributeManager < Test::Unit::TestCase
   end
 
   def test_add_word_pair_angle
-    e = assert_raise ArgumentError do
+    e = assert_raises ArgumentError do
       @am.add_word_pair '<', '>', 'angles'
     end
 
@@ -201,24 +210,25 @@ class TestRDocMarkupAttributeManager < Test::Unit::TestCase
   end
 
   def test_special
-    # class names, variable names, file names, or instance variables
-    @am.add_special(/(
-                       \b([A-Z]\w+(::\w+)*)
-                       | \#\w+[!?=]?
-                       | \b\w+([_\/\.]+\w+)+[!?=]?
-                      )/x,
-                    :CROSSREF)
+    @am.add_special(RDoc::Markup::ToHtmlCrossref::CROSSREF_REGEXP, :CROSSREF)
 
-    assert_equal(["cat"], @am.flow("cat"))
+    #
+    # The apostrophes in "cats'" and "dogs'" suppress the flagging of these
+    # words as potential cross-references, which is necessary for the unit
+    # tests.  Unfortunately, the markup engine right now does not actually
+    # check whether a cross-reference is valid before flagging it.
+    #
+    assert_equal(["cats'"], @am.flow("cats'"))
 
-    assert_equal(["cat ", crossref("#fred"), " dog"].flatten,
-                  @am.flow("cat #fred dog"))
+    assert_equal(["cats' ", crossref("#fred"), " dogs'"].flatten,
+                  @am.flow("cats' #fred dogs'"))
 
-    assert_equal([crossref("#fred"), " dog"].flatten,
-                  @am.flow("#fred dog"))
+    assert_equal([crossref("#fred"), " dogs'"].flatten,
+                  @am.flow("#fred dogs'"))
 
-    assert_equal(["cat ", crossref("#fred")].flatten, @am.flow("cat #fred"))
+    assert_equal(["cats' ", crossref("#fred")].flatten, @am.flow("cats' #fred"))
   end
 
 end
 
+MiniTest::Unit.autorun

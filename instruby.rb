@@ -2,6 +2,7 @@
 
 load "./rbconfig.rb"
 include RbConfig
+$".unshift File.expand_path("./rbconfig.rb")
 
 srcdir = File.dirname(__FILE__)
 $:.unshift File.expand_path("lib", srcdir)
@@ -10,6 +11,7 @@ require 'shellwords'
 require 'optparse'
 require 'optparse/shellwords'
 require 'tempfile'
+require 'rdoc/ri/paths'
 
 STDOUT.sync = true
 File.umask(0)
@@ -280,7 +282,7 @@ install?(:rdoc) do
   if $rdocdir
     puts "installing rdoc"
 
-    ridatadir = File.join(CONFIG['datadir'], 'ri/$(MAJOR).$(MINOR).$(TEENY)/system')
+    ridatadir = RDoc::RI::Paths::SYSDIR
     Config.expand(ridatadir)
     makedirs [ridatadir]
     install_recursive($rdocdir, ridatadir, :mode => $data_mode)
@@ -345,14 +347,9 @@ end
 install?(:local, :comm, :lib) do
   puts "installing library scripts"
 
-  Dir.chdir srcdir
   makedirs [rubylibdir]
-
-  for f in Dir["lib/**/*{.rb,help-message}"]
-    dir = File.dirname(f).sub!(/\Alib/, rubylibdir) || rubylibdir
-    makedirs dir
-    install f, dir, :mode => $data_mode
-  end
+  noinst = %w[README* *.txt *.rdoc]
+  install_recursive(File.join(srcdir, "lib"), rubylibdir, :no_install => noinst, :mode => $data_mode)
 end
 
 install?(:local, :arch, :lib) do
@@ -371,19 +368,25 @@ end
 install?(:local, :comm, :man) do
   puts "installing manpages"
 
-  Dir.chdir(srcdir)
+  has_goruby = File.exist?(goruby_install_name+exeext)
+  Dir.chdir("#{srcdir}/man")
   for mdoc in Dir["*.[1-9]"]
     next unless File.file?(mdoc) and open(mdoc){|fh| fh.read(1) == '.'}
+    if mdoc == "goruby.1"
+      next unless has_goruby
+    end
 
     destdir = mandir + mdoc[/(\d+)$/]
-    destfile = File.join(destdir, mdoc.sub(/ruby/, ruby_install_name))
+    section = $1
+    destname = ruby_install_name.sub(/ruby/, File.basename(mdoc, ".#{section}"))
+    destfile = File.join(destdir, "#{destname}.#{section}")
 
     makedirs destdir
 
     if $mantype == "doc"
       install mdoc, destfile, :mode => $data_mode
     else
-      require 'mdoc2man.rb'
+      require "../tool/mdoc2man.rb"
 
       w = Tempfile.open(mdoc)
 

@@ -357,6 +357,7 @@ VALUE rb_hash_dup(VALUE);
 VALUE rb_hash_freeze(VALUE);
 VALUE rb_hash_aref(VALUE, VALUE);
 VALUE rb_hash_lookup(VALUE, VALUE);
+VALUE rb_hash_fetch(VALUE, VALUE);
 VALUE rb_hash_aset(VALUE, VALUE, VALUE);
 VALUE rb_hash_delete_if(VALUE);
 VALUE rb_hash_delete(VALUE,VALUE);
@@ -380,6 +381,7 @@ VALUE rb_io_close(VALUE);
 VALUE rb_io_flush(VALUE);
 VALUE rb_io_eof(VALUE);
 VALUE rb_io_binmode(VALUE);
+VALUE rb_io_ascii8bit_binmode(VALUE);
 VALUE rb_io_addstr(VALUE, VALUE);
 VALUE rb_io_printf(int, VALUE*, VALUE);
 VALUE rb_io_print(int, VALUE*, VALUE);
@@ -544,6 +546,10 @@ VALUE rb_str_new5(VALUE, const char*, long);
 VALUE rb_tainted_str_new_cstr(const char*);
 VALUE rb_tainted_str_new(const char*, long);
 VALUE rb_tainted_str_new2(const char*);
+VALUE rb_external_str_new(const char*, long);
+VALUE rb_external_str_new_cstr(const char*);
+VALUE rb_locale_str_new(const char*, long);
+VALUE rb_locale_str_new_cstr(const char*);
 VALUE rb_str_buf_new(long);
 VALUE rb_str_buf_new_cstr(const char*);
 VALUE rb_str_buf_new2(const char*);
@@ -614,6 +620,18 @@ size_t rb_str_capacity(VALUE);
 	rb_usascii_str_new(str, strlen(str)) : \
 	rb_usascii_str_new_cstr(str);	       \
 })
+#define rb_external_str_new_cstr(str) __extension__ ( \
+{						\
+    (__builtin_constant_p(str)) ?		\
+	rb_external_str_new(str, strlen(str)) : \
+	rb_external_str_new_cstr(str);		\
+})
+#define rb_locale_str_new_cstr(str) __extension__ ( \
+{					       \
+    (__builtin_constant_p(str)) ?	       \
+	rb_locale_str_new(str, strlen(str)) :  \
+	rb_locale_str_new_cstr(str);	       \
+})
 #define rb_str_buf_new_cstr(str) __extension__ ( \
 {						\
     (__builtin_constant_p(str)) ?		\
@@ -658,6 +676,7 @@ VALUE rb_struct_define_without_accessor(const char *, VALUE, rb_alloc_func_t, ..
 typedef void rb_unblock_function_t(void *);
 typedef VALUE rb_blocking_function_t(void *);
 void rb_thread_check_ints(void);
+int rb_thread_interrupted(VALUE thval);
 VALUE rb_thread_blocking_region(rb_blocking_function_t *func, void *data1,
 				rb_unblock_function_t *ubf, void *data2);
 #define RUBY_UBF_IO ((rb_unblock_function_t *)-1)
@@ -668,10 +687,11 @@ VALUE rb_mutex_try_lock(VALUE mutex);
 VALUE rb_mutex_lock(VALUE mutex);
 VALUE rb_mutex_unlock(VALUE mutex);
 VALUE rb_mutex_sleep(VALUE self, VALUE timeout);
-VALUE rb_mutex_synchronize(VALUE self);
+VALUE rb_mutex_synchronize(VALUE mutex, VALUE (*func)(VALUE arg), VALUE arg);
 VALUE rb_barrier_new(void);
 VALUE rb_barrier_wait(VALUE self);
 VALUE rb_barrier_release(VALUE self);
+VALUE rb_barrier_destroy(VALUE self);
 char *rb_thread_cwd(void);
 /* time.c */
 VALUE rb_time_new(time_t, long);

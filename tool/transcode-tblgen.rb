@@ -62,7 +62,8 @@ class StrSet
   end
 
   def hash
-    @pat.hash
+    return @hash if defined? @hash
+    @hash = @pat.hash
   end
 
   def eql?(other)
@@ -196,11 +197,12 @@ class ActionMap
   end
 
   def hash
+    return @hash if defined? @hash
     hash = 0
     @map.each {|k,v|
       hash ^= k.hash ^ v.hash
     }
-    hash
+    @hash = hash
   end
 
   def eql?(other)
@@ -305,7 +307,7 @@ class ActionMap
       n = str_name(bytes)
       @bytes_code.insert_at_last(1 + len,
         "\#define #{n} makeSTR1(#{size})\n" +
-        "    #{len}," + bytes.gsub(/../, ' 0x\&,') + "\n\n")
+        "    makeSTR1LEN(#{len})," + bytes.gsub(/../, ' 0x\&,') + "\n\n")
       n
     end
   end
@@ -334,7 +336,7 @@ class ActionMap
       "o3(0x#$1,0x#$2,0x#$3)"
     when /\A(f[0-7])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])([0-9a-f][0-9a-f])\z/i
       "o4(0x#$1,0x#$2,0x#$3,0x#$4)"
-    when /\A([0-9a-f][0-9a-f]){0,255}\z/i
+    when /\A([0-9a-f][0-9a-f]){4,259}\z/i
       gen_str(info.upcase)
     when /\A\/\*BYTE_LOOKUP\*\// # pointer to BYTE_LOOKUP structure
       $'.to_s
@@ -724,27 +726,23 @@ ValidEncoding = {
                     {81-fe}{30-39}{81-fe}{30-39}',
 }
 
-{
-  'ASCII-8BIT'  => '1byte',
-  'ISO-8859-1'  => '1byte',
-  'ISO-8859-2'  => '1byte',
-  'ISO-8859-3'  => '1byte',
-  'ISO-8859-4'  => '1byte',
-  'ISO-8859-5'  => '1byte',
-  'ISO-8859-6'  => '1byte',
-  'ISO-8859-7'  => '1byte',
-  'ISO-8859-8'  => '1byte',
-  'ISO-8859-9'  => '1byte',
-  'ISO-8859-10' => '1byte',
-  'ISO-8859-11' => '1byte',
-  'ISO-8859-13' => '1byte',
-  'ISO-8859-14' => '1byte',
-  'ISO-8859-15' => '1byte',
-  'Windows-31J' => 'Shift_JIS',
-  'eucJP-ms'    => 'EUC-JP'
-}.each {|k, v|
-  ValidEncoding[k] = ValidEncoding.fetch(v)
-}
+def set_valid_byte_pattern (encoding, pattern_or_label)
+  pattern =
+    if ValidEncoding[pattern_or_label]
+      ValidEncoding[pattern_or_label]
+    else
+      pattern_or_label
+    end
+  if ValidEncoding[encoding] and ValidEncoding[encoding]!=pattern
+    raise ArgumentError, "trying to change valid byte pattern for encoding #{encoding} from #{ValidEncoding[encoding]} to #{pattern}"
+  end
+  ValidEncoding[encoding] = pattern
+end
+
+# the following may be used in different places, so keep them here for the moment
+set_valid_byte_pattern 'ASCII-8BIT', '1byte'
+set_valid_byte_pattern 'Windows-31J', 'Shift_JIS'
+set_valid_byte_pattern 'eucJP-ms', 'EUC-JP'
 
 def make_signature(filename, src)
   "src=#{filename.dump}, len=#{src.length}, checksum=#{src.sum}"

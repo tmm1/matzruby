@@ -15,14 +15,13 @@
 #define INIT_FOR_VM 1
 #include "inits.c"
 #define CALL(n) {void Init_##n(void); Init_##n();}
-#define rb_call_inits() rb_call_inits(void)
 #else
 #define CALL(n) {void InitVM_##n(rb_vm_t *); InitVM_##n(vm);}
-#define rb_call_inits() rb_vm_call_inits(rb_vm_t *vm)
+#define rb_call_inits(void) rb_vm_call_inits(rb_vm_t *vm)
 #endif
 
 void
-rb_call_inits()
+rb_call_inits(void)
 {
     CALL(RandomSeed);
     CALL(sym);
@@ -32,10 +31,10 @@ rb_call_inits()
     CALL(Encoding);
     CALL(Comparable);
     CALL(Enumerable);
-    CALL(Precision);
     CALL(String);
     CALL(Exception);
     CALL(eval);
+    CALL(safe);
     CALL(jump);
     CALL(Numeric);
     CALL(Bignum);

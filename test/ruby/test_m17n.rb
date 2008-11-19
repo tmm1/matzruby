@@ -146,17 +146,17 @@ class TestM17N < Test::Unit::TestCase
   # tests start
 
   def test_string_ascii_literal
-    assert_encoding("US-ASCII", eval(a(%{""})).encoding)
-    assert_encoding("US-ASCII", eval(a(%{"a"})).encoding)
+    assert_encoding("ASCII-8BIT", eval(a(%{""})).encoding)
+    assert_encoding("ASCII-8BIT", eval(a(%{"a"})).encoding)
   end
 
   def test_string_eucjp_literal
-    assert_encoding("US-ASCII", eval(e(%{""})).encoding)
-    assert_encoding("US-ASCII", eval(e(%{"a"})).encoding)
+    assert_encoding("EUC-JP", eval(e(%{""})).encoding)
+    assert_encoding("EUC-JP", eval(e(%{"a"})).encoding)
     assert_encoding("EUC-JP", eval(e(%{"\xa1\xa1"})).encoding)
     assert_encoding("EUC-JP", eval(e(%{"\\xa1\\xa1"})).encoding)
-    assert_encoding("US-ASCII", eval(e(%{"\\x20"})).encoding)
-    assert_encoding("US-ASCII", eval(e(%{"\\n"})).encoding)
+    assert_encoding("EUC-JP", eval(e(%{"\\x20"})).encoding)
+    assert_encoding("EUC-JP", eval(e(%{"\\n"})).encoding)
     assert_encoding("EUC-JP", eval(e(%{"\\x80"})).encoding)
   end
 
@@ -746,7 +746,7 @@ class TestM17N < Test::Unit::TestCase
     #assert_raise(ArgumentError) { s("%c") % 0xc2a1 }
     assert_strenc("\u{c2a1}", 'UTF-8', u("%c") % 0xc2a1)
     assert_strenc("\u{c2}", 'UTF-8', u("%c") % 0xc2)
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "%s%s" % [s("\xc2\xa1"), e("\xc2\xa1")]
     }
   end
@@ -866,22 +866,22 @@ class TestM17N < Test::Unit::TestCase
 
   def test_str_aref_substr
     assert_equal(a("\xa1\xc2"), a("\xc2\xa1\xc2\xa2\xc2\xa3")[a("\xa1\xc2")])
-    assert_raise(EncodingCompatibilityError) { a("\xc2\xa1\xc2\xa2\xc2\xa3")[e("\xa1\xc2")] }
+    assert_raise(Encoding::CompatibilityError) { a("\xc2\xa1\xc2\xa2\xc2\xa3")[e("\xa1\xc2")] }
 
     assert_equal(nil, e("\xc2\xa1\xc2\xa2\xc2\xa3")[e("\xa1\xc2")])
-    assert_raise(EncodingCompatibilityError) { e("\xc2\xa1\xc2\xa2\xc2\xa3")[s("\xa1\xc2")] }
+    assert_raise(Encoding::CompatibilityError) { e("\xc2\xa1\xc2\xa2\xc2\xa3")[s("\xa1\xc2")] }
 
     assert_equal(s("\xa1\xc2"), s("\xc2\xa1\xc2\xa2\xc2\xa3")[s("\xa1\xc2")])
-    assert_raise(EncodingCompatibilityError) { s("\xc2\xa1\xc2\xa2\xc2\xa3")[u("\xa1\xc2")] }
+    assert_raise(Encoding::CompatibilityError) { s("\xc2\xa1\xc2\xa2\xc2\xa3")[u("\xa1\xc2")] }
 
     assert_equal(nil, u("\xc2\xa1\xc2\xa2\xc2\xa3")[u("\xa1\xc2")])
-    assert_raise(EncodingCompatibilityError) { u("\xc2\xa1\xc2\xa2\xc2\xa3")[a("\xa1\xc2")] }
+    assert_raise(Encoding::CompatibilityError) { u("\xc2\xa1\xc2\xa2\xc2\xa3")[a("\xa1\xc2")] }
     assert_nil(e("\xa1\xa2\xa3\xa4")[e("\xa2\xa3")])
   end
 
   def test_aset
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s["\xb0\xa3"] = "foo"}
+    assert_raise(Encoding::CompatibilityError){s["\xb0\xa3"] = "foo"}
   end
 
   def test_str_center
@@ -917,13 +917,13 @@ class TestM17N < Test::Unit::TestCase
   def test_count
     assert_equal(0, e("\xa1\xa2").count("z"))
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s.count(a("\xa3\xb0"))}
+    assert_raise(Encoding::CompatibilityError){s.count(a("\xa3\xb0"))}
   end
 
   def test_delete
     assert_equal(1, e("\xa1\xa2").delete("z").length)
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s.delete(a("\xa3\xb2"))}
+    assert_raise(Encoding::CompatibilityError){s.delete(a("\xa3\xb2"))}
 
     a = "\u3042\u3044\u3046\u3042\u3044\u3046"
     a.delete!("\u3042\u3044", "^\u3044")
@@ -942,7 +942,7 @@ class TestM17N < Test::Unit::TestCase
     assert_nil(e("\xa1\xa2\xa3\xa4").index(e("\xa3")))
     assert_nil(e("\xa1\xa2\xa3\xa4").rindex(e("\xa3")))
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s.rindex(a("\xb1\xa3"))}
+    assert_raise(Encoding::CompatibilityError){s.rindex(a("\xb1\xa3"))}
   end
 
   def test_next
@@ -957,6 +957,21 @@ class TestM17N < Test::Unit::TestCase
     assert_encoding("EUC-JP", s.encoding)
     assert_equal(Encoding::EUC_JP, "\xa4\xa2".force_encoding("euc-jp").sub(/./, '\&').encoding)
     assert_equal(Encoding::EUC_JP, "\xa4\xa2".force_encoding("euc-jp").gsub(/./, '\&').encoding)
+  end
+
+  def test_sub2
+    s = "\x80".force_encoding("ASCII-8BIT")     
+    r = Regexp.new("\x80".force_encoding("ASCII-8BIT")) 
+    s2 = s.sub(r, "")
+    assert(s2.empty?)
+    assert(s2.ascii_only?)
+  end
+
+  def test_sub3
+    repl = "\x81".force_encoding("sjis")
+    assert_equal(false, repl.valid_encoding?)
+    s = "a@".sub(/a/, repl)
+    assert(s.valid_encoding?)
   end
 
   def test_insert
@@ -985,7 +1000,7 @@ class TestM17N < Test::Unit::TestCase
   def test_upto
     s1 = e("\xa1\xa2")
     s2 = s("\xa1\xa2")
-    assert_raise(EncodingCompatibilityError){s1.upto(s2) {|x| break }}
+    assert_raise(Encoding::CompatibilityError){s1.upto(s2) {|x| break }}
   end
 
   def test_casecmp
@@ -1005,12 +1020,12 @@ class TestM17N < Test::Unit::TestCase
   end
 
   def test_plus
-    assert_raise(EncodingCompatibilityError){u("\xe3\x81\x82") + a("\xa1")}
+    assert_raise(Encoding::CompatibilityError){u("\xe3\x81\x82") + a("\xa1")}
   end
 
   def test_chomp
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s.chomp(s("\xa3\xb4"))}
+    assert_raise(Encoding::CompatibilityError){s.chomp(s("\xa3\xb4"))}
   end
 
   def test_gsub
@@ -1023,7 +1038,7 @@ class TestM17N < Test::Unit::TestCase
     t = s.gsub(/b/, "\xa1\xa1".force_encoding("euc-jp"))
     assert_equal(Encoding::ASCII_8BIT, s.encoding)
 
-    assert_raise(EncodingCompatibilityError) {
+    assert_raise(Encoding::CompatibilityError) {
       "abc".gsub(/[ac]/) {
          $& == "a" ? "\xc2\xa1".force_encoding("euc-jp") :
                      "\xc2\xa1".force_encoding("utf-8")
@@ -1044,7 +1059,7 @@ class TestM17N < Test::Unit::TestCase
 
   def test_each_line
     s = e("\xa3\xb0\xa3\xb1\xa3\xb2\xa3\xb3\xa3\xb4")
-    assert_raise(EncodingCompatibilityError){s.each_line(a("\xa3\xb1")) {|l| }}
+    assert_raise(Encoding::CompatibilityError){s.each_line(a("\xa3\xb1")) {|l| }}
     s = e("\xa4\xa2\nfoo")
 
     actual = []
@@ -1280,11 +1295,20 @@ class TestM17N < Test::Unit::TestCase
   end
 
   def test_compatible
-    assert_raise(TypeError) {Encoding.compatible?("",0)}
+    assert_nil Encoding.compatible?("",0)
+    assert_equal(Encoding::UTF_8, Encoding.compatible?(Encoding::UTF_8, Encoding::UTF_8))
+    assert_equal(Encoding::UTF_8, Encoding.compatible?(Encoding::UTF_8, Encoding::US_ASCII))
+    assert_equal(Encoding::ASCII_8BIT,
+                 Encoding.compatible?(Encoding::ASCII_8BIT, Encoding::US_ASCII))
+    assert_nil Encoding.compatible?(Encoding::UTF_8, Encoding::ASCII_8BIT)
   end
 
   def test_force_encoding
     assert(("".center(1, "\x80".force_encoding("utf-8")); true),
            "moved from btest/knownbug, [ruby-dev:33807]")
+  end
+
+  def test_combchar_codepoint
+    assert_equal([0x30BB, 0x309A], "\u30BB\u309A".codepoints.to_a)
   end
 end

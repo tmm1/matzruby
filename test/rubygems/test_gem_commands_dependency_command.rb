@@ -1,4 +1,3 @@
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require 'rubygems/commands/dependency_command'
 
@@ -61,7 +60,7 @@ Gem pl-1-x86-linux
   def test_execute_no_match
     @cmd.options[:args] = %w[foo]
 
-    assert_raise MockGemUi::TermError do
+    assert_raises MockGemUi::TermError do
       use_ui @ui do
         @cmd.execute
       end
@@ -146,7 +145,7 @@ Gem foo-2
     @cmd.options[:reverse_dependencies] = true
     @cmd.options[:domain] = :remote
 
-    assert_raise MockGemUi::TermError do
+    assert_raises MockGemUi::TermError do
       use_ui @ui do
         @cmd.execute
       end
@@ -199,7 +198,7 @@ ERROR:  Only reverse dependencies for local gems are supported.
     @fetcher.data["#{@gem_repo}Marshal.#{Gem.marshal_version}"] =
       si.dump
 
-    @fetcher.data["#{@gem_repo}latest_specs.#{Gem.marshal_version}.gz"] = nil
+    @fetcher.data.delete "#{@gem_repo}latest_specs.#{Gem.marshal_version}.gz"
 
     FileUtils.rm File.join(@gemhome, 'specifications',
                            "#{foo.full_name}.gemspec")

@@ -19,7 +19,7 @@
 #endif
 #include "ruby/util.h"
 
-static ID id_encoding, id_base_encoding;
+static ID id_encoding;
 
 struct rb_encoding_entry {
     const char *name;
@@ -41,7 +41,6 @@ void rb_enc_init(void);
 #define enc_autoload_p(enc) (!rb_enc_mbmaxlen(enc))
 
 static int load_encoding(const char *name);
-static VALUE enc_base_encoding(VALUE self);
 
 static void
 enc_mark(void *ptr)
@@ -544,14 +543,31 @@ rb_id_encoding(void)
 int
 rb_enc_get_index(VALUE obj)
 {
-    int i;
+    int i = -1;
+    VALUE tmp;
 
-    i = ENCODING_GET_INLINED(obj);
-    if (i == ENCODING_INLINE_MAX) {
-	VALUE iv;
+    switch (BUILTIN_TYPE(obj)) {
+        default:
+	case T_STRING:
+	case T_REGEXP:
+	    i = ENCODING_GET_INLINED(obj);
+	    if (i == ENCODING_INLINE_MAX) {
+		VALUE iv;
 
-	iv = rb_ivar_get(obj, rb_id_encoding());
-	i = NUM2INT(iv);
+		iv = rb_ivar_get(obj, rb_id_encoding());
+		i = NUM2INT(iv);
+	    }
+	    break;
+	case T_FILE:
+	    tmp = rb_funcall(obj, rb_intern("internal_encoding"), 0, 0);
+	    if (NIL_P(tmp)) obj = rb_funcall(obj, rb_intern("external_encoding"), 0, 0);
+	    else obj = tmp;
+	    if (NIL_P(obj)) break;
+	case T_DATA:
+	    if (RDATA(obj)->dmark == enc_mark) {
+		i = enc_check_encoding(obj);
+	    }
+	    break;
     }
     return i;
 }
@@ -630,9 +646,11 @@ rb_enc_compatible(VALUE str1, VALUE str2)
     if (!rb_enc_asciicompat(enc1) || !rb_enc_asciicompat(enc2)) {
 	return 0;
     }
-    if (BUILTIN_TYPE(str2) == T_REGEXP && idx2 == ENCINDEX_US_ASCII)
+
+    /* objects whose encoding is the same of contents */
+    if (BUILTIN_TYPE(str2) != T_STRING && idx2 == ENCINDEX_US_ASCII)
 	return enc1;
-    if (BUILTIN_TYPE(str1) == T_REGEXP && idx1 == ENCINDEX_US_ASCII)
+    if (BUILTIN_TYPE(str1) != T_STRING && idx1 == ENCINDEX_US_ASCII)
 	return enc2;
 
     if (BUILTIN_TYPE(str1) != T_STRING) {
@@ -716,7 +734,7 @@ rb_enc_precise_mbclen(const char *p, const char *e, rb_encoding *enc)
 int
 rb_enc_ascget(const char *p, const char *e, int *len, rb_encoding *enc)
 {
-    int c, l;
+    unsigned int c, l;
     if (e <= p)
         return -1;
     if (rb_enc_asciicompat(enc)) {
@@ -736,7 +754,7 @@ rb_enc_ascget(const char *p, const char *e, int *len, rb_encoding *enc)
     return c;
 }
 
-int
+unsigned int
 rb_enc_codepoint(const char *p, const char *e, rb_encoding *enc)
 {
     int r;
@@ -804,12 +822,36 @@ enc_name(VALUE self)
     return rb_usascii_str_new2(rb_enc_name((rb_encoding*)DATA_PTR(self)));
 }
 
-static VALUE
-enc_base_encoding(VALUE self)
+static int
+enc_names_i(st_data_t name, st_data_t idx, st_data_t args)
 {
-    rb_encoding *base = enc_table.list[must_encoding(self)].base;
-    if (!base) return Qnil;
-    return ENC_FROM_ENCODING(base);
+    VALUE *arg = (VALUE *)args;
+
+    if ((int)idx == (int)arg[0]) {
+	VALUE str = rb_usascii_str_new2((char *)name);
+	OBJ_FREEZE(str);
+	rb_ary_push(arg[1], str);
+    }
+    return ST_CONTINUE;
+}
+
+/*
+ * call-seq:
+ *   enc.names => array
+ *
+ * Returns the list of name and aliases of the encoding.
+ *
+ *   Encoding::WINDOWS_31J.names => ["Windows-31J", "CP932", "csWindows31J"]
+ */
+static VALUE
+enc_names(VALUE self)
+{
+    VALUE args[2];
+
+    args[0] = (VALUE)rb_to_encoding_index(self);
+    args[1] = rb_ary_new2(0);
+    st_foreach(enc_table.names, enc_names_i, (st_data_t)args);
+    return args[1];
 }
 
 /*
@@ -879,14 +921,6 @@ enc_compatible_p(VALUE klass, VALUE str1, VALUE str2)
 {
     rb_encoding *enc;
 
-    if (SPECIAL_CONST_P(str1) || TYPE(str1) != T_STRING && TYPE(str1) != T_REGEXP) {
-	rb_raise(rb_eTypeError, "wrong argument type %s (expected String or Regexp)",
-		rb_obj_classname(str1));
-    }
-    if (SPECIAL_CONST_P(str2) || TYPE(str2) != T_STRING && TYPE(str2) != T_REGEXP) {
-	rb_raise(rb_eTypeError, "wrong argument type %s (expected String or Regexp)",
-		rb_obj_classname(str2));
-    }
     if (!enc_capable(str1)) return Qnil;
     if (!enc_capable(str2)) return Qnil;
     enc = rb_enc_compatible(str1, str2);
@@ -961,11 +995,11 @@ rb_locale_encoding(void)
     int idx;
 
     if (NIL_P(charmap))
-        return rb_usascii_encoding();
-    else
-        idx = rb_enc_find_index(StringValueCStr(charmap));
-    if (idx < 0)
-        return rb_ascii8bit_encoding();
+        idx = rb_usascii_encindex();
+    else if ((idx = rb_enc_find_index(StringValueCStr(charmap))) < 0)
+        idx = rb_ascii8bit_encindex();
+
+    if (rb_enc_registered("locale") < 0) enc_alias("locale", idx);
 
     return rb_enc_from_index(idx);
 }
@@ -985,11 +1019,15 @@ rb_filesystem_encoding(void)
 }
 
 static int default_external_index;
+static rb_encoding *default_external;
 
 rb_encoding *
 rb_default_external_encoding(void)
 {
-    return rb_enc_from_index(default_external_index);
+    if (!default_external) {
+	default_external = rb_enc_from_index(default_external_index);
+    }
+    return default_external;
 }
 
 VALUE
@@ -1004,7 +1042,8 @@ rb_enc_default_external(void)
  *
  * Returns default external encoding.
  *
- * It is initialized by the locale or -E option.
+ * It is initialized by the locale or -E option,
+ * and can't be modified after that.
  */
 static VALUE
 get_default_external(VALUE klass)
@@ -1016,6 +1055,63 @@ void
 rb_enc_set_default_external(VALUE encoding)
 {
     default_external_index = rb_enc_to_index(rb_to_encoding(encoding));
+    default_external = 0;
+    enc_alias("external", default_external_index);
+}
+
+/* -2 => not yet set, -1 => nil */
+static int default_internal_index = -2;
+static rb_encoding *default_internal;
+
+rb_encoding *
+rb_default_internal_encoding(void)
+{
+    if (!default_internal && default_internal_index >= 0) {
+	default_internal = rb_enc_from_index(default_internal_index);
+    }
+    return default_internal;
+}
+
+VALUE
+rb_enc_default_internal(void)
+{
+    /* Note: These functions cope with default_internal not being set */
+    return rb_enc_from_encoding(rb_default_internal_encoding());
+}
+
+/*
+ * call-seq:
+ *   Encoding.default_internal => enc
+ *
+ * Returns default internal encoding.
+ *
+ * It is initialized by the source internal_encoding or -E option,
+ * and can't be modified after that.
+ */
+static VALUE
+get_default_internal(VALUE klass)
+{
+    return rb_enc_default_internal();
+}
+
+void
+rb_enc_set_default_internal(VALUE encoding)
+{
+    if (default_internal_index != -2)
+	/* Already set */
+	return;
+    if (NIL_P(encoding)) {
+	default_internal_index = -1;
+	default_internal = 0;
+	return;
+    }
+
+    default_internal_index = rb_enc_to_index(rb_to_encoding(encoding));
+    /* Convert US-ASCII => UTF-8 */
+    if (default_internal_index == rb_usascii_encindex())
+	default_internal_index = rb_utf8_encindex();
+    default_internal = 0;
+    enc_alias("internal", default_internal_index);
 }
 
 /*
@@ -1184,8 +1280,6 @@ Init_Encoding(void)
 {
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
-
-    id_base_encoding = rb_intern("#base_encoding");
 }
 
 void
@@ -1199,7 +1293,7 @@ InitVM_Encoding(rb_vm_t *vm)
     rb_define_method(rb_cEncoding, "to_s", enc_name, 0);
     rb_define_method(rb_cEncoding, "inspect", enc_inspect, 0);
     rb_define_method(rb_cEncoding, "name", enc_name, 0);
-    rb_define_method(rb_cEncoding, "base_encoding", enc_base_encoding, 0);
+    rb_define_method(rb_cEncoding, "names", enc_names, 0);
     rb_define_method(rb_cEncoding, "dummy?", enc_dummy_p, 0);
     rb_define_singleton_method(rb_cEncoding, "list", enc_list, 0);
     rb_define_singleton_method(rb_cEncoding, "name_list", rb_enc_name_list, 0);
@@ -1211,11 +1305,14 @@ InitVM_Encoding(rb_vm_t *vm)
     rb_define_singleton_method(rb_cEncoding, "_load", enc_load, 1);
 
     rb_define_singleton_method(rb_cEncoding, "default_external", get_default_external, 0);
+    rb_define_singleton_method(rb_cEncoding, "default_internal", get_default_internal, 0);
     rb_define_singleton_method(rb_cEncoding, "locale_charmap", rb_locale_charmap, 0);
 
     list = rb_ary_new2(enc_table.count);
     RBASIC(list)->klass = 0;
     rb_encoding_list = list;
+    rb_gc_register_mark_object(list);
+
     for (i = 0; i < enc_table.count; ++i) {
 	rb_ary_push(list, enc_new(enc_table.list[i].enc));
     }

@@ -9,31 +9,56 @@
 #   
 #
 
-require "complex.rb"
-require "rational.rb"
+require "cmath.rb"
 require "matrix.rb"
 require "prime.rb"
+
+require "mathn/rational"
+require "mathn/complex"
+
+unless defined?(Math.exp!)
+  Object.instance_eval{remove_const :Math}
+  Math = CMath
+end
 
 class Fixnum
   remove_method :/
   alias / quo
+
+  alias power! ** unless defined?(0.power!)
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end
 
 class Bignum
   remove_method :/
   alias / quo
+
+  alias power! ** unless defined?(0.power!)
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end
 
 class Rational
-  Unify = true
-
-  alias power! **
-
   def ** (other)
     if other.kind_of?(Rational)
       other2 = other
       if self < 0
-	return Complex.__send__(:new!, self, 0) ** other
+	return Complex(self, 0.0) ** other
       elsif other == 0
 	return Rational(1,1)
       elsif self == 0
@@ -95,7 +120,7 @@ module Math
   remove_method(:sqrt)
   def sqrt(a)
     if a.kind_of?(Complex)
-      abs = sqrt(a.real*a.real + a.image*a.image)
+      abs = sqrt(a.real*a.real + a.imag*a.imag)
 #      if not abs.kind_of?(Rational)
 #	return a**Rational(1,2)
 #      end
@@ -104,7 +129,7 @@ module Math
 #      if !(x.kind_of?(Rational) and y.kind_of?(Rational))
 #	return a**Rational(1,2)
 #      end
-      if a.image >= 0 
+      if a.imag >= 0 
 	Complex(x, y)
       else
 	Complex(x, -y)
@@ -165,6 +190,15 @@ module Math
   module_function :rsqrt
 end
 
-class Complex
-  Unify = true
+class Float
+  alias power! **
+
+  def ** (other)
+    if self < 0 && other.round != other
+      Complex(self, 0.0) ** other
+    else
+      power!(other)
+    end
+  end
+
 end

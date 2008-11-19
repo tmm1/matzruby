@@ -1,4 +1,3 @@
-require 'test/unit'
 require File.join(File.expand_path(File.dirname(__FILE__)), 'gemutilities')
 require File.join(File.expand_path(File.dirname(__FILE__)),
                   'gem_installer_test_case')
@@ -31,7 +30,7 @@ class TestGemInstallUpdateOptions < GemInstallerTestCase
   def test_security_policy_unknown
     @cmd.add_install_update_options
 
-    assert_raise OptionParser::InvalidArgument do
+    assert_raises OptionParser::InvalidArgument do
       @cmd.handle_options %w[-P UnknownSecurity]
     end
   end
@@ -41,8 +40,8 @@ class TestGemInstallUpdateOptions < GemInstallerTestCase
 
     @installer = Gem::Installer.new @gem, @cmd.options
     @installer.install
-    assert File.exist?(File.join(@userhome, '.gem', 'gems'))
-    assert File.exist?(File.join(@userhome, '.gem', 'gems', 
+    assert File.exist?(File.join(Gem.user_dir, 'gems'))
+    assert File.exist?(File.join(Gem.user_dir, 'gems',
                                  @spec.full_name))
   end
 

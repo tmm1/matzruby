@@ -7,7 +7,7 @@ require File.join(File.dirname(__FILE__), "utils.rb")
 
 class TestWEBrickHTTPAuth < Test::Unit::TestCase
   def test_basic_auth
-    TestWEBrick.start_httpserver{|server, addr, port|
+    TestWEBrick.start_httpserver{|server, addr, port, log|
       realm = "WEBrick's realm"
       path = "/basic_auth"
 
@@ -20,14 +20,14 @@ class TestWEBrickHTTPAuth < Test::Unit::TestCase
       http = Net::HTTP.new(addr, port)
       g = Net::HTTP::Get.new(path)
       g.basic_auth("webrick", "supersecretpassword")
-      http.request(g){|res| assert_equal("hoge", res.body)}  
+      http.request(g){|res| assert_equal("hoge", res.body, log.call)}
       g.basic_auth("webrick", "not super")
-      http.request(g){|res| assert_not_equal("hoge", res.body)}
+      http.request(g){|res| assert_not_equal("hoge", res.body, log.call)}
     }
   end
 
   def test_basic_auth2
-    TestWEBrick.start_httpserver{|server, addr, port|
+    TestWEBrick.start_httpserver{|server, addr, port, log|
       realm = "WEBrick's realm"
       path = "/basic_auth2"
 
@@ -41,9 +41,9 @@ class TestWEBrickHTTPAuth < Test::Unit::TestCase
       htpasswd = WEBrick::HTTPAuth::Htpasswd.new(tmpfile.path)
       users = []
       htpasswd.each{|user, pass| users << user }
-      assert_equal(2, users.size)
-      assert(users.member?("webrick"))
-      assert(users.member?("foo"))
+      assert_equal(2, users.size, log.call)
+      assert(users.member?("webrick"), log.call)
+      assert(users.member?("foo"), log.call)
 
       server.mount_proc(path){|req, res|
         auth = WEBrick::HTTPAuth::BasicAuth.new(
@@ -56,9 +56,9 @@ class TestWEBrickHTTPAuth < Test::Unit::TestCase
       http = Net::HTTP.new(addr, port)
       g = Net::HTTP::Get.new(path)
       g.basic_auth("webrick", "supersecretpassword")
-      http.request(g){|res| assert_equal("hoge", res.body)}  
+      http.request(g){|res| assert_equal("hoge", res.body, log.call)}
       g.basic_auth("webrick", "not super")
-      http.request(g){|res| assert_not_equal("hoge", res.body)}
+      http.request(g){|res| assert_not_equal("hoge", res.body, log.call)}
     }
   end
 
@@ -66,7 +66,7 @@ class TestWEBrickHTTPAuth < Test::Unit::TestCase
     tmpfile = Tempfile.new("test_webrick_auth")
     tmpfile.puts("webrick:{SHA}GJYFRpBbdchp595jlh3Bhfmgp8k=")
     tmpfile.flush
-    assert_raises(NotImplementedError){
+    assert_raise(NotImplementedError){
       WEBrick::HTTPAuth::Htpasswd.new(tmpfile.path)
     }
     tmpfile.close(true)
@@ -74,7 +74,7 @@ class TestWEBrickHTTPAuth < Test::Unit::TestCase
     tmpfile = Tempfile.new("test_webrick_auth")
     tmpfile.puts("webrick:$apr1$IOVMD/..$rmnOSPXr0.wwrLPZHBQZy0")
     tmpfile.flush
-    assert_raises(NotImplementedError){
+    assert_raise(NotImplementedError){
       WEBrick::HTTPAuth::Htpasswd.new(tmpfile.path)
     }
     tmpfile.close(true)

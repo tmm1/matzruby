@@ -814,6 +814,8 @@ class TestArray < Test::Unit::TestCase
     s = a.join
     assert_equal(true, s.tainted?)
     assert_equal(true, s.untrusted?)
+  ensure
+    $, = nil
   end
 
   def test_last
@@ -886,7 +888,7 @@ class TestArray < Test::Unit::TestCase
     assert_equal("aGVsbG8K\n",  @cls["hello\n"].pack("m"))
     assert_equal(",:&5L;&\\*:&5L;&\\*\n",  @cls["hello\nhello\n"].pack("u"))
 
-    assert_equal("\xc2\xa9B\xe2\x89\xa0", @cls[0xa9, 0x42, 0x2260].pack("U*"))
+    assert_equal("\u{a9 42 2260}", @cls[0xa9, 0x42, 0x2260].pack("U*"))
 
 
     format = "c2x5CCxsdils_l_a6";
@@ -1155,6 +1157,14 @@ class TestArray < Test::Unit::TestCase
 
     assert_equal(@cls[1], @cls[1].sort!)
     assert_equal(@cls[], @cls[].sort!)
+
+    a = @cls[4, 3, 2, 1]
+    a.sort! {|m, n| a.replace([9, 8, 7, 6]); m <=> n }
+    assert_equal([1, 2, 3, 4], a)
+
+    a = @cls[4, 3, 2, 1]
+    a.sort! {|m, n| a.replace([9, 8, 7]); m <=> n }
+    assert_equal([1, 2, 3, 4], a)
   end
 
   def test_sort_with_callcc
@@ -1220,8 +1230,8 @@ class TestArray < Test::Unit::TestCase
     $, = ":"
     a = @cls[1, 2, 3]
     assert_equal("[1, 2, 3]", a.to_s)
-
-    $, = ""
+  ensure
+    $, = nil
   end
 
   def test_uniq
@@ -1260,7 +1270,7 @@ class TestArray < Test::Unit::TestCase
     assert_equal(@cls[1,2], @cls[1, 2] | @cls[1, 2])
   end
 
- def test_combination
+  def test_combination
     assert_equal(@cls[[]], @cls[1,2,3,4].combination(0).to_a)
     assert_equal(@cls[[1],[2],[3],[4]], @cls[1,2,3,4].combination(1).to_a)
     assert_equal(@cls[[1,2],[1,3],[1,4],[2,3],[2,4],[3,4]], @cls[1,2,3,4].combination(2).to_a)
@@ -1295,6 +1305,11 @@ class TestArray < Test::Unit::TestCase
                  "edcba".each_char.to_a.permutation(5).sort)
     assert_equal(@cls[].permutation(0).to_a, @cls[[]])
 
+    a = @cls[1, 2, 3, 4]
+    b = @cls[]
+    a.permutation {|x| b << x; a.replace(@cls[9, 8, 7, 6]) }
+    assert_equal(@cls[9, 8, 7, 6], a)
+    assert_equal(@cls[1, 2, 3, 4].permutation.to_a, b)
   end
 
   def test_take
@@ -1543,6 +1558,23 @@ class TestArray < Test::Unit::TestCase
         assert([0, 1, 2].include?(sample))
       }
     end
+
+    srand(0)
+    a = (1..18).to_a
+    (0..20).each do |n|
+      10000.times do
+        b = a.sample(n)
+        assert_equal([n, 18].min, b.uniq.size)
+        assert_equal(a, (a | b).sort)
+        assert_equal(b.sort, (a & b).sort)
+      end
+
+      h = Hash.new(0)
+      10000.times do
+        a.sample(n).each {|x| h[x] += 1 }
+      end
+      assert_operator(h.values.min * 2, :>=, h.values.max) if n != 0
+    end
   end
 
   def test_cycle
@@ -1590,6 +1622,8 @@ class TestArray < Test::Unit::TestCase
 
   def test_array_subclass
     assert_equal(Array2, Array2[1,2,3].uniq.class, "[ruby-dev:34581]")
+    assert_equal(Array2, Array2[1,2][0,1].class) # embeded
+    assert_equal(Array2, Array2[*(1..100)][1..99].class) #not embeded
   end
 
   def test_inspect
@@ -1599,5 +1633,34 @@ class TestArray < Test::Unit::TestCase
     s = a.inspect
     assert_equal(true, s.tainted?)
     assert_equal(true, s.untrusted?)
+  end
+
+  def test_initialize2
+    a = [1] * 1000
+    a.instance_eval { initialize }
+    assert_equal([], a)
+  end
+
+  def test_shift_shared_ary
+    a = (1..100).to_a
+    b = []
+    b.replace(a)
+    assert_equal((1..10).to_a, a.shift(10))
+    assert_equal((11..100).to_a, a)
+  end
+
+  def test_replace_shared_ary
+    a = [1] * 100
+    b = []
+    b.replace(a)
+    a.replace([1, 2, 3])
+    assert_equal([1, 2, 3], a)
+    assert_equal([1] * 100, b)
+  end
+
+  def test_fill_negative_length
+    a = (1..10).to_a
+    a.fill(:foo, 5, -3)
+    assert_equal((1..10).to_a, a)
   end
 end

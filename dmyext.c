@@ -1,4 +1,4 @@
-#include "ruby/mvm.h"
+#include "ruby/vm.h"
 
 void
 Init_ext(void)
