@@ -260,7 +260,7 @@ typedef struct RNode {
 	struct RNode *node;
 	ID id;
 	long state;
-	struct global_entry *entry;
+	struct rb_global_entry *entry;
 	long cnt;
 	VALUE value;
     } u3;
@@ -501,10 +501,10 @@ NODE *rb_node_newnode(enum node_type,VALUE,VALUE,VALUE);
 NODE* rb_method_node(VALUE klass, ID id);
 int rb_node_arity(NODE* node);
 
-struct global_entry *rb_global_entry(ID);
-VALUE rb_gvar_get(struct global_entry *);
-VALUE rb_gvar_set(struct global_entry *, VALUE);
-VALUE rb_gvar_defined(struct global_entry *);
+struct rb_global_entry *rb_global_entry(ID);
+VALUE rb_gvar_get(struct rb_global_entry *);
+VALUE rb_gvar_set(struct rb_global_entry *, VALUE);
+VALUE rb_gvar_defined(struct rb_global_entry *);
 
 #if defined(__cplusplus)
 #if 0
