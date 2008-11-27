@@ -1,3 +1,7 @@
+Thu Nov 27 17:06:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (rb_vm_t): moved back from include/ruby/vm.h again.
+
 Thu Nov 27 16:53:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* include/ruby/vm.h (ruby_vm_t): added for external interface.

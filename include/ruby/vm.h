@@ -14,7 +14,6 @@
 #define HAVE_MVM 1
 
 /* VM type declaration */
-typedef struct rb_vm_struct rb_vm_t;
 typedef struct rb_vm_struct ruby_vm_t;
 
 /* core API */

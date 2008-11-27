@@ -229,7 +229,7 @@ enum end_proc_type {
 
 #define ENABLE_VM_OBJSPACE 1
 
-struct rb_vm_struct {
+typedef struct rb_vm_struct {
     VALUE self;
 
     rb_thread_lock_t global_vm_lock;
@@ -290,7 +290,7 @@ struct rb_vm_struct {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     struct rb_objspace *objspace;
 #endif
-};
+} rb_vm_t;
 
 typedef struct {
     VALUE *pc;			/* cfp[0] */
