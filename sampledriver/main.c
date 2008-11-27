@@ -28,17 +28,17 @@
  */
 
 #include <stdio.h>
-#include <ruby/mvm.h>
+#include <ruby/vm.h>
 
 /* simple interpreter */
 static int
-simple_driver_example(int argc, const char *argv[])
+simple_driver_example(int argc, char *argv[])
 {
     rb_vm_t *vm;
     int err;
 
     /* create VM with command line options */
-    vm = ruby_vm_new(argc-1, argv+1);
+    vm = ruby_vm_new(argc, argv);
 
     /* invoke this VM in current thread (synchronous) */
     err = ruby_vm_run(vm);
@@ -121,13 +121,21 @@ multivm_driver_example(int argc, const char *argv[])
     return 0;
 }
 
+static const char *pl[] = {
+    "",
+    "-E", "utf-8",
+    "-e", "p [RUBY_PLATFORM, RUBY_VERSION, Encoding::default_external]",
+    NULL
+};
+
 int
 main(int argc, char *argv[])
 {
-    RUBY_INITSTACK();
+    RUBY_INIT_STACK;
     ruby_sysinit(&argc, &argv); /* process level initialize */
 
     if (1) {
+	simple_driver_example(sizeof(pl)/sizeof(pl[0])-1, (char **)pl);
 	return simple_driver_example(argc, argv);
     }
     else {

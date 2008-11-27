@@ -1,3 +1,246 @@
+Thu Nov 27 16:32:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* signal.c (register_sigaltstack): stores alt stack for debug
+	  purpose.
+
+Thu Nov 27 16:12:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* signal.c (ruby_sigaction_t): added.
+
+Thu Nov 27 15:59:16 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* gc.c (ruby_stack_check): no check if using sigaltstack.
+
+	* signal.c (ALT_STACK_SIZE): default minimum size is insufficient
+	  for method calls.
+
+	* signal.c (sigsegv): handles stack overflow if possible.
+
+	* thread.c (ruby_thread_stack_overflow): helper function to raise
+	  sysstack_error.
+
+	* thread_pthread.c (ruby_stack_overflowed_p): checks for stack
+	  overflow.
+
+Thu Nov 27 10:40:52 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_div2): should return
+	  Integer for #div operation.
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_div2): should raise
+	  ZeroDivisionError if divisor is zero.  [ruby-dev:37207]
+
+Wed Nov 26 23:15:47 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* strftime.c (STRFTIME): use rb_strftime() recursively, instead of
+	  platform's strftime().
+
+Wed Nov 26 22:46:23 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (VpException): bigdecimal zero
+	  division should raise FloatDomainError if mode
+	  VP_EXCEPTION_ZERODIVIDE is set.  [ruby-dev:37204]
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_mode): should handle
+	  VP_EXCEPTION_ZERODIVIDE.
+
+Wed Nov 26 15:16:07 2008  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* ext/gdbm/gdbm.c (rb_gdbm_nextkey): fix memory leak.
+
+Wed Nov 26 03:17:48 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_to_r): raise exception
+	  for nan/inf conversion.  [ruby-dev:37187] fix #793
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_to_i): ditto.
+
+Wed Nov 26 03:00:59 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (VpAlloc): avoid ALLOCA_N() to avoid
+	  segmentation fault caused by (insanely) long decimal values.
+	  [ruby-dev:37189] fix #794
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_dump, BigDecimal_to_i,
+	  BigDecimal_to_f, BigDecimal_to_s, BigDecimal_split,
+	  BigDecimal_inspect): ditto.
+
+	* ext/bigdecimal/bigdecimal.c (VpToString): small performance
+	  improvement.
+
+Wed Nov 26 00:26:30 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* strftime.c (STRFTIME): should add padding for %[xXrR] etc.
+	  [ruby-dev:37185] fix: #792
+
+Tue Nov 25 16:26:12 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* array.c (rb_ary_times): taint (and untrust) status should be
+	  inherited by "ary * 0".  [ruby-dev:37024]
+
+Tue Nov 25 15:54:07 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* strftime.c (rb_strftime): should not swallow incomplete
+	  formatter, e.g. "%E".  [ruby-dev:37170] fix: #787
+
+	* strftime.c (rb_strftime): clear flags before processing unknown
+	  formatter, e.g. "%i".  [ruby-dev:37180]
+
+Tue Nov 25 10:35:29 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* strftime.c (rb_strftime): "%^P" should convert to upper case.
+	  [ruby-dev:37180]
+
+Tue Nov 25 07:51:18 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* strftime.c (FMT): use "%0d" formatter for zero padding, not "%.d".
+	  [ruby-dev:37168]  fix: #768
+
+	* strftime.c (rb_strftime): %s to use zero padding by default.
+	  [ruby-dev:37180]
+
+Tue Nov 25 03:37:42 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tkextlib/blt/tabset.rb, 
+	  ext/tk/lib/tkextlib/blt/tabnotebook.rb: 
+	  fix many bugs. Now, those work properly.
+
+Tue Nov 25 03:26:04 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* numeric.c (num_step): treat infinite step specially.
+	  [ruby-dev:37157] fix: #781.
+
+Tue Nov 25 01:23:25 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* lib/date/format.rb (strftime): ignores '_' flag for %[LN].
+
+Tue Nov 25 00:08:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* process.c (rb_fork): stops the timer thread during fork.
+	  [ruby-dev:37117]
+
+	* thread.c (rb_thread_start_timer_thread): timer thread needs
+	  system_working to be set.
+
+Mon Nov 24 23:27:28 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* strftime.c (rb_strftime): The # flag should work with %a, %A, %b,
+	  %B, and %h.  [ruby-dev:37162]
+
+	* test/ruby/test_time.rb (test_strftime): ditto.
+
+Mon Nov 24 23:16:32 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* signal.c (register_sigaltstack): should not add external
+	  variable (with some cosmetic changes).  [ruby-dev:37158]
+
+Mon Nov 24 22:57:25 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* strftime.c (rb_strftime): A width specifier for %t and %n should
+	  work.  [ruby-dev:37160]
+
+	* test/ruby/test_time.rb (test_strftime): ditto.
+
+Mon Nov 24 22:07:07 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* strftime.c (rb_strftime): The precision of %0N should be 9.
+	  [ruby-dev:37156]
+
+	* test/ruby/test_time.rb (test_strftime): ditto.
+
+Mon Nov 24 21:38:23 2008  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* strftime.c (rb_strftime): The default precision should be 1, not
+	  0.  [ruby-dev:37155]
+
+	* test/ruby/test_time.rb (test_strftime): ditto.
+
+Mon Nov 24 19:53:47 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* lib/date.rb (inspect): changed again.
+
+Mon Nov 24 18:35:00 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/time.rb: r20251 reverted.  The patched behavior do not round
+	  trip.  [ruby-core:19988]
+
+Sun Nov 23 16:04:05 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* signal.c (default_handler, Init_signal): compile error if
+	  USE_SIGALTSTACK is not defined.
+
+Sun Nov 23 00:04:14 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* signal.c (ALT_STACK_SIZE): 4KB is not enough on Mac OS X.
+	  Uses SIGSTKSZ.
+
+Sat Nov 22 21:29:54 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* test/ruby/test_method.rb (test_default_accessiblity): test case for
+	  [ruby-dev:37124].
+
+Sat Nov 22 18:24:24 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* file.c (rb_file_world_writable_p): should return nil for non
+	  world-writable files.
+
+Sat Nov 22 10:31:25 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tkextlib/blt.rb, ext/tk/lib/tkextlib/blt/vector.rb: 
+	  fix NameError bug.
+
+Sat Nov 22 03:41:22 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/pty/pty.c (get_device_once): abandon asynchronous exception
+	  that might cause serious problem if a program terminated early.
+	  asynchronous exception is a very bad thing anyway.  use
+	  Process.waitpid(pid) or PTY.check(pid) to poll program
+	  termination. if PTY.check is called with optional second
+	  argument being true, it raises an exception same as one from
+	  previous behavior.  [incompatible] fix: [ruby-core:19583]
+
+Fri Nov 21 22:24:31 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/curses/curses.c (curses_escdelay_set): support ESCDELAY.  a
+	  patch from Giancarlo F Bellido <support at coaxialhost.com> in
+	  [ruby-core:19961].
+
+Fri Nov 21 22:17:15 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ruby.c (usage): -W description updated.  [ruby-core:19858]
+
+Fri Nov 21 21:50:54 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* signal.c (register_sigaltstack): use alternative stack for
+	  SIGSEGV to avoid uncaught stack overflow. based on a patch from
+	  Hiro Yoshioka <hyoshiok at miraclelinux.com> in [ruby-dev:37134].
+	  [ruby-dev:36993]
+
+Fri Nov 21 16:06:54 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* vm.c (thread_free): th->vm may be NULL when pthread_create
+	  failed for ENOMEM.  [ruby-dev:37095]
+
+Thu Nov 20 07:33:15 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/logger.rb (Logger): should handle the case that cvs/svn do
+	  not expand $Id keyword.  [ruby-core:19991]
+
+Thu Nov 20 07:27:36 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/minitest/unit.rb (MiniTest::Assertions#capture_io): adjust
+	  indentation to shut up warning.  [ruby-core:19993]
+
+Wed Nov 19 17:48:05 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/syck/rubyext.c (rb_syck_mktime): return DateTime for a value
+	  out of range of Time.   [ruby-core:19919]
+
+Wed Nov 19 14:14:38 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* node.h (NOEX_MODFUNC): should be include NOEX_PRIVATE. 
+	  [ruby-dev:37124]
+
 Wed Nov 19 03:01:04 2008  Masatoshi SEKI  <m_seki@mva.biglobe.ne.jp>
 
 	* test/rinda/test_rinda.rb: fixed fails occasionally [ruby-dev:37119].

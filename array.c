@@ -2549,7 +2549,10 @@ rb_ary_times(VALUE ary, VALUE times)
     }
 
     len = NUM2LONG(times);
-    if (len == 0) return ary_new(rb_obj_class(ary), 0);
+    if (len == 0) {
+	ary2 = ary_new(rb_obj_class(ary), 0);
+	goto out;
+    }
     if (len < 0) {
 	rb_raise(rb_eArgError, "negative argument");
     }
@@ -2564,6 +2567,7 @@ rb_ary_times(VALUE ary, VALUE times)
     for (i=0; i<len; i+=RARRAY_LEN(ary)) {
 	MEMCPY(RARRAY_PTR(ary2)+i, RARRAY_PTR(ary), VALUE, RARRAY_LEN(ary));
     }
+  out:
     OBJ_INFECT(ary2, ary);
 
     return ary2;

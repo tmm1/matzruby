@@ -84,9 +84,27 @@ class Time
     end
 
     def zone_utc?(zone)
-      # * -0000 means localtime. [RFC 2822]
-      # * GMT is a localtime abbreviation in Europe/London, etc.
-      if /\A(?:\+00:00|\+0000|\+00|UTC|Z|UT)\z/i =~ zone
+      # * +0000
+      #   In RFC 2822, +0000 indicate a time zone at Universal Time.
+      #   Europe/London is "a time zone at Universal Time" in Winter.
+      #   Europe/Lisbon is "a time zone at Universal Time" in Winter.
+      #   Atlantic/Reykjavik is "a time zone at Universal Time".
+      #   Africa/Dakar is "a time zone at Universal Time".
+      #   So +0000 is a local time such as Europe/London, etc.
+      # * GMT
+      #   GMT is used as a time zone abbreviation in Europe/London,
+      #   Africa/Dakar, etc.
+      #   So it is a local time.
+      #
+      # * -0000, -00:00
+      #   In RFC 2822, -0000 the date-time contains no information about the
+      #   local time zone.
+      #   In RFC 3339, -00:00 is used for the time in UTC is known,
+      #   but the offset to local time is unknown.
+      #   They are not appropriate for specific time zone such as
+      #   Europe/London because time zone neutral, 
+      #   So -00:00 and -0000 are treated as UTC.
+      if /\A(?:-00:00|-0000|-00|UTC|Z|UT)\z/i =~ zone
         true
       else
         false
@@ -409,7 +427,7 @@ class Time
   #
   # where zone is [+-]hhmm.
   #
-  # If +self+ is a UTC time, +0000 is used as zone.
+  # If +self+ is a UTC time, -0000 is used as zone.
   #
   def rfc2822
     sprintf('%s, %02d %s %d %02d:%02d:%02d ',
@@ -417,7 +435,7 @@ class Time
       day, RFC2822_MONTH_NAME[mon-1], year,
       hour, min, sec) +
     if utc?
-      '+0000'
+      '-0000'
     else
       off = utc_offset
       sign = off < 0 ? '-' : '+'
@@ -730,86 +748,98 @@ if __FILE__ == $0
 
     def test_zone_0000
       assert_equal(true, Time.parse("2000-01-01T00:00:00Z").utc?)
-      assert_equal(true, Time.parse("2000-01-01T00:00:00+00:00").utc?)
-      assert_equal(false, Time.parse("2000-01-01T00:00:00-00:00").utc?)
+      assert_equal(true, Time.parse("2000-01-01T00:00:00-00:00").utc?)
+      assert_equal(false, Time.parse("2000-01-01T00:00:00+00:00").utc?)
       assert_equal(false, Time.parse("Sat, 01 Jan 2000 00:00:00 GMT").utc?)
-      assert_equal(true, Time.parse("Sat, 01 Jan 2000 00:00:00 +0000").utc?)
-      assert_equal(false, Time.parse("Sat, 01 Jan 2000 00:00:00 -0000").utc?)
+      assert_equal(true, Time.parse("Sat, 01 Jan 2000 00:00:00 -0000").utc?)
+      assert_equal(false, Time.parse("Sat, 01 Jan 2000 00:00:00 +0000").utc?)
       assert_equal(false, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 GMT").utc?)
-      assert_equal(true, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 +0000").utc?)
-      assert_equal(false, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 -0000").utc?)
+      assert_equal(true, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 -0000").utc?)
+      assert_equal(false, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 +0000").utc?)
       assert_equal(true, Time.rfc2822("Sat, 01 Jan 2000 00:00:00 UTC").utc?)
+    end
+
+    def test_rfc2822_utc_roundtrip_winter
+      t1 = Time.local(2008,12,1)
+      t2 = Time.rfc2822(t1.rfc2822)
+      assert_equal(t1.utc?, t2.utc?, "[ruby-dev:37126]")
+    end
+
+    def test_rfc2822_utc_roundtrip_summer
+      t1 = Time.local(2008,8,1)
+      t2 = Time.rfc2822(t1.rfc2822)
+      assert_equal(t1.utc?, t2.utc?)
     end
 
     def test_parse_leap_second
       t = Time.utc(1998,12,31,23,59,59)
       assert_equal(t, Time.parse("Thu Dec 31 23:59:59 UTC 1998"))
-      assert_equal(t, Time.parse("Fri Dec 31 23:59:59 +0000 1998"));t.localtime
+      assert_equal(t, Time.parse("Fri Dec 31 23:59:59 -0000 1998"));t.localtime
       assert_equal(t, Time.parse("Fri Jan  1 08:59:59 +0900 1999"))
       assert_equal(t, Time.parse("Fri Jan  1 00:59:59 +0100 1999"))
-      assert_equal(t, Time.parse("Fri Dec 31 23:59:59 -0000 1998"))
+      assert_equal(t, Time.parse("Fri Dec 31 23:59:59 +0000 1998"))
       assert_equal(t, Time.parse("Fri Dec 31 22:59:59 -0100 1998"));t.utc
       t += 1
       assert_equal(t, Time.parse("Thu Dec 31 23:59:60 UTC 1998"))
-      assert_equal(t, Time.parse("Fri Dec 31 23:59:60 +0000 1998"));t.localtime
+      assert_equal(t, Time.parse("Fri Dec 31 23:59:60 -0000 1998"));t.localtime
       assert_equal(t, Time.parse("Fri Jan  1 08:59:60 +0900 1999"))
       assert_equal(t, Time.parse("Fri Jan  1 00:59:60 +0100 1999"))
-      assert_equal(t, Time.parse("Fri Dec 31 23:59:60 -0000 1998"))
+      assert_equal(t, Time.parse("Fri Dec 31 23:59:60 +0000 1998"))
       assert_equal(t, Time.parse("Fri Dec 31 22:59:60 -0100 1998"));t.utc
       t += 1 if t.sec == 60
       assert_equal(t, Time.parse("Thu Jan  1 00:00:00 UTC 1999"))
-      assert_equal(t, Time.parse("Fri Jan  1 00:00:00 +0000 1999"));t.localtime
+      assert_equal(t, Time.parse("Fri Jan  1 00:00:00 -0000 1999"));t.localtime
       assert_equal(t, Time.parse("Fri Jan  1 09:00:00 +0900 1999"))
       assert_equal(t, Time.parse("Fri Jan  1 01:00:00 +0100 1999"))
-      assert_equal(t, Time.parse("Fri Jan  1 00:00:00 -0000 1999"))
+      assert_equal(t, Time.parse("Fri Jan  1 00:00:00 +0000 1999"))
       assert_equal(t, Time.parse("Fri Dec 31 23:00:00 -0100 1998"))
     end
 
     def test_rfc2822_leap_second
       t = Time.utc(1998,12,31,23,59,59)
       assert_equal(t, Time.rfc2822("Thu, 31 Dec 1998 23:59:59 UTC"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 +0000"));t.localtime
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 08:59:59 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:59:59 +0100"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 -0000"))
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:59 +0000"))
       assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:59 -0100"));t.utc
       t += 1
       assert_equal(t, Time.rfc2822("Thu, 31 Dec 1998 23:59:60 UTC"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 +0000"));t.localtime
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 08:59:60 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:59:60 +0100"))
-      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 -0000"))
+      assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:59:60 +0000"))
       assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 22:59:60 -0100"));t.utc
       t += 1 if t.sec == 60
       assert_equal(t, Time.rfc2822("Thu,  1 Jan 1999 00:00:00 UTC"))
-      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 +0000"));t.localtime
+      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 -0000"));t.localtime
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 09:00:00 +0900"))
       assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 01:00:00 +0100"))
-      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 -0000"))
+      assert_equal(t, Time.rfc2822("Fri,  1 Jan 1999 00:00:00 +0000"))
       assert_equal(t, Time.rfc2822("Fri, 31 Dec 1998 23:00:00 -0100"))
     end
 
     def test_xmlschema_leap_second
       t = Time.utc(1998,12,31,23,59,59)
       assert_equal(t, Time.xmlschema("1998-12-31T23:59:59Z"))
-      assert_equal(t, Time.xmlschema("1998-12-31T23:59:59+00:00"));t.localtime
+      assert_equal(t, Time.xmlschema("1998-12-31T23:59:59-00:00"));t.localtime
       assert_equal(t, Time.xmlschema("1999-01-01T08:59:59+09:00"))
       assert_equal(t, Time.xmlschema("1999-01-01T00:59:59+01:00"))
-      assert_equal(t, Time.xmlschema("1998-12-31T23:59:59-00:00"))
+      assert_equal(t, Time.xmlschema("1998-12-31T23:59:59+00:00"))
       assert_equal(t, Time.xmlschema("1998-12-31T22:59:59-01:00"));t.utc
       t += 1
       assert_equal(t, Time.xmlschema("1998-12-31T23:59:60Z"))
-      assert_equal(t, Time.xmlschema("1998-12-31T23:59:60+00:00"));t.localtime
+      assert_equal(t, Time.xmlschema("1998-12-31T23:59:60-00:00"));t.localtime
       assert_equal(t, Time.xmlschema("1999-01-01T08:59:60+09:00"))
       assert_equal(t, Time.xmlschema("1999-01-01T00:59:60+01:00"))
-      assert_equal(t, Time.xmlschema("1998-12-31T23:59:60-00:00"))
+      assert_equal(t, Time.xmlschema("1998-12-31T23:59:60+00:00"))
       assert_equal(t, Time.xmlschema("1998-12-31T22:59:60-01:00"));t.utc
       t += 1 if t.sec == 60
       assert_equal(t, Time.xmlschema("1999-01-01T00:00:00Z"))
-      assert_equal(t, Time.xmlschema("1999-01-01T00:00:00+00:00"));t.localtime
+      assert_equal(t, Time.xmlschema("1999-01-01T00:00:00-00:00"));t.localtime
       assert_equal(t, Time.xmlschema("1999-01-01T09:00:00+09:00"))
       assert_equal(t, Time.xmlschema("1999-01-01T01:00:00+01:00"))
-      assert_equal(t, Time.xmlschema("1999-01-01T00:00:00-00:00"))
+      assert_equal(t, Time.xmlschema("1999-01-01T00:00:00+00:00"))
       assert_equal(t, Time.xmlschema("1998-12-31T23:00:00-01:00"))
     end
 

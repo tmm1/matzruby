@@ -1478,7 +1478,7 @@ thread_free(void *ptr)
 	rb_queue_destroy(&th->queue.message);
 	rb_queue_destroy(&th->queue.signal);
 
-	if (th->vm->main_thread == th) {
+	if (th->vm && th->vm->main_thread == th) {
 	    RUBY_GC_INFO("main thread\n");
 	}
 	else {

@@ -396,7 +396,7 @@ class TestTime < Test::Unit::TestCase
     assert_equal("123456", t.strftime("%6N"))
     assert_equal("123456789", t.strftime("%9N"))
     assert_equal("1234567890", t.strftime("%10N"))
-    assert_equal("", t.strftime("%0N"))
+    assert_equal("123456789", t.strftime("%0N"))
     assert_equal("000", t.strftime("%3S"))
     assert_equal("946684800", t.strftime("%s"))
     assert_equal("946684800", t.utc.strftime("%s"))
@@ -444,5 +444,29 @@ class TestTime < Test::Unit::TestCase
     assert_equal(" 2", t.strftime("%l"))
     assert_equal("02", t.strftime("%0l"))
     assert_equal(" 2", t.strftime("%_l"))
+
+    # [ruby-dev:37155]
+    t = Time.mktime(1970, 1, 18)
+    assert_equal("0", t.strftime("%w"))
+    assert_equal("7", t.strftime("%u"))
+
+    # [ruby-dev:37160]
+    assert_equal("\t", T2000.strftime("%t"))
+    assert_equal("\t", T2000.strftime("%0t"))
+    assert_equal("\t", T2000.strftime("%1t"))
+    assert_equal("  \t", T2000.strftime("%3t"))
+    assert_equal("00\t", T2000.strftime("%03t"))
+    assert_equal("\n", T2000.strftime("%n"))
+    assert_equal("\n", T2000.strftime("%0n"))
+    assert_equal("\n", T2000.strftime("%1n"))
+    assert_equal("  \n", T2000.strftime("%3n"))
+    assert_equal("00\n", T2000.strftime("%03n"))
+
+    # [ruby-dev:37162]
+    assert_equal("SAT", T2000.strftime("%#a"))
+    assert_equal("SATURDAY", T2000.strftime("%#A"))
+    assert_equal("JAN", T2000.strftime("%#b"))
+    assert_equal("JANUARY", T2000.strftime("%#B"))
+    assert_equal("JAN", T2000.strftime("%#h"))
   end
 end
