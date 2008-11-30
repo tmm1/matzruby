@@ -860,7 +860,7 @@ Init_Cont(void)
 }
 
 void
-InitVM_Cont(rb_vm_t *vm)
+InitVM_Cont(ruby_vm_t *vm)
 {
     rb_cFiber = rb_define_class("Fiber", rb_cObject);
     rb_undef_alloc_func(rb_cFiber);

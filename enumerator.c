@@ -760,7 +760,7 @@ Init_Enumerator(void)
 }
 
 void
-InitVM_Enumerator(rb_vm_t *vm)
+InitVM_Enumerator(ruby_vm_t *vm)
 {
     rb_define_method(rb_mKernel, "to_enum", obj_to_enum, -1);
     rb_define_method(rb_mKernel, "enum_for", obj_to_enum, -1);

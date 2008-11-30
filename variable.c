@@ -31,7 +31,7 @@ Init_var_tables(void)
 }
 
 void
-InitVM_var_tables(rb_vm_t *vm)
+InitVM_var_tables(ruby_vm_t *vm)
 {
     vm->mark_object_ary = rb_ary_new();
     vm->global_tbl = st_init_numtable();

@@ -2467,7 +2467,7 @@ Init_Object(void)
 }
 
 void
-InitVM_Object(rb_vm_t *vm)
+InitVM_Object(ruby_vm_t *vm)
 {
     VALUE metaclass;
 

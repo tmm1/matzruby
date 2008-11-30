@@ -4017,7 +4017,7 @@ Init_transcode(void)
 }
 
 void
-InitVM_transcode(rb_vm_t *vm)
+InitVM_transcode(ruby_vm_t *vm)
 {
     rb_eUndefinedConversionError = rb_define_class_under(rb_cEncoding, "UndefinedConversionError", rb_eEncodingError);
     rb_eInvalidByteSequenceError = rb_define_class_under(rb_cEncoding, "InvalidByteSequenceError", rb_eEncodingError);

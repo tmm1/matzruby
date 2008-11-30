@@ -1792,7 +1792,7 @@ Init_Proc(void)
 }
 
 void
-InitVM_Proc(rb_vm_t *vm)
+InitVM_Proc(ruby_vm_t *vm)
 {
     /* Proc */
     rb_cProc = rb_define_class("Proc", rb_cObject);
@@ -1918,7 +1918,7 @@ Init_Binding(void)
 }
 
 void
-InitVM_Binding(rb_vm_t *vm)
+InitVM_Binding(ruby_vm_t *vm)
 {
     rb_cBinding = rb_define_class("Binding", rb_cObject);
     rb_undef_alloc_func(rb_cBinding);

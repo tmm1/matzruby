@@ -1333,7 +1333,7 @@ Init_ISeq(void)
 }
 
 void
-InitVM_ISeq(rb_vm_t *vm)
+InitVM_ISeq(ruby_vm_t *vm)
 {
     /* declare ::VM::InstructionSequence */
     rb_cISeq = rb_define_class_under(rb_cRubyVM, "InstructionSequence", rb_cObject);

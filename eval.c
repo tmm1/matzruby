@@ -1156,7 +1156,7 @@ Init_eval(void)
 }
 
 void
-InitVM_eval(rb_vm_t *vm)
+InitVM_eval(ruby_vm_t *vm)
 {
     rb_define_virtual_variable("$@", errat_getter, errat_setter);
     rb_define_virtual_variable("$!", errinfo_getter, 0);

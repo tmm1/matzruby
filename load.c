@@ -684,7 +684,7 @@ Init_load()
 }
 
 void
-InitVM_load(rb_vm_t *vm)
+InitVM_load(ruby_vm_t *vm)
 {
     static const char var_load_path[] = "$:";
     ID id_load_path = rb_intern2(var_load_path, sizeof(var_load_path)-1);

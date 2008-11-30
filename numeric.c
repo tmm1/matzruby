@@ -3066,7 +3066,7 @@ Init_Numeric(void)
 }
 
 void
-InitVM_Numeric(rb_vm_t *vm)
+InitVM_Numeric(ruby_vm_t *vm)
 {
     rb_eZeroDivError = rb_define_class("ZeroDivisionError", rb_eStandardError);
     rb_eFloatDomainError = rb_define_class("FloatDomainError", rb_eRangeError);

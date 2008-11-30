@@ -2387,7 +2387,7 @@ Init_Time(void)
 }
 
 void
-InitVM_Time(rb_vm_t *vm)
+InitVM_Time(ruby_vm_t *vm)
 {
     rb_cTime = rb_define_class("Time", rb_cObject);
     rb_include_module(rb_cTime, rb_mComparable);

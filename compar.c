@@ -203,7 +203,7 @@ Init_Comparable(void)
 }
 
 void
-InitVM_Comparable(rb_vm_t *vm)
+InitVM_Comparable(ruby_vm_t *vm)
 {
     rb_mComparable = rb_define_module("Comparable");
     rb_define_method(rb_mComparable, "==", cmp_equal, 1);

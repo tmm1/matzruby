@@ -8489,7 +8489,7 @@ Init_IO(void)
 }
 
 void
-InitVM_IO(rb_vm_t *vm)
+InitVM_IO(ruby_vm_t *vm)
 {
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)

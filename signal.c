@@ -1149,7 +1149,7 @@ Init_signal(void)
 }
 
 void
-InitVM_signal(rb_vm_t *vm)
+InitVM_signal(ruby_vm_t *vm)
 {
 #ifndef MACOS_UNUSE_SIGNAL
     VALUE mSignal = rb_define_module("Signal");

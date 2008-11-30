@@ -2675,7 +2675,7 @@ Init_Bignum(void)
 }
 
 void
-InitVM_Bignum(rb_vm_t *vm)
+InitVM_Bignum(ruby_vm_t *vm)
 {
     rb_cBignum = rb_define_class("Bignum", rb_cInteger);
 

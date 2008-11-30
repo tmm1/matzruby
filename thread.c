@@ -3697,7 +3697,7 @@ Init_Thread(void)
 }
 
 void
-InitVM_Thread(rb_vm_t *vm)
+InitVM_Thread(ruby_vm_t *vm)
 {
     VALUE cThGroup;
 

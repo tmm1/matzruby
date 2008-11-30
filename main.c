@@ -32,7 +32,7 @@ main(int argc, char **argv)
 
     ruby_sysinit(&argc, &argv);
     {
-	rb_vm_t *vm;
+	ruby_vm_t *vm;
 	int ret;
 
 	RUBY_INIT_STACK;

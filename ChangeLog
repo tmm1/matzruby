@@ -1,3 +1,8 @@
+Sun Nov 30 15:26:44 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* inits.c (rb_vm_call_inits): let all InitVM functions use
+	  ruby_vm_t instead of rb_vm_t.
+
 Thu Nov 27 17:06:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (rb_vm_t): moved back from include/ruby/vm.h again.

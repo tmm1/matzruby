@@ -1400,7 +1400,7 @@ Init_Complex(void)
 }
 
 void
-InitVM_Complex(rb_vm_t *vm)
+InitVM_Complex(ruby_vm_t *vm)
 {
     assert(fprintf(stderr, "assert() is now active\n"));
 

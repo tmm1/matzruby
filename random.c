@@ -545,12 +545,12 @@ Init_RandomSeed(void)
 }
 
 void
-InitVM_RandomSeed(rb_vm_t *vm)
+InitVM_RandomSeed(ruby_vm_t *vm)
 {
 }
 
 static void
-InitVM_RandomSeed2(rb_vm_t *vm)
+InitVM_RandomSeed2(ruby_vm_t *vm)
 {
     struct Random *r;
     VALUE rv = Data_Make_Struct(rb_cData, struct Random, random_mark, -1, r);
@@ -576,7 +576,7 @@ Init_Random(void)
 }
 
 void
-InitVM_Random(rb_vm_t *vm)
+InitVM_Random(ruby_vm_t *vm)
 {
     InitVM_RandomSeed2(vm);
     rb_define_global_function("srand", rb_f_srand, -1);

@@ -126,7 +126,7 @@ Init_jump(void)
 }
 
 void
-InitVM_jump(rb_vm_t *vm)
+InitVM_jump(ruby_vm_t *vm)
 {
     rb_define_global_function("at_exit", rb_f_at_exit, 0);
 }

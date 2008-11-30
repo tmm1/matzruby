@@ -3358,7 +3358,7 @@ Init_Regexp(void)
 }
 
 void
-InitVM_Regexp(rb_vm_t *vm)
+InitVM_Regexp(ruby_vm_t *vm)
 {
     rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
 
