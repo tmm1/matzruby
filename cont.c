@@ -25,6 +25,7 @@ enum context_type {
 typedef struct rb_context_struct {
     enum context_type type;
     VALUE self;
+    int argc;
     VALUE value;
     VALUE *vm_stack;
 #ifdef CAPTURE_JUST_VALID_VM_STACK
@@ -60,8 +61,10 @@ typedef struct rb_fiber_struct {
 #define GetContPtr(obj, ptr)  \
   Data_Get_Struct(obj, rb_context_t, ptr)
 
-#define GetFiberPtr(obj, ptr)  \
-  Data_Get_Struct(obj, rb_fiber_t, ptr)
+#define GetFiberPtr(obj, ptr)  do {\
+  ptr = (rb_fiber_t*)DATA_PTR(obj);\
+  if (!ptr) rb_raise(rb_eFiberError, "uninitialized fiber");\
+} while(0)
 
 NOINLINE(static VALUE cont_capture(volatile int *stat));
 
@@ -552,6 +555,7 @@ rb_cont_call(int argc, VALUE *argv, VALUE contval)
 	}
     }
 
+    cont->argc = argc;
     cont->value = make_passing_arg(argc, argv);
 
     cont_restore_0(cont, &contval);
@@ -564,26 +568,33 @@ rb_cont_call(int argc, VALUE *argv, VALUE contval)
 
 #define FIBER_VM_STACK_SIZE (4 * 1024)
 
-static rb_fiber_t *
+static VALUE
 fiber_alloc(VALUE klass)
 {
-    rb_fiber_t *fib;
-    volatile VALUE fibval = Data_Make_Struct(klass, rb_fiber_t, fiber_mark, fiber_free, fib);
+    return Data_Wrap_Struct(klass, fiber_mark, fiber_free, 0);
+}
 
+static rb_fiber_t*
+fiber_t_alloc(VALUE fibval)
+{
+    rb_fiber_t *fib = ALLOC(rb_fiber_t);
+
+    memset(fib, 0, sizeof(rb_fiber_t));
     fib->cont.self = fibval;
     fib->cont.type = FIBER_CONTEXT;
     cont_init(&fib->cont);
     fib->prev = Qnil;
     fib->status = CREATED;
 
+    DATA_PTR(fibval) = fib;
+
     return fib;
 }
 
 static VALUE
-fiber_new(VALUE klass, VALUE proc)
+fiber_init(VALUE fibval, VALUE proc)
 {
-    rb_fiber_t *fib = fiber_alloc(klass);
-    VALUE fibval = fib->cont.self;
+    rb_fiber_t *fib = fiber_t_alloc(fibval);
     rb_context_t *cont = &fib->cont;
     rb_thread_t *th = &cont->saved_thread;
 
@@ -619,16 +630,16 @@ fiber_new(VALUE klass, VALUE proc)
     return fibval;
 }
 
+static VALUE
+rb_fiber_init(VALUE fibval)
+{
+    return fiber_init(fibval, rb_block_proc());
+}
+
 VALUE
 rb_fiber_new(VALUE (*func)(ANYARGS), VALUE obj)
 {
-    return fiber_new(rb_cFiber, rb_proc_new(func, obj));
-}
-
-static VALUE
-rb_fiber_s_new(VALUE self)
-{
-    return fiber_new(self, rb_block_proc());
+    return fiber_init(fiber_alloc(rb_cFiber), rb_proc_new(func, obj));
 }
 
 static VALUE
@@ -672,7 +683,6 @@ rb_fiber_start(void)
     rb_fiber_t *fib;
     rb_context_t *cont;
     rb_proc_t *proc;
-    VALUE args;
     int state;
 
     GetFiberPtr(th->fiber, fib);
@@ -680,15 +690,18 @@ rb_fiber_start(void)
 
     TH_PUSH_TAG(th);
     if ((state = EXEC_TAG()) == 0) {
+	int argc;
+	VALUE *argv, args;
 	GetProcPtr(cont->saved_thread.first_proc, proc);
 	args = cont->value;
+	argv = (argc = cont->argc) > 1 ? RARRAY_PTR(args) : &args;
 	cont->value = Qnil;
 	th->errinfo = Qnil;
 	th->local_lfp = proc->block.lfp;
 	th->local_svar = Qnil;
 
 	fib->status = RUNNING;
-	cont->value = vm_invoke_proc(th, proc, proc->block.self, 1, &args, 0);
+	cont->value = vm_invoke_proc(th, proc, proc->block.self, argc, argv, 0);
     }
     TH_POP_TAG();
 
@@ -713,7 +726,7 @@ root_fiber_alloc(rb_thread_t *th)
     rb_fiber_t *fib;
 
     /* no need to allocate vm stack */
-    fib = fiber_alloc(rb_cFiber);
+    fib = fiber_t_alloc(fiber_alloc(rb_cFiber));
     fib->cont.type = ROOT_FIBER_CONTEXT;
     fib->prev_fiber = fib->next_fiber = fib;
 
@@ -785,6 +798,7 @@ fiber_switch(VALUE fibval, int argc, VALUE *argv, int is_resume)
 	fib->prev = rb_fiber_current();
     }
 
+    cont->argc = argc;
     cont->value = make_passing_arg(argc, argv);
 
     if ((value = fiber_store(fib)) == Qundef) {
@@ -863,10 +877,10 @@ void
 InitVM_Cont(ruby_vm_t *vm)
 {
     rb_cFiber = rb_define_class("Fiber", rb_cObject);
-    rb_undef_alloc_func(rb_cFiber);
+    rb_define_alloc_func(rb_cFiber, fiber_alloc);
     rb_eFiberError = rb_define_class("FiberError", rb_eStandardError);
-    rb_define_singleton_method(rb_cFiber, "new", rb_fiber_s_new, 0);
     rb_define_singleton_method(rb_cFiber, "yield", rb_fiber_s_yield, -1);
+    rb_define_method(rb_cFiber, "initialize", rb_fiber_init, 0);
     rb_define_method(rb_cFiber, "resume", rb_fiber_m_resume, -1);
 }
 

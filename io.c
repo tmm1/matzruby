@@ -797,8 +797,8 @@ io_binwrite(VALUE str, rb_io_t *fptr, int nosync)
 	}
 	arg.fptr = fptr;
 	arg.str = str;
-	arg.offset = offset;
       retry:
+	arg.offset = offset;
 	arg.length = n;
 	if (fptr->write_lock) {
 	    r = rb_mutex_synchronize(fptr->write_lock, io_binwrite_string, (VALUE)&arg);
@@ -1316,7 +1316,7 @@ rb_io_fileno(VALUE io)
  *     ios.pid    => fixnum
  *
  *  Returns the process ID of a child process associated with
- *  <em>ios</em>. This will be set by <code>IO::popen</code>.
+ *  <em>ios</em>. This will be set by <code>IO.popen</code>.
  *
  *     pipe = IO.popen("-")
  *     if pipe
@@ -2693,14 +2693,14 @@ rb_io_chars(VALUE io)
 
 /*
  *  call-seq:
- *     ios.getc   => fixnum or nil
+ *     ios.getc   => string or nil
  *
  *  Reads a one-character string from <em>ios</em>. Returns
  *  <code>nil</code> if called at end of file.
  *
  *     f = File.new("testfile")
- *     f.getc   #=> "8"
- *     f.getc   #=> "1"
+ *     f.getc   #=> "h"
+ *     f.getc   #=> "e"
  */
 
 static VALUE
@@ -2725,8 +2725,8 @@ rb_io_getc(VALUE io)
  *  <code>EOFError</code> on end of file.
  *
  *     f = File.new("testfile")
- *     f.readchar   #=> "8"
- *     f.readchar   #=> "1"
+ *     f.readchar   #=> "h"
+ *     f.readchar   #=> "e"
  */
 
 static VALUE
@@ -4535,6 +4535,7 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *modestr, int fmode,
     const char *exename = NULL;
     volatile VALUE cmdbuf;
     struct rb_exec_arg sarg;
+    int pair[2], write_pair[2];
 #endif
     FILE *fp = 0;
     int fd = -1;
@@ -4659,11 +4660,42 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *modestr, int fmode,
 	cmd = rb_w32_join_argv(RSTRING_PTR(cmdbuf), args);
 	rb_str_resize(argbuf, 0);
     }
+    switch (fmode & (FMODE_READABLE|FMODE_WRITABLE)) {
+      case FMODE_READABLE|FMODE_WRITABLE:
+        if (rb_pipe(write_pair) < 0)
+            rb_sys_fail(cmd);
+        if (rb_pipe(pair) < 0) {
+            int e = errno;
+            close(write_pair[0]);
+            close(write_pair[1]);
+            errno = e;
+            rb_sys_fail(cmd);
+        }
+        if (eargp) {
+            rb_exec_arg_addopt(eargp, INT2FIX(0), INT2FIX(write_pair[0]));
+            rb_exec_arg_addopt(eargp, INT2FIX(1), INT2FIX(pair[1]));
+        }
+	break;
+      case FMODE_READABLE:
+        if (rb_pipe(pair) < 0)
+            rb_sys_fail(cmd);
+        if (eargp)
+            rb_exec_arg_addopt(eargp, INT2FIX(1), INT2FIX(pair[1]));
+	break;
+      case FMODE_WRITABLE:
+        if (rb_pipe(pair) < 0)
+            rb_sys_fail(cmd);
+        if (eargp)
+            rb_exec_arg_addopt(eargp, INT2FIX(0), INT2FIX(pair[0]));
+	break;
+      default:
+        rb_sys_fail(cmd);
+    }
     if (eargp) {
 	rb_exec_arg_fixup(eargp);
 	rb_run_exec_options(eargp, &sarg);
     }
-    while ((pid = rb_w32_pipe_exec(cmd, exename, openmode, &fd, &write_fd)) == -1) {
+    while ((pid = rb_w32_spawn(P_NOWAIT, cmd, exename)) == -1) {
 	/* exec failed */
 	switch (errno) {
 	  case EAGAIN:
@@ -4681,6 +4713,20 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *modestr, int fmode,
     }
     if (eargp)
 	rb_run_exec_options(&sarg, NULL);
+    if ((fmode & FMODE_READABLE) && (fmode & FMODE_WRITABLE)) {
+        close(pair[1]);
+        fd = pair[0];
+        close(write_pair[0]);
+        write_fd = write_pair[1];
+    }
+    else if (fmode & FMODE_READABLE) {
+        close(pair[1]);
+        fd = pair[0];
+    }
+    else {
+        close(pair[0]);
+        fd = pair[1];
+    }
 #else
     if (argc) {
 	prog = rb_ary_join(rb_ary_new4(argc, argv), rb_str_new2(" "));
@@ -4774,23 +4820,46 @@ pop_last_hash(int *argc_p, VALUE *argv)
  *
  *  Runs the specified command as a subprocess; the subprocess's
  *  standard input and output will be connected to the returned
- *  <code>IO</code> object.  If _cmd_ is a +String+
- *  ``<code>-</code>'', then a new instance of Ruby is started as the
- *  subprocess.  If <i>cmd</i> is an +Array+ of +String+, then it will
- *  be used as the subprocess's +argv+ bypassing a shell.
- *  The array can contains a hash at first for environments and
- *  a hash at last for options similar to <code>spawn</code>.  The default
- *  mode for the new file object is ``r'', but <i>mode</i> may be set
- *  to any of the modes listed in the description for class IO.
+ *  <code>IO</code> object.
  *
- *  Raises exceptions which <code>IO::pipe</code> and
- *  <code>Kernel::system</code> raise.
+ *  _cmd_ is a string or an array as follows.
+ *
+ *    cmd:
+ *      "-"                                      : fork
+ *      commandline                              : command line string which is passed to a shell
+ *      [env, cmdname, arg1, ..., opts]          : command name and arguments (no shell)
+ *      [env, [cmdname, argv0], arg1, ..., opts] : command name and arguments including argv[0] (no shell)
+ *    (env and opts are optional.)
+ *
+ *  If _cmd_ is a +String+ ``<code>-</code>'',
+ *  then a new instance of Ruby is started as the subprocess.
+ *
+ *  If <i>cmd</i> is an +Array+ of +String+,
+ *  then it will be used as the subprocess's +argv+ bypassing a shell.
+ *  The array can contains a hash at first for environments and
+ *  a hash at last for options similar to <code>spawn</code>.
+ *
+ *  The default mode for the new file object is ``r'',
+ *  but <i>mode</i> may be set to any of the modes listed in the description for class IO.
+ *  The last argument <i>opt</i> qualifies <i>mode</i>.
+ *
+ *    # set IO encoding
+ *    nkf_io = IO.popen("nkf -e filename", :external_encoding=>"EUC-JP")
+ *    euc_jp_string = nkf_io.read
+ *
+ *    # merge standard output and standard error using
+ *    # spawn option.  See the document of Kernel.spawn.
+ *    ls_io = IO.popen(["ls", "/", STDERR=>[:child, STDOUT]])
+ *    ls_result_with_error = ls_io.read
+ *
+ *  Raises exceptions which <code>IO.pipe</code> and
+ *  <code>Kernel.spawn</code> raise.
  *
  *  If a block is given, Ruby will run the command as a child connected
  *  to Ruby with a pipe. Ruby's end of the pipe will be passed as a
  *  parameter to the block.
  *  At the end of block, Ruby close the pipe and sets <code>$?</code>.
- *  In this case <code>IO::popen</code> returns
+ *  In this case <code>IO.popen</code> returns
  *  the value of the block.
  *
  *  If a block is given with a _cmd_ of ``<code>-</code>'',
@@ -4938,10 +5007,10 @@ rb_openat(int argc, VALUE *argv, int basefd, const char *basepath)
  *     IO.open(fd, mode_string="r" [, opt] ) {|io| block } => obj
  *
  *  With no associated block, <code>open</code> is a synonym for
- *  <code>IO::new</code>. If the optional code block is given, it will
+ *  <code>IO.new</code>. If the optional code block is given, it will
  *  be passed <i>io</i> as an argument, and the IO object will
  *  automatically be closed when the block terminates. In this instance,
- *  <code>IO::open</code> returns the value of the block.
+ *  <code>IO.open</code> returns the value of the block.
  *
  */
 
@@ -5825,7 +5894,7 @@ rb_io_stdio_file(rb_io_t *fptr)
  *  Returns a new <code>IO</code> object (a stream) for the given
  *  <code>IO</code> object or integer file descriptor and mode
  *  string. See also <code>IO#fileno</code> and
- *  <code>IO::for_fd</code>.
+ *  <code>IO.for_fd</code>.
  *
  *     puts IO.new($stdout).fileno # => 1
  *
@@ -5920,7 +5989,7 @@ rb_file_initialize(int argc, VALUE *argv, VALUE io)
  *
  *  Returns a new <code>IO</code> object (a stream) for the given
  *  integer file descriptor and mode string. See also
- *  <code>IO#fileno</code> and <code>IO::for_fd</code>.
+ *  <code>IO#fileno</code> and <code>IO.for_fd</code>.
  *
  *     a = IO.new(2,"w")      # '2' is standard error
  *     $stderr.puts "Hello"
@@ -5949,7 +6018,7 @@ rb_io_s_new(int argc, VALUE *argv, VALUE klass)
  *  call-seq:
  *     IO.for_fd(fd, mode [, opt])    => io
  *
- *  Synonym for <code>IO::new</code>.
+ *  Synonym for <code>IO.new</code>.
  *
  */
 

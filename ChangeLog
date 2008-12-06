@@ -1,7 +1,361 @@
+Fri Dec  5 21:45:45 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* rational.c (nurat_{to_s,inspect}): performance improvement.
+
+Fri Dec  5 21:42:44 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c: inpsect should not depend on to_s.
+
+Fri Dec  5 19:06:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.pipeline_start): new method.
+	  (Open3.pipeline): ditto.
+
+Fri Dec  5 18:55:25 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (run_exec_dup2): !save is false if Qnil.
+
+Fri Dec  5 18:07:32 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_read, rb_w32_write, rb_w32_isatty): check
+	  whether fd is valid.
+
+Fri Dec  5 13:05:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* iseq.c (rb_iseq_parameters): proc arguments are always optional.
+
+	* proc.c (get_proc_iseq, rb_proc_parameters): ditto.
+
+Fri Dec  5 12:38:48 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* compile.c (iseq_set_sequence): uses rb_compile_warning() for
+	  warning at compilation time.
+
+Fri Dec  5 12:35:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* compile.c (ruby_iseq_compile, ruby_iseq_translate_threaded_code),
+	  (ruby_insns_name_array, ruby_iseq_build_from_ary): prefixed with
+	  ruby_.
+
+	* iseq.c (ruby_iseq_load, ruby_insn_make_insn_table): ditto.
+
+Fri Dec  5 10:01:43 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (rb_str_cmp_m): fixed rdoc.  pointed out by <Thomas
+	  C. Mitchell AT gmail.com> at [ruby-talk:321967]
+
+Fri Dec  5 07:58:30 2008  Tanaka Akira  <akr@fsij.org>
+
+	* io.c (io_binwrite): arg.offset should be updated after retry.
+
+Fri Dec  5 03:29:17 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* load.c (rb_get_load_path): returns the load path without
+	  touching.
+
+	* load.c (rb_feature_provided): new function to return the loading
+	  path in addition to rb_provided().
+
+	* load.c (search_required): sets path if loading.
+
+	* variable.c (autoload_provided): load paths are expanded to check
+	  if loading.
+
+	* variable.c (autoload_node): keeps autoload mark while loading.
+	  [ruby-core:20235]
+
+	* variable.c (rb_const_get_0): loops while autoload mark is set.
+
+Fri Dec  5 01:37:02 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_read): ERROR_BROKEN_PIPE is not a real error
+	  at this point.
+
+	* io.c (pipe_open): use rb_w32_spawn() instead of rb_w32_pipe_exec()
+	  to use our own redirection scheme.
+
+Fri Dec  5 01:35:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (sym_to_proc): use hidden object.
+
+Fri Dec  5 01:19:21 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* pack.c (pack_pack): propagate taint status from format string to
+	  result string.
+
+Fri Dec  5 00:34:10 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* process.c (run_exec_dup2): need to sort by reverted order when
+	  restoring fds.
+
+Fri Dec  5 00:17:18 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* string.c (sym_to_proc): caches Symbol procs, based on a patch from
+	  Shumpei Akai <admin AT flexfrank.net>.  [ruby-dev:37265]
+
+Thu Dec  4 23:29:34 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (waitpid): fix bug of checking child slot.
+
+	* win32/win32.c (FindChildSlotByHandle): new.
+
+Thu Dec  4 23:24:05 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.poutput3): new method.
+	  (Open3.poutput2): ditto.
+	  (Open3.poutput2e): ditto.
+
+Thu Dec  4 23:02:13 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* spec/default.mspec: follows changes in rubyspec project.
+	  inherits configurations from ruby.1.9.mspec.
+
+Thu Dec  4 22:13:55 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/ruby/test_complex.rb: added some tests.
+
+	* test/ruby/test_rational.rb: ditto.
+
+Thu Dec  4 19:56:20 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.popen3): simplified.
+	  (Open3.popen_run): extracted from Open3.popen3.
+	  (Open3.popen2): new method.
+	  (Open3.popen2e): new method.
+	  (Open3.pipeline_rw): new method.
+	  (Open3.pipeline_r): new method.
+	  (Open3.pipeline_w): new method.
+	  (Open3.pipeline_run): new private method.
+
+Thu Dec  4 19:16:28 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (check_exec_fds): resolve cascaded child fd reference.
+
+Thu Dec  4 16:58:12 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/rubygems/validator.rb (Gem#remove_leading_dot_dir): make
+	  this method private.  a patch from okkez in [ruby-dev:37245]
+
+Thu Dec  4 16:19:18 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/openssl/ossl_ssl.c (ossl_ssl_read_nonblock):
+	  OpenSSL::SSL::SSLSocket should implement read_nonblock.  a patch
+	  from Aaron Patterson in [ruby-core:20277].  fix: #814 [ruby-core:20241]
+
+Thu Dec  4 16:16:09 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/gserver.rb: fixed type in sample code.  a report from Oleg
+	  Puchinin.
+
+Thu Dec  4 14:54:32 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/rubygems/local_remote_options.rb (Gem#add_update_sources_option):
+	  little documentation fix.  a patch from okkez.  [ruby-dev:37271]
+
+Thu Dec  4 13:56:31 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/curses/curses.c (window_getch): avoid ISPRINT() macro which
+	  has an issue with OpenSolaris.  [ruby-core:20189]
+
+	* ext/curses/curses.c (curses_getch): no ISPRINT(). [ruby-core:20294]
+
+	* signal.c (ruby_signal): EINVAL from sigaction(2) is not a bug.
+
+Thu Dec  4 11:40:56 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* enumerator.c (inspect_enumerator): Implement #inspect.
+	  [ruby-dev:37248]-[ruby-dev:37263]
+
+Thu Dec  4 11:38:40 2008  Akinori MUSHA  <knu@iDaemons.org>
+
+	* vm_method.c (rb_obj_respond_to): Remove a duplicated rdoc
+	  comment and fix a markup error.
+
+Thu Dec  4 06:04:16 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tk/menu.rb: TkOptionMenubutton.new fails to treat
+	  'parent' and 'variable' options on a Hash argument.
+
+Thu Dec  4 05:06:47 2008  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
+
+	* ext/tk/lib/tk.rb: bug fix. use ::RubyVM instead of ::VM
+	  [ruby-list:45676]
+
+	* ext/tk/tcltklib.c: update RELEASE_DATE
+
+Thu Dec  4 01:37:47 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c (nurat_{to_s,inspect}): provides better representation
+	  for in-finite imag part.
+
+Thu Dec  4 01:22:41 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c (f_signbit): NaN may be signed value.
+
+Wed Dec  3 23:59:32 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (EXEC_OPTION_DUP2_CHILD): defined.
+	  (check_exec_redirect_fd): check :in, :out and :err.
+	  (check_exec_redirect): check [:child, fd].
+	  (check_exec_fds): validate EXEC_OPTION_DUP2_CHILD array.
+	  (run_exec_dup2_child): new function.
+	  (rb_run_exec_options): call run_exec_dup2_child.
+
+Wed Dec  3 22:54:39 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* parse.y (expr): keyword_not can continue across newline.
+	  [ruby-core:20252]
+
+Wed Dec  3 22:40:59 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* iseq.c (simple_default_value): returns simplest assignment only.
+	  [ruby-core:20237]
+
+Wed Dec  3 21:30:06 2008  Tanaka Akira  <akr@fsij.org>
+
+	* process.c (check_exec_redirect): accept :in, :out, :err as redirect
+	  target.
+
+Wed Dec  3 21:18:27 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/ruby/test_rational.rb: revert.
+
+Wed Dec  3 14:48:52 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/tk/tcltklib.c (ip_ruby_cmd, ip_invoke_with_position): must
+	  not access internal union directly.  [ruby-list:45670]
+
+Wed Dec  3 12:24:08 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (rb_io_getc, rb_io_readchar): documentation correction from
+	  Emiel van de Laar.  [ruby-core:20212]
+
+	* ext/stringio/stringio.c (strio_readchar): ditto.
+
+Wed Dec  3 09:26:29 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/rexml/xpath.rb (REXML::XPath.first): apply documentation
+	  patch from Ken Bloom in [ruby-core:20213].
+
+	* lib/rexml/xpath.rb (REXML::XPath.each): ditto.
+
+Wed Dec  3 02:56:34 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_rational.rb: add a test.
+
+Wed Dec  3 02:53:24 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_range.rb: add a test.
+
+Wed Dec  3 02:26:07 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* test/ruby/test_string.rb: add some tests.
+
+Wed Dec  3 02:04:21 2008  Yusuke Endoh  <mame@tsg.ne.jp>
+
+	* ext/pty/pty.c (Init_pty): fix typo.
+
+Tue Dec  2 19:22:13 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.popen3): merge hash options if given.
+
+Tue Dec  2 15:31:42 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* lib/net/protocol.rb (Net::BufferedIO#rbuf_fill): use
+	  read_nonblock instead of sysread wrapped by timeout to boost
+	  performance.  a patch from Aaron Patterson in [ruby-core:20191].
+	  fix #806
+
+Mon Dec  1 23:23:52 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* set 1.9.1-p5000 into version number. [ruby-dev:36998]
+
+Mon Dec  1 15:48:47 2008  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* signal.c (register_sigaltstack): no need to define on non-sigaltstack
+	  platform.
+
+Mon Dec  1 12:00:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* cont.c (rb_fiber_start): calls with exact argument number.
+	  [ruby-core:20088]
+
+Sun Nov 30 21:41:10 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* man/rake.1: new manual page
+
+Sun Nov 30 18:01:50 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* test/ruby/test_regexp.rb (TestRegexp#test_parse_curly_brace):
+	  now accepts quantifier on anchrs agian by r20391.
+
 Sun Nov 30 15:26:44 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* inits.c (rb_vm_call_inits): let all InitVM functions use
 	  ruby_vm_t instead of rb_vm_t.
+
+Sat Nov 29 23:56:44 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* man/irb.1 (EXAMPLES): new section
+
+Sat Nov 29 19:19:32 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* regparse.c (is_invalid_quantifier_target): Perl and old Ruby
+	  accepts quantifier on anchors.  [ruby-core:20161]
+
+Sat Nov 29 18:28:57 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/socket/socket.c (sock_getaddrinfo): should have updated for
+	  Mac OS X.  a patch from Shumpei Akai in [ruby-dev:37234]
+
+Sat Nov 29 00:18:30 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* cont.c (fiber_alloc): separate allocation and initialization.
+	  allow subclass to override #initialize.   [ruby-core:20086]
+
+Fri Nov 28 18:31:21 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/socket/socket.c (sock_s_getaddrinfo): refactored to remove
+	  code duplication regarding getaddrinfo.
+
+Fri Nov 28 17:52:26 2008  Keiju Ishitsuka  <keiju@ruby-lang.org>
+
+	* lib/forwardable.rb: should be usable def_single_delegator for
+	  Class and Module.
+
+Fri Nov 28 13:19:34 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* iseq.c (simple_default_value): extracts simplest default
+	  argument value.
+
+	* iseq.c (rb_iseq_parameters): returns parameter list.
+
+	* proc.c (get_proc_iseq, get_method_iseq): handles ifunc and
+	  bmethod.
+
+	* proc.c (rb_proc_parameters, rb_method_parameters): added
+	  Proc#parameters and Method#parameters.  [ruby-core:19759]
+
+Fri Nov 28 02:18:47 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_DoDivmod): bigdecimal
+	  division (including modulo) should raise ZeroDivisionError as
+	  integer division. [incompatible]
+
+Fri Nov 28 00:12:00 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* numeric.c (flodivmod): floating point division should raise
+	  ZeroDivisionError as integer division. [incompatible]
+
+Thu Nov 27 23:54:37 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* gc.c (gc_mark): still needs to check stack depth during GC.
+
+	* gc.c (stack_check): ditto.
+
+Thu Nov 27 21:41:29 2008  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* strftime.c (rb_strftime): should add padding for %%.
 
 Thu Nov 27 17:06:46 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 

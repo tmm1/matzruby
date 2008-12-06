@@ -16,6 +16,7 @@
 #include "eval_intern.h"
 #include <signal.h>
 #include <stdio.h>
+#include <errno.h>
 
 #ifdef _WIN32
 typedef LONG rb_atomic_t;
@@ -447,8 +448,6 @@ register_sigaltstack(void)
     if (sigaltstack(&newSS, &oldSS) < 0) 
 	rb_bug("register_sigaltstack. error\n");
 }
-#else
-#define register_sigaltstack() ((void)0)
 #endif
 
 static void
@@ -477,8 +476,11 @@ ruby_sigaction(int signum, ruby_sigaction_t *handler, int altstack, struct sigac
     if (altstack)
 	sigact.sa_flags |= SA_ONSTACK;
 #endif
-    if (sigaction(signum, &sigact, old) < 0)
-        rb_bug("sigaction error.\n");
+    if (sigaction(signum, &sigact, old) < 0) {
+	if (errno != 0 && errno != EINVAL) {
+	    rb_bug("sigaction error.\n");
+	}
+    }
 }
 
 static sighandler_t
@@ -739,7 +741,9 @@ default_handler(int sig)
 #ifdef SIGSEGV
       case SIGSEGV:
         func = (sighandler_t)sigsegv;
+# ifdef USE_SIGALTSTACK
         register_sigaltstack();
+# endif
         break;
 #endif
 #ifdef SIGPIPE
@@ -1134,8 +1138,10 @@ Init_signal(void)
 #endif
     }
 #ifdef SIGSEGV
+# ifdef USE_SIGALTSTACK
     register_sigaltstack();
     ruby_sigaction(SIGSEGV, sigsegv, Qtrue, NULL);
+# endif
 #endif
 #ifdef SIGPIPE
     install_sighandler(SIGPIPE, sigpipe);

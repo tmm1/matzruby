@@ -885,15 +885,17 @@ f_signbit(VALUE x)
     switch (TYPE(x)) {
       case T_FLOAT:
 #ifdef HAVE_SIGNBIT
-	return f_boolcast(signbit(RFLOAT_VALUE(x)));
+      {
+	  double f = RFLOAT_VALUE(x);
+	  return f_boolcast(!isnan(f) && signbit(f));
+      }
 #else
-	{
-	    char s[2];
+      {
+	  char s[2];
 
-	    (void)snprintf(s, sizeof s, "%.0f", RFLOAT_VALUE(x));
-
-	    return f_boolcast(s[0] == '-');
-	}
+	  (void)snprintf(s, sizeof s, "%.0f", RFLOAT_VALUE(x));
+	  return f_boolcast(s[0] == '-');
+      }
 #endif
     }
     return f_negative_p(x);
@@ -906,7 +908,7 @@ f_tpositive_p(VALUE x)
 }
 
 static VALUE
-nucomp_to_s(VALUE self)
+nucomp_format(VALUE self, VALUE (*func)(VALUE))
 {
     VALUE s, impos;
 
@@ -914,30 +916,31 @@ nucomp_to_s(VALUE self)
 
     impos = f_tpositive_p(dat->imag);
 
-    s = f_to_s(dat->real);
+    s = (*func)(dat->real);
     rb_str_cat2(s, !impos ? "-" : "+");
 
-    rb_str_concat(s, f_to_s(f_abs(dat->imag)));
+    rb_str_concat(s, (*func)(f_abs(dat->imag)));
+    if (!rb_isdigit(RSTRING_PTR(s)[RSTRING_LEN(s) - 1]))
+	rb_str_cat2(s, "*");
     rb_str_cat2(s, "i");
 
     return s;
 }
 
 static VALUE
+nucomp_to_s(VALUE self)
+{
+    return nucomp_format(self, f_to_s);
+}
+
+static VALUE
 nucomp_inspect(VALUE self)
 {
-    VALUE s, impos;
-
-    get_dat1(self);
-
-    impos = f_tpositive_p(dat->imag);
+    VALUE s;
 
     s = rb_str_new2("(");
-    rb_str_concat(s, f_inspect(dat->real));
-    rb_str_cat2(s, !impos ? "-" : "+");
-
-    rb_str_concat(s, f_inspect(f_abs(dat->imag)));
-    rb_str_cat2(s, "i)");
+    rb_str_concat(s, nucomp_format(self, f_inspect));
+    rb_str_cat2(s, ")");
 
     return s;
 }

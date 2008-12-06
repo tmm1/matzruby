@@ -19,10 +19,6 @@
 #include "insns.inc"
 #include "insns_info.inc"
 
-/* compile.c */
-void iseq_compile(VALUE self, NODE *node);
-int iseq_translate_threaded_code(rb_iseq_t *iseq);
-
 static void
 compile_data_free(struct iseq_compile_data *compile_data)
 {
@@ -324,7 +320,7 @@ rb_iseq_new_with_bopt_and_opt(NODE *node, VALUE name, VALUE filename,
     iseq->self = self;
 
     prepare_iseq_build(iseq, name, filename, parent, type, bopt, option);
-    iseq_compile(self, node);
+    ruby_iseq_compile(self, node);
     cleanup_iseq_build(iseq);
     return self;
 }
@@ -346,17 +342,14 @@ rb_iseq_new_with_bopt(NODE *node, VALUE name, VALUE filename,
 					   bopt, &COMPILE_OPTION_DEFAULT);
 }
 
-VALUE iseq_build_from_ary(rb_iseq_t *iseq, VALUE locals, VALUE args,
-			  VALUE exception, VALUE body);
-
 #define CHECK_ARRAY(v)   rb_convert_type(v, T_ARRAY, "Array", "to_ary")
 #define CHECK_STRING(v)  rb_convert_type(v, T_STRING, "String", "to_str")
 #define CHECK_SYMBOL(v)  rb_convert_type(v, T_SYMBOL, "Symbol", "to_sym")
 static inline VALUE CHECK_INTEGER(VALUE v) {NUM2LONG(v); return v;}
-VALUE
+static VALUE
 iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
 {
-    VALUE iseqval = iseq_alloc(rb_cISeq);
+    VALUE iseqval = iseq_alloc(self);
 
     VALUE magic, version1, version2, format_type, misc;
     VALUE name, filename;
@@ -426,7 +419,7 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
     prepare_iseq_build(iseq, name, filename,
 		       parent, iseq_type, 0, &option);
 
-    iseq_build_from_ary(iseq, locals, args, exception, body);
+    ruby_iseq_build_from_ary(iseq, locals, args, exception, body);
 
     cleanup_iseq_build(iseq);
     return iseqval;
@@ -439,6 +432,12 @@ iseq_s_load(int argc, VALUE *argv, VALUE self)
     rb_scan_args(argc, argv, "11", &data, &opt);
 
     return iseq_load(self, data, 0, opt);
+}
+
+VALUE
+ruby_iseq_load(VALUE data, VALUE parent, VALUE opt)
+{
+    return iseq_load(rb_cISeq, data, parent, opt);
 }
 
 static NODE *
@@ -1235,7 +1234,7 @@ iseq_data_to_ary(rb_iseq_t *iseq)
 }
 
 struct st_table *
-insn_make_insn_table(void)
+ruby_insn_make_insn_table(void)
 {
     struct st_table *table;
     int i;
@@ -1272,6 +1271,103 @@ rb_iseq_clone(VALUE iseqval, VALUE newcbase)
     return newiseq;
 }
 
+static VALUE
+simple_default_value(const VALUE *seq, const VALUE *eseq)
+{
+    VALUE val;
+
+  again:
+    switch (*seq++) {
+      case BIN(trace):
+	if (++seq >= eseq) return Qundef;
+	goto again;
+      case BIN(putnil):
+	val = Qnil;
+	goto got;
+      case BIN(putobject):
+	val = *seq++;
+      got:
+	switch (*seq++) {
+	  case BIN(setlocal):
+	    if ((seq+=1) == eseq) return val;
+	    break;
+	  case BIN(setdynamic):
+	    if ((seq+=2) == eseq) return val;
+	    break;
+	}
+      default:
+	return Qundef;
+    }
+}
+
+VALUE
+rb_iseq_parameters(const rb_iseq_t *iseq, int is_proc)
+{
+    int i, r, s;
+    VALUE a, args = rb_ary_new2(iseq->arg_size);
+    ID req, opt, rest, block;
+#define PARAM_TYPE(type) rb_ary_push(a = rb_ary_new2(2), ID2SYM(type))
+#define PARAM_ID(i) iseq->local_table[i]
+#define PARAM(i, type) (		      \
+	PARAM_TYPE(type),		      \
+	rb_id2name(PARAM_ID(i)) ?	      \
+	rb_ary_push(a, ID2SYM(PARAM_ID(i))) : \
+	a)
+
+    CONST_ID(req, "req");
+    CONST_ID(opt, "opt");
+    if (is_proc) {
+	for (i = 0; i < iseq->argc; i++) {
+	    PARAM_TYPE(opt);
+	    rb_ary_push(a, rb_id2name(PARAM_ID(i)) ? ID2SYM(PARAM_ID(i)) : Qnil);
+	    rb_ary_push(a, Qnil);
+	    rb_ary_push(args, a);
+	}
+    }
+    else {
+	for (i = 0; i < iseq->argc; i++) {
+	    rb_ary_push(args, PARAM(i, req));
+	}
+    }
+    r = iseq->arg_rest != -1 ? iseq->arg_rest :
+	iseq->arg_post_len > 0 ? iseq->arg_post_start :
+	iseq->arg_block != -1 ? iseq->arg_block :
+	iseq->arg_size;
+    for (s = i; i < r; i++) {
+	PARAM_TYPE(opt);
+	if (rb_id2name(PARAM_ID(i))) {
+	    VALUE defval = simple_default_value(iseq->iseq + iseq->arg_opt_table[i-s],
+						iseq->iseq + iseq->arg_opt_table[i-s+1]);
+	    rb_ary_push(a, ID2SYM(PARAM_ID(i)));
+	    if (defval != Qundef) rb_ary_push(a, defval);
+	}
+	rb_ary_push(args, a);
+    }
+    if (iseq->arg_rest != -1) {
+	CONST_ID(rest, "rest");
+	rb_ary_push(args, PARAM(iseq->arg_rest, rest));
+    }
+    r = iseq->arg_post_start + iseq->arg_post_len;
+    if (is_proc) {
+	for (i = iseq->arg_post_start; i < r; i++) {
+	    PARAM_TYPE(opt);
+	    rb_ary_push(a, rb_id2name(PARAM_ID(i)) ? ID2SYM(PARAM_ID(i)) : Qnil);
+	    rb_ary_push(a, Qnil);
+	    rb_ary_push(args, a);
+	}
+    }
+    else {
+	for (i = iseq->arg_post_start; i < r; i++) {
+	    rb_ary_push(args, PARAM(i, req));
+	}
+    }
+    if (iseq->arg_block != -1) {
+	CONST_ID(block, "block");
+	rb_ary_push(args, PARAM(iseq->arg_block, block));
+    }
+    return args;
+}
+
 /* ruby2cext */
 
 VALUE
@@ -1304,7 +1400,7 @@ rb_iseq_build_for_ruby2cext(
 	iseq->iseq[i+1] = (VALUE)func;
     }
 
-    iseq_translate_threaded_code(iseq);
+    ruby_iseq_translate_threaded_code(iseq);
 
 #define ALLOC_AND_COPY(dst, src, type, size) do { \
   if (size) { \

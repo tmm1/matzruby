@@ -533,6 +533,18 @@ FindChildSlot(rb_pid_t pid)
     return NULL;
 }
 
+static struct ChildRecord *
+FindChildSlotByHandle(HANDLE h)
+{
+
+    FOREACH_CHILD(child) {
+	if (child->hProcess == h) {
+	    return child;
+	}
+    } END_FOREACH_CHILD;
+    return NULL;
+}
+
 static void
 CloseChildHandle(struct ChildRecord *child)
 {
@@ -3062,7 +3074,7 @@ waitpid(rb_pid_t pid, int *stat_loc, int options)
 	    return -1;
 	}
 
-	return poll_child_status(ChildRecord + ret, stat_loc);
+	return poll_child_status(FindChildSlotByHandle(events[ret]), stat_loc);
     }
     else {
 	struct ChildRecord* child = FindChildSlot(pid);
@@ -4304,6 +4316,10 @@ rb_w32_read(int fd, void *buf, size_t size)
     if (is_socket(sock))
 	return rb_w32_recv(fd, buf, size, 0);
 
+    // validate fd by using _get_osfhandle() because we cannot access _nhandle
+    if (_get_osfhandle(fd) == -1) {
+	return -1;
+    }
     if (!(_osfile(fd) & FOPEN)) {
 	errno = EBADF;
 	return -1;
@@ -4379,11 +4395,15 @@ rb_w32_read(int fd, void *buf, size_t size)
 
 	    if (!GetOverlappedResult((HANDLE)_osfhnd(fd), &ol, &read, TRUE) &&
 		(err = GetLastError()) != ERROR_HANDLE_EOF) {
-		errno = map_errno(err);
+		int ret = 0;
+		if (err != ERROR_BROKEN_PIPE) {
+		    errno = map_errno(err);
+		    ret = -1;
+		}
 		CloseHandle(ol.hEvent);
 		cancel_io((HANDLE)_osfhnd(fd));
 		MTHREAD_ONLY(LeaveCriticalSection(&_pioinfo(fd)->lock));
-		return -1;
+		return ret;
 	    }
 	}
     }
@@ -4418,6 +4438,10 @@ rb_w32_write(int fd, const void *buf, size_t size)
     if (is_socket(sock))
 	return rb_w32_send(fd, buf, size, 0);
 
+    // validate fd by using _get_osfhandle() because we cannot access _nhandle
+    if (_get_osfhandle(fd) == -1) {
+	return -1;
+    }
     if (!(_osfile(fd) & FOPEN)) {
 	errno = EBADF;
 	return -1;
@@ -4670,6 +4694,10 @@ rb_w32_unlink(const char *path)
 int
 rb_w32_isatty(int fd)
 {
+    // validate fd by using _get_osfhandle() because we cannot access _nhandle
+    if (_get_osfhandle(fd) == -1) {
+	return 0;
+    }
     if (!(_osfile(fd) & FOPEN)) {
 	errno = EBADF;
 	return 0;

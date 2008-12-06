@@ -127,6 +127,7 @@ class TestProcess < Test::Unit::TestCase
   end
 
   def test_execopts_pgroup
+    skip "system(:pgroup) is not supported" if /mswin|bccwin|mingw/ =~ RUBY_PLATFORM
     assert_nothing_raised { system(*TRUECOMMAND, :pgroup=>false) }
 
     io = IO.popen([RUBY, "-e", "print Process.getpgrp"])
@@ -306,6 +307,11 @@ class TestProcess < Test::Unit::TestCase
       Process.wait Process.spawn(*ECHO["e"], STDOUT=>["out", File::WRONLY|File::CREAT|File::TRUNC, 0644],
                                  3=>STDOUT, 4=>STDOUT, 5=>STDOUT, 6=>STDOUT, 7=>STDOUT)
       assert_equal("e", File.read("out").chomp)
+      Process.wait Process.spawn(*ECHO["ee"], STDOUT=>["out", File::WRONLY|File::CREAT|File::TRUNC, 0644],
+                                 3=>0, 4=>:in, 5=>STDIN,
+                                 6=>1, 7=>:out, 8=>STDOUT,
+                                 9=>2, 10=>:err, 11=>STDERR)
+      assert_equal("ee", File.read("out").chomp)
       File.open("out", "w") {|f|
         h = {STDOUT=>f, f=>STDOUT}
         3.upto(30) {|i| h[i] = STDOUT if f.fileno != i }
@@ -410,6 +416,35 @@ class TestProcess < Test::Unit::TestCase
     }
   end
 
+  def test_execopts_redirect_dup2_child
+    with_tmpchdir {|d|
+      Process.wait spawn(RUBY, "-e", "STDERR.print 'err'; STDOUT.print 'out'",
+                         STDOUT=>"out", STDERR=>[:child, STDOUT])
+      assert_equal("errout", File.read("out"))
+
+      Process.wait spawn(RUBY, "-e", "STDERR.print 'err'; STDOUT.print 'out'",
+                         STDERR=>"out", STDOUT=>[:child, STDERR])
+      assert_equal("errout", File.read("out"))
+
+      Process.wait spawn(RUBY, "-e", "STDERR.print 'err'; STDOUT.print 'out'",
+                         STDOUT=>"out", 
+                         STDERR=>[:child, 3],
+                         3=>[:child, 4], 
+                         4=>[:child, STDOUT]
+                        )
+      assert_equal("errout", File.read("out"))
+
+      IO.popen([RUBY, "-e", "STDERR.print 'err'; STDOUT.print 'out'", STDERR=>[:child, STDOUT]]) {|io|
+        assert_equal("errout", io.read)
+      }
+
+      assert_raise(ArgumentError) { Process.wait spawn(*TRUECOMMAND, STDOUT=>[:child, STDOUT]) }
+      assert_raise(ArgumentError) { Process.wait spawn(*TRUECOMMAND, 3=>[:child, 4], 4=>[:child, 3]) }
+      assert_raise(ArgumentError) { Process.wait spawn(*TRUECOMMAND, 3=>[:child, 4], 4=>[:child, 5], 5=>[:child, 3]) }
+      assert_raise(ArgumentError) { Process.wait spawn(*TRUECOMMAND, STDOUT=>[:child, 3]) }
+    }
+  end
+
   def test_execopts_exec
     with_tmpchdir {|d|
       write_file("s", 'exec "echo aaa", STDOUT=>"foo"')
@@ -461,6 +496,7 @@ class TestProcess < Test::Unit::TestCase
   end
 
   def test_fd_inheritance
+    skip "inheritance of fd>=3 is not supported" if /mswin|bccwin|mingw/ =~ RUBY_PLATFORM
     with_pipe {|r, w|
       system(RUBY, '-e', 'IO.new(ARGV[0].to_i).puts(:ba)', w.fileno.to_s)
       w.close
@@ -564,14 +600,18 @@ class TestProcess < Test::Unit::TestCase
   end
 
   def test_execopts_redirect_self
-    with_pipe {|r, w|
-      w << "haha\n"
-      w.close
-      r.close_on_exec = true
-      IO.popen([RUBY, "-e", "print IO.new(#{r.fileno}).read", r.fileno=>r.fileno, :close_others=>false]) {|io|
-        assert_equal("haha\n", io.read)
+    begin
+      with_pipe {|r, w|
+        w << "haha\n"
+        w.close
+        r.close_on_exec = true
+        IO.popen([RUBY, "-e", "print IO.new(#{r.fileno}).read", r.fileno=>r.fileno, :close_others=>false]) {|io|
+          assert_equal("haha\n", io.read)
+        }
       }
-    }
+    rescue NotImplementedError
+      skip "IO#close_on_exec= is not supported"
+    end
   end
 
   def test_execopts_duplex_io

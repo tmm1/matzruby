@@ -1726,7 +1726,6 @@ m_core_set_postexe(VALUE self, VALUE iseqval)
     return Qnil;
 }
 
-VALUE insns_name_array(void);
 
 /* debug functions */
 
@@ -1834,7 +1833,7 @@ InitVM_VM(ruby_vm_t *vm)
 #endif
 
     /* ::VM::InsnNameArray */
-    rb_define_const(rb_cRubyVM, "INSTRUCTION_NAMES", insns_name_array());
+    rb_define_const(rb_cRubyVM, "INSTRUCTION_NAMES", ruby_insns_name_array());
 
     /* debug functions ::VM::SDR(), ::VM::NSDR() */
 #if VMDEBUG

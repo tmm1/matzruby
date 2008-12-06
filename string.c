@@ -2173,8 +2173,8 @@ rb_str_eql(VALUE str1, VALUE str2)
  *  call-seq:
  *     str <=> other_str   => -1, 0, +1
  *  
- *  Comparison---Returns -1 if <i>other_str</i> is less than, 0 if
- *  <i>other_str</i> is equal to, and +1 if <i>other_str</i> is greater than
+ *  Comparison---Returns -1 if <i>other_str</i> is greater than, 0 if
+ *  <i>other_str</i> is equal to, and +1 if <i>other_str</i> is less than
  *  <i>str</i>. If the strings are of different lengths, and the strings are
  *  equal when compared up to the shortest length, then the longer string is
  *  considered greater than the shorter one. In older versions of Ruby, setting
@@ -6939,9 +6939,35 @@ sym_call(VALUE args, VALUE sym, int argc, VALUE *argv)
 static VALUE
 sym_to_proc(VALUE sym)
 {
-    return rb_proc_new(sym_call, (VALUE)SYM2ID(sym));
-}
+    static int sym_proc_cache_index = -1;
+    enum {SYM_PROC_CACHE_SIZE = 67};
+    VALUE *cache_ptr, sym_proc_cache, proc;
+    long id, index;
+    VALUE *aryp;
 
+    if (sym_proc_cache_index < 0) {
+	sym_proc_cache_index = rb_vm_key_create(); /* needs mutex/once */
+    }
+    sym_proc_cache = *(cache_ptr = rb_vm_specific_ptr(sym_proc_cache_index));
+    if (NIL_P(sym_proc_cache)) {
+	sym_proc_cache = *cache_ptr = rb_ary_tmp_new(SYM_PROC_CACHE_SIZE * 2);
+	rb_ary_store(sym_proc_cache, SYM_PROC_CACHE_SIZE*2 - 1, Qnil);
+    }
+
+    id = SYM2ID(sym);
+    index = (id % SYM_PROC_CACHE_SIZE) << 1;
+
+    aryp = RARRAY_PTR(sym_proc_cache);
+    if (aryp[index] == sym) {
+	return aryp[index + 1];
+    }
+    else {
+	proc = rb_proc_new(sym_call, (VALUE)id);
+	aryp[index] = sym;
+	aryp[index + 1] = proc;
+	return proc;
+    }
+}
 
 static VALUE
 sym_succ(VALUE sym)

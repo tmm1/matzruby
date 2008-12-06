@@ -1211,6 +1211,7 @@ enum {
     EXEC_OPTION_DUP2,
     EXEC_OPTION_CLOSE,
     EXEC_OPTION_OPEN,
+    EXEC_OPTION_DUP2_CHILD,
     EXEC_OPTION_CLOSE_OTHERS
 };
 
@@ -1221,6 +1222,17 @@ check_exec_redirect_fd(VALUE v)
     int fd;
     if (FIXNUM_P(v)) {
         fd = FIX2INT(v);
+    }
+    else if (SYMBOL_P(v)) {
+        ID id = SYM2ID(v);
+        if (id == rb_intern("in"))
+            fd = 0;
+        else if (id == rb_intern("out"))
+            fd = 1;
+        else if (id == rb_intern("err"))
+            fd = 2;
+        else
+            goto wrong;
     }
     else if (!NIL_P(tmp = rb_check_convert_type(v, T_FILE, "IO", "to_io"))) {
         rb_io_t *fptr;
@@ -1233,6 +1245,7 @@ check_exec_redirect_fd(VALUE v)
         rb_raise(rb_eArgError, "wrong exec redirect");
     }
     if (fd < 0) {
+      wrong:
         rb_raise(rb_eArgError, "negative file descriptor");
     }
     return INT2FIX(fd);
@@ -1253,6 +1266,18 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
             index = EXEC_OPTION_CLOSE;
             param = Qnil;
         }
+        else if (id == rb_intern("in")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(0);
+        }
+        else if (id == rb_intern("out")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(1);
+        }
+        else if (id == rb_intern("err")) {
+            index = EXEC_OPTION_DUP2;
+            param = INT2FIX(2);
+        }
         else {
             rb_raise(rb_eArgError, "wrong exec redirect symbol: %s",
                                    rb_id2name(id));
@@ -1268,20 +1293,27 @@ check_exec_redirect(VALUE key, VALUE val, VALUE options)
         break;
 
       case T_ARRAY:
-        index = EXEC_OPTION_OPEN;
         path = rb_ary_entry(val, 0);
-        FilePathValue(path);
-        flags = rb_ary_entry(val, 1);
-        if (NIL_P(flags))
-            flags = INT2NUM(O_RDONLY);
-        else if (TYPE(flags) == T_STRING)
-            flags = INT2NUM(rb_io_modestr_oflags(StringValueCStr(flags)));
-        else
-            flags = rb_to_int(flags);
-        perm = rb_ary_entry(val, 2);
-        perm = NIL_P(perm) ? INT2FIX(0644) : rb_to_int(perm);
-        param = hide_obj(rb_ary_new3(3, hide_obj(rb_str_dup(path)),
-                                        flags, perm));
+        if (RARRAY_LEN(val) == 2 && SYMBOL_P(path) &&
+            SYM2ID(path) == rb_intern("child")) {
+            index = EXEC_OPTION_DUP2_CHILD;
+            param = check_exec_redirect_fd(rb_ary_entry(val, 1));
+        }
+        else {
+            index = EXEC_OPTION_OPEN;
+            FilePathValue(path);
+            flags = rb_ary_entry(val, 1);
+            if (NIL_P(flags))
+                flags = INT2NUM(O_RDONLY);
+            else if (TYPE(flags) == T_STRING)
+                flags = INT2NUM(rb_io_modestr_oflags(StringValueCStr(flags)));
+            else
+                flags = rb_to_int(flags);
+            perm = rb_ary_entry(val, 2);
+            perm = NIL_P(perm) ? INT2FIX(0644) : rb_to_int(perm);
+            param = hide_obj(rb_ary_new3(3, hide_obj(rb_str_dup(path)),
+                                            flags, perm));
+        }
         break;
 
       case T_STRING:
@@ -1468,7 +1500,7 @@ check_exec_fds(VALUE options)
     int index, i;
     int maxhint = -1;
 
-    for (index = EXEC_OPTION_DUP2; index <= EXEC_OPTION_OPEN; index++) {
+    for (index = EXEC_OPTION_DUP2; index <= EXEC_OPTION_DUP2_CHILD; index++) {
         ary = rb_ary_entry(options, index);
         if (NIL_P(ary))
             continue;
@@ -1478,16 +1510,53 @@ check_exec_fds(VALUE options)
             if (RTEST(rb_hash_lookup(h, INT2FIX(fd)))) {
                 rb_raise(rb_eArgError, "fd %d specified twice", fd);
             }
-            rb_hash_aset(h, INT2FIX(fd), Qtrue);
+            if (index == EXEC_OPTION_OPEN || index == EXEC_OPTION_DUP2)
+                rb_hash_aset(h, INT2FIX(fd), Qtrue);
+            else if (index == EXEC_OPTION_DUP2_CHILD)
+                rb_hash_aset(h, INT2FIX(fd), RARRAY_PTR(elt)[1]);
+            else /* index == EXEC_OPTION_CLOSE */
+                rb_hash_aset(h, INT2FIX(fd), INT2FIX(-1));
             if (maxhint < fd)
                 maxhint = fd;
-            if (index == EXEC_OPTION_DUP2) {
+            if (index == EXEC_OPTION_DUP2 || index == EXEC_OPTION_DUP2_CHILD) {
                 fd = FIX2INT(RARRAY_PTR(elt)[1]);
                 if (maxhint < fd)
                     maxhint = fd;
             }
         }
     }
+
+    ary = rb_ary_entry(options, EXEC_OPTION_DUP2_CHILD);
+    if (!NIL_P(ary)) {
+        for (i = 0; i < RARRAY_LEN(ary); i++) {
+            VALUE elt = RARRAY_PTR(ary)[i];
+            int newfd = FIX2INT(RARRAY_PTR(elt)[0]);
+            int oldfd = FIX2INT(RARRAY_PTR(elt)[1]);
+            int lastfd = oldfd;
+            VALUE val = rb_hash_lookup(h, INT2FIX(lastfd));
+            long depth = 0;
+            while (FIXNUM_P(val) && 0 <= FIX2INT(val)) {
+                lastfd = FIX2INT(val);
+                val = rb_hash_lookup(h, val);
+                if (RARRAY_LEN(ary) < depth)
+                    rb_raise(rb_eArgError, "cyclic child fd redirection from %d", oldfd);
+                depth++;
+            }
+            if (val != Qtrue)
+                rb_raise(rb_eArgError, "child fd %d is not redirected", oldfd);
+            if (oldfd != lastfd) {
+                VALUE val2;
+                rb_ary_store(elt, 1, INT2FIX(lastfd));
+                rb_hash_aset(h, INT2FIX(newfd), INT2FIX(lastfd));
+                val = INT2FIX(oldfd);
+                while (FIXNUM_P(val2 = rb_hash_lookup(h, val))) {
+                    rb_hash_aset(h, val, INT2FIX(lastfd));
+                    val = val2;
+                }
+            }
+        }
+    }
+
     if (rb_ary_entry(options, EXEC_OPTION_CLOSE_OTHERS) != Qfalse) {
         rb_ary_store(options, EXEC_OPTION_CLOSE_OTHERS, INT2FIX(maxhint));
     }
@@ -1637,25 +1706,34 @@ rb_exec_arg_fixup(struct rb_exec_arg *e)
 
 /*
  *  call-seq:
- *     exec([env,] command [, arg, ...] [,options])
+ *     exec([env,] command... [,options])
  *
  *  Replaces the current process by running the given external _command_.
- *  If optional arguments, sequence of +arg+, are not given, that argument is
- *  taken as a line that is subject to shell expansion before being
- *  executed. If one or more +arg+ given, they
- *  are passed as parameters to _command_ with no shell
- *  expansion. If +command+ is a two-element array, the first
- *  element is the command to be executed, and the second argument is
- *  used as the <code>argv[0]</code> value, which may show up in process
- *  listings. In order to execute the command, one of the <code>exec(2)</code> 
+ *  _command..._ is one of following forms.
+ *
+ *    commandline                 : command line string which is passed to a shell
+ *    cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *    [cmdname, argv0], arg1, ... : command name and arguments including argv[0] (no shell)
+ *
+ *  If single string is given as the command,
+ *  it is taken as a command line that is subject to shell expansion before being executed.
+ *
+ *  If two or more +string+ given,
+ *  the first is taken as a command name and
+ *  the rest are passed as parameters to command with no shell expansion.
+ *
+ *  If a two-element array at the beginning of the command,
+ *  the first element is the command to be executed,
+ *  and the second argument is used as the <code>argv[0]</code> value,
+ *  which may show up in process listings.
+ *
+ *  In order to execute the command, one of the <code>exec(2)</code> 
  *  system calls is used, so the running command may inherit some of the environment 
  *  of the original program (including open file descriptors).
- *
- *  The hash arguments, env and options, are same as
- *  <code>system</code> and <code>spawn</code>.
+ *  This behavior is modified by env and options.
  *  See <code>spawn</code> for details.
  *
- *  Raises SystemCallError if the _command_ couldn't execute (typically
+ *  Raises SystemCallError if the command couldn't execute (typically
  *  <code>Errno::ENOENT</code> when it was not found).
  *
  *     exec "echo *"       # echoes list of files in current directory
@@ -1692,7 +1770,11 @@ ttyprintf(const char *fmt, ...)
     va_list ap;
     FILE *tty;
     int save = errno;
+#ifdef _WIN32
+    tty = fopen("con", "w");
+#else
     tty = fopen("/dev/tty", "w");
+#endif
     if (!tty)
         return;
 
@@ -1801,6 +1883,12 @@ intcmp(const void *a, const void *b)
 }
 
 static int
+intrcmp(const void *a, const void *b)
+{
+    return *(int*)b - *(int*)a;
+}
+
+static int
 run_exec_dup2(VALUE ary, VALUE save)
 {
     int n, i;
@@ -1825,7 +1913,10 @@ run_exec_dup2(VALUE ary, VALUE save)
     }
 
     /* sort the table by oldfd: O(n log n) */
-    qsort(pairs, n, sizeof(struct fd_pair), intcmp);
+    if (!RTEST(save))
+        qsort(pairs, n, sizeof(struct fd_pair), intcmp);
+    else
+        qsort(pairs, n, sizeof(struct fd_pair), intrcmp);
 
     /* initialize older_index and num_newer: O(n log n) */
     for (i = 0; i < n; i++) {
@@ -1965,6 +2056,23 @@ run_exec_open(VALUE ary, VALUE save)
             ret = redirect_close(fd2);
             if (ret == -1) return -1;
         }
+    }
+    return 0;
+}
+
+static int
+run_exec_dup2_child(VALUE ary, VALUE save)
+{
+    int i, ret;
+    for (i = 0; i < RARRAY_LEN(ary); i++) {
+        VALUE elt = RARRAY_PTR(ary)[i];
+        int newfd = FIX2INT(RARRAY_PTR(elt)[0]);
+        int oldfd = FIX2INT(RARRAY_PTR(elt)[1]);
+
+        if (save_redirect_fd(newfd, save) < 0)
+            return -1;
+        ret = redirect_dup2(oldfd, newfd);
+        if (ret == -1) return -1;
     }
     return 0;
 }
@@ -2134,6 +2242,12 @@ rb_run_exec_options(const struct rb_exec_arg *e, struct rb_exec_arg *s)
     obj = rb_ary_entry(options, EXEC_OPTION_OPEN);
     if (!NIL_P(obj)) {
         if (run_exec_open(obj, soptions) == -1)
+            return -1;
+    }
+
+    obj = rb_ary_entry(options, EXEC_OPTION_DUP2_CHILD);
+    if (!NIL_P(obj)) {
+        if (run_exec_dup2_child(obj, soptions) == -1)
             return -1;
     }
 
@@ -2668,17 +2782,25 @@ rb_spawn(int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     system([env,] cmd [, arg, ...] [,options])    => true, false or nil
+ *     system([env,] command... [,options])    => true, false or nil
  *
- *  Executes _cmd_ in a subshell, returning +true+ if the command
- *  gives zero exit status, +false+ for non zero exit status. Returns
- *  +nil+ if command execution fails.  An error status is available in
- *  <code>$?</code>. The arguments are processed in the same way as
- *  for <code>Kernel::exec</code>.
+ *  Executes _command..._ in a subshell.
+ *  _command..._ is one of following forms.
+ *
+ *    commandline                 : command line string which is passed to a shell
+ *    cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *    [cmdname, argv0], arg1, ... : command name and arguments including argv[0] (no shell)
+ *
+ *  system returns +true+ if the command gives zero exit status,
+ *  +false+ for non zero exit status.
+ *  Returns +nil+ if command execution fails.
+ *  An error status is available in <code>$?</code>.
+ *  The arguments are processed in the same way as
+ *  for <code>Kernel.spawn</code>.
  *
  *  The hash arguments, env and options, are same as
  *  <code>exec</code> and <code>spawn</code>.
- *  See <code>spawn</code> for details.
+ *  See <code>Kernel.spawn</code> for details.
  *
  *     system("echo *")
  *     system("echo", "*")
@@ -2722,10 +2844,56 @@ rb_f_system(int argc, VALUE *argv)
 
 /*
  *  call-seq:
- *     spawn([env,] cmd [, arg, ...] [,options])     => pid
+ *     spawn([env,] command... [,options])     => pid
+ *     Process.spawn([env,] command... [,options])     => pid
  *
- *  Similar to <code>Kernel::system</code> except for not waiting for
- *  end of _cmd_, but returns its <i>pid</i>.
+ *  spawn executes specified command and return its pid.
+ *  It doesn't wait for end of the command.
+ *
+ *  spawn has bunch of options to specify process attributes:
+ *
+ *    env: hash
+ *      name => val : set the environment variable
+ *      name => nil : unset the environment variable
+ *    command...:
+ *      commandline                 : command line string which is passed to a shell
+ *      cmdname, arg1, ...          : command name and one or more arguments (no shell)
+ *      [cmdname, argv0], arg1, ... : command name and arguments including argv[0] (no shell)
+ *    options: hash
+ *      clearing environment variables:
+ *        :unsetenv_others => true   : clear environment variables except specified by env
+ *        :unsetenv_others => false  : don't clear (default)
+ *      process group:
+ *        :pgroup => true or 0 : process leader
+ *        :pgroup => pgid      : join to specified process group 
+ *      resource limit: resourcename is core, cpu, data, etc.  See Process.setrlimit.
+ *        :rlimit_resourcename => limit
+ *        :rlimit_resourcename => [cur_limit, max_limit]
+ *      current directory:
+ *        :chdir => str
+ *      umask:
+ *        :umask => int
+ *      redirection:
+ *        key:
+ *          FD              : single file descriptor in child process
+ *          [FD, FD, ...]   : multiple file descriptor in child process
+ *        value:
+ *          FD                        : redirect to the file descriptor in parent process
+ *          string                    : redirect to file with open(string, "r" or "w")
+ *          [string]                  : redirect to file with open(string, File::RDONLY)
+ *          [string, open_mode]       : redirect to file with open(string, open_mode, 0644)
+ *          [string, open_mode, perm] : redirect to file with open(string, open_mode, perm)
+ *          [:child, FD]              : redirect to the redirected file descriptor
+ *          :close                    : close the file descriptor in child process
+ *        FD is one of follows
+ *          :in     : the file descriptor 0
+ *          :out    : the file descriptor 1
+ *          :err    : the file descriptor 2
+ *          integer : the file descriptor of specified the integer
+ *          io      : the file descriptor specified as io.fileno
+ *      file descriptor inheritance: close non-redirected non-standard fds (3, 4, 5, ...) or not
+ *        :close_others => false : inherit fds (default for system and exec)
+ *        :close_others => true  : don't inherit (default for spawn and IO.popen)
  *
  *  If a hash is given as +env+, the environment is
  *  updated by +env+ before <code>exec(2)</code> in the child process.
@@ -2779,44 +2947,46 @@ rb_f_system(int argc, VALUE *argv)
  *  The :in, :out, :err, a fixnum, an IO and an array key specifies a redirect.
  *  The redirection maps a file descriptor in the child process.
  *
- *  For example, stderr can be merged into stdout:
+ *  For example, stderr can be merged into stdout as follows:
  *
  *    pid = spawn(command, :err=>:out)
- *    pid = spawn(command, STDERR=>STDOUT)
  *    pid = spawn(command, 2=>1)
+ *    pid = spawn(command, STDERR=>:out)
+ *    pid = spawn(command, STDERR=>STDOUT)
  *
  *  The hash keys specifies a file descriptor
  *  in the child process started by <code>spawn</code>.
- *  :err, STDERR and 2 specifies the standard error stream.
+ *  :err, 2 and STDERR specifies the standard error stream (stderr).
  *
  *  The hash values specifies a file descriptor
  *  in the parent process which invokes <code>spawn</code>.
- *  :out, STDOUT and 1 specifies the standard output stream.
+ *  :out, 1 and STDOUT specifies the standard output stream (stdout).
  *
- *  The standard output in the child process is not specified.
+ *  In the above example,
+ *  the standard output in the child process is not specified.
  *  So it is inherited from the parent process.
  *
- *  The standard input stream can be specifed by :in, STDIN and 0.
+ *  The standard input stream (stdin) can be specifed by :in, 0 and STDIN.
  *  
  *  A filename can be specified as a hash value.
  *
- *    pid = spawn(command, STDIN=>"/dev/null") # read mode
- *    pid = spawn(command, STDOUT=>"/dev/null") # write mode
- *    pid = spawn(command, STDERR=>"log") # write mode
+ *    pid = spawn(command, :in=>"/dev/null") # read mode
+ *    pid = spawn(command, :out=>"/dev/null") # write mode
+ *    pid = spawn(command, :err=>"log") # write mode
  *    pid = spawn(command, 3=>"/dev/null") # read mode
  *
- *  For standard output and standard error,
+ *  For stdout and stderr,
  *  it is opened in write mode.
  *  Otherwise read mode is used.
  *
  *  For specifying flags and permission of file creation explicitly,
  *  an array is used instead.
  *
- *    pid = spawn(command, STDIN=>["file"]) # read mode is assumed
- *    pid = spawn(command, STDIN=>["file", "r"])
- *    pid = spawn(command, STDOUT=>["log", "w"]) # 0644 assumed
- *    pid = spawn(command, STDOUT=>["log", "w", 0600])
- *    pid = spawn(command, STDOUT=>["log", File::WRONLY|File::EXCL|File::CREAT, 0600])
+ *    pid = spawn(command, :in=>["file"]) # read mode is assumed
+ *    pid = spawn(command, :in=>["file", "r"])
+ *    pid = spawn(command, :out=>["log", "w"]) # 0644 assumed
+ *    pid = spawn(command, :out=>["log", "w", 0600])
+ *    pid = spawn(command, :out=>["log", File::WRONLY|File::EXCL|File::CREAT, 0600])
  *
  *  The array specifies a filename, flags and permission.
  *  The flags can be a string or an integer.
@@ -2827,8 +2997,27 @@ rb_f_system(int argc, VALUE *argv)
  *  If an array of IOs and integers are specified as a hash key,
  *  all the elemetns are redirected.
  *
- *    # standard output and standard error is redirected to log file.
- *    pid = spawn(command, [STDOUT, STDERR]=>["log", "w"])
+ *    # stdout and stderr is redirected to log file.
+ *    # The file "log" is opened just once.
+ *    pid = spawn(command, [:out, :err]=>["log", "w"])
+ *
+ *  Another way to merge multiple file descriptors is [:child, fd].
+ *  [:child, fd] means the file descriptor in the child process.
+ *  This is different from fd.
+ *  For example, :err=>:out means redirecting child stderr to parent stdout.
+ *  But :err=>[:child, :out] means redirecting child stderr to child stdout.
+ *  They differs if stdout is redirected in the child process as follows.
+ *
+ *    # stdout and stderr is redirected to log file.
+ *    # The file "log" is opened just once.
+ *    pid = spawn(command, :out=>["log", "w"], :err=>[:child, :out])
+ *
+ *  [:child, :out] can be used to merge stderr into stdout in IO.popen.
+ *  In this case, IO.popen redirects stdout to a pipe in the child process
+ *  and [:child, :out] refers the redirected stdout.
+ *
+ *    io = IO.popen(["sh", "-c", "echo out; echo err >&2", :err=>[:child, :out]])
+ *    p io.read #=> "out\nerr\n"
  *
  *  spawn closes all non-standard unspecified descriptors by default.
  *  The "standard" descriptors are 0, 1 and 2.
@@ -2845,7 +3034,7 @@ rb_f_system(int argc, VALUE *argv)
  *
  *    # similar to r = IO.popen(command)
  *    r, w = IO.pipe
- *    pid = spawn(command, STDOUT=>w)   # r, w is closed in the child process.
+ *    pid = spawn(command, :out=>w)   # r, w is closed in the child process.
  *    w.close
  *
  *  :close is specified as a hash value to close a fd individualy.
@@ -2853,13 +3042,23 @@ rb_f_system(int argc, VALUE *argv)
  *    f = open(foo)
  *    system(command, f=>:close)        # don't inherit f.
  *
+ *  If a file descriptor need to be inherited,
+ *  io=>io can be used.
+ *
+ *    # valgrind has --log-fd option for log destination.
+ *    # log_w=>log_w indicates log_w.fileno inherits to child process.
+ *    log_r, log_w = IO.pipe
+ *    pid = spawn("valgrind", "--log-fd=#{log_w.fileno}", "echo", "a", log_w=>log_w)
+ *    log_w.close
+ *    p log_r.read
+ *
  *  It is also possible to exchange file descriptors.
  *
- *    pid = spawn(command, STDOUT=>STDERR, STDERR=>STDOUT)
+ *    pid = spawn(command, :out=>:err, :err=>:out)
  *
  *  The hash keys specify file descriptors in the child process.
  *  The hash values specifies file descriptors in the parent process.
- *  So the above specifies exchanging STDOUT and STDERR.
+ *  So the above specifies exchanging stdout and stderr.
  *  Internally, +spawn+ uses an extra file descriptor to resolve such cyclic
  *  file descriptor mapping.
  *

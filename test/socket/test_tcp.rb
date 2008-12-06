@@ -7,7 +7,6 @@ end
 
 class TestTCPSocket < Test::Unit::TestCase
   def test_recvfrom
-assert false, "TODO: doesn't work on mswin32/64" if /mswin/ =~ RUBY_PLATFORM
     svr = TCPServer.new("localhost", 0)
     th = Thread.new {
       c = svr.accept
@@ -15,11 +14,11 @@ assert false, "TODO: doesn't work on mswin32/64" if /mswin/ =~ RUBY_PLATFORM
       c.close
     }
     addr = svr.addr
-    sock = TCPSocket.open(addr[2], addr[1])
+    sock = TCPSocket.open(addr[3], addr[1])
     assert_equal(["foo", nil], sock.recvfrom(0x10000))
   ensure
-    th.kill
-    th.join
+    th.kill if th
+    th.join if th
   end
 
   def test_encoding
@@ -30,14 +29,14 @@ assert false, "TODO: doesn't work on mswin32/64" if /mswin/ =~ RUBY_PLATFORM
       c.close
     }
     addr = svr.addr
-    sock = TCPSocket.open(addr[2], addr[1])
+    sock = TCPSocket.open(addr[3], addr[1])
     assert_equal(true, sock.binmode?)
     s = sock.gets
     assert_equal("foo\r\n", s)
     assert_equal(Encoding.find("ASCII-8BIT"), s.encoding)
   ensure
-    th.kill
-    th.join
+    th.kill if th
+    th.join if th
     sock.close if sock
   end
 end if defined?(TCPSocket)
