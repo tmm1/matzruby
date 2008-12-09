@@ -1,3 +1,124 @@
+Tue Dec  9 13:33:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* compile.c (iseq_compile_each), gc.c (assign_heap_slot),
+	  (gc_mark_children), parse.y (vtable_alloc, vtable_free, vtable_add),
+	  proc.c (proc_to_s), thread.c (terminate_i, rb_thread_terminate_all),
+	  (thread_start_func_2, blocking_region_begin, blocking_region_end),
+	  (rb_thread_kill), thread_pthread.c (native_thread_create),
+	  (ubf_pthread_cond_signal), vm.c (check_env, thread_free), vm_dump.c
+	  (vm_env_dump_raw, vm_stack_dump_each, vm_thread_dump_state),
+	  (vm_call0): use void pointer for %p.
+
+	* cont.c (fiber_status), template/insns.inc.tmpl (ruby_vminsn_type),
+	  vm_insnhelper.h (BOP): ISO C forbids comma at end of enumerator
+	  list.
+
+	* vm_insnhelper.c (check_cfunc): use function pointer.
+
+Tue Dec  9 13:23:55 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/curses/curses.c (curses_use_default_colors): add new
+	  method.  a patch from Giancarlo F Bellido
+	  <support at coaxialhost.com> in [ruby-core:20434].
+
+	* ext/curses/curses.c (curses_tabsize_set): ditto.
+
+	* ext/curses/curses.c (curses_tabsize_get): ditto.
+
+Tue Dec  9 12:08:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* .gdbinit (rp): fixed typo for T_STRUCT.
+
+Tue Dec  9 11:50:46 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* pack.c (pack_pck): fixed [ruby-dev:37295]. 
+	  Array#pack always has returned an US-ASCII string when
+	  the given format ended with 'u', 'M' or 'm'.
+
+Tue Dec  9 03:21:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* mkconfig.rb: fix for continued lines.  based on a patch from
+	  Marcus Rueckert <darix AT opensu.se> at [ruby-core:20420].
+
+Tue Dec  9 00:54:01 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/make-snapshot (package): enc.mk in snapshot is dummy and should
+	  not deal with objects.  [ruby-core:20422]
+
+Tue Dec  9 00:17:50 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* enc/depend (clean-srcs): split out from clean.
+
+Mon Dec  8 23:34:18 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* pack.c (pack_pack): fixed odd act of 'm*', 'M*', and 'P*'.
+	  just ignores '*' in these cases.
+	  [ruby-dev:37289]
+
+Mon Dec  8 18:31:41 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* pack.c (pack_pack): fixed length for odd length string.
+	  [ruby-dev:37283]
+
+Mon Dec  8 11:28:14 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (proc_options): added version, copyright, usage, yydebug,
+	  syntax to --dump option.
+
+Mon Dec  8 11:15:45 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (proc_options): source-encoding option.
+
+Mon Dec  8 10:32:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (set_option_encoding_once): dry.
+
+	* ruby.c (proc_options): checks extra argument for -E/--encoding.
+
+Sun Dec  7 23:47:37 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (LIBPATHFLAG): use numbered specifier if RPATHFLAG
+	  is set.  [ruby-talk:322136]
+
+Sun Dec  7 23:17:33 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* Makefile.in (LIBRUBY_SO): localizes non-public symbols.
+
+	* configure.in (OBJDUMP, OBJCOPY): for dealing with binary files.
+
+Sun Dec  7 17:44:06 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.capture3): renamed from Open3.poutput3.
+	  (Open3.capture2): renamed from Open3.poutput2.
+	  (lOpen3.capture2e): renamed from Open3.poutput2e.
+
+Sun Dec  7 11:48:04 2008  Tanaka Akira  <akr@fsij.org>
+
+	* lib/open3.rb (Open3.poutput3): :binmode option implemented.
+	  (Open3.poutput2): ditto.
+	  (Open3.poutput2e): ditto.
+
+Sat Dec  6 18:33:16 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* tool/make-snapshot (package): added RM and CP.  [ruby-dev:37288]
+
+Sat Dec  6 17:51:35 2008  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* pack.c (pack_pack): 'u0' is not special differently from 'm0'.
+
+Sat Dec  6 14:35:06 2008  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* pack.c (pack_pack): set US-ASCII and CODERANGE_7BIT
+	  when quoted-printable ('M') and base64 ('m').
+	  [ruby-dev:37284]
+
+	* pack.c (pack_unpack): ditto.
+
+Fri Dec  5 22:56:24 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* eval.c (rb_make_exception): single argument to raise may be
+	  string compatible object.
+
 Fri Dec  5 21:45:45 2008  Tadayoshi Funaba  <tadf@dotrb.org>
 
 	* rational.c (nurat_{to_s,inspect}): performance improvement.
@@ -5,6 +126,15 @@ Fri Dec  5 21:45:45 2008  Tadayoshi Funaba  <tadf@dotrb.org>
 Fri Dec  5 21:42:44 2008  Tadayoshi Funaba  <tadf@dotrb.org>
 
 	* complex.c: inpsect should not depend on to_s.
+
+Fri Dec  5 21:18:31 2008  Yukihiro Matsumoto  <matz@ruby-lang.org>
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_truncate): return
+	  integer if no optional argument given. [incompatible]
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_floor): ditto.
+
+	* ext/bigdecimal/bigdecimal.c (BigDecimal_ceil): ditto.
 
 Fri Dec  5 19:06:04 2008  Tanaka Akira  <akr@fsij.org>
 

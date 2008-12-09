@@ -214,6 +214,9 @@ AC_CHECK_TOOL(AS, as)
 ASFLAGS=$ASFLAGS
 AC_SUBST(ASFLAGS)
 
+AC_CHECK_TOOL(OBJDUMP, objdump)
+AC_CHECK_TOOL(OBJCOPY, objcopy)
+
 case "$target_os" in
 cygwin*|mingw*)
     AC_CHECK_TOOL(NM, nm)
@@ -223,7 +226,6 @@ cygwin*|mingw*)
     case "$target_os" in
     mingw*)
 	test "$rb_cv_msvcrt" = "" && unset rb_cv_msvcrt
-	AC_CHECK_TOOL(OBJDUMP, objdump)
 	AC_CACHE_CHECK(for mingw32 runtime DLL, rb_cv_msvcrt, [
 	AC_TRY_LINK([#include <stdio.h>],
 		    [FILE* volatile f = stdin; return 0;],
@@ -1315,7 +1317,6 @@ AC_SUBST(DLEXT2)dnl
 AC_SUBST(LIBEXT)dnl
 
 STATIC=
-: ${LIBPATHFLAG=' -L%s'}
 : ${PATHFLAG=''}
 
 if test "$with_dln_a_out" != yes; then
@@ -1345,7 +1346,6 @@ if test "$with_dln_a_out" != yes; then
        [  --disable-rpath         embed run path into extension libraries.],
        [enable_rpath=$enableval], [enable_rpath="$rb_cv_binary_elf"])
   if test "$enable_rpath" = yes; then
-    LIBPATHFLAG=" -L%1\$-s"
     RPATHFLAG=" ${linker_flag}-R%1\$-s"
   fi
 
@@ -1496,6 +1496,12 @@ if test "${LDSHAREDXX}" = ""; then
 	    ;;
     esac
 fi
+case ${RPATHFLAG} in
+*'%1$'*)
+    : ${LIBPATHFLAG=' -L%1$-s'};;
+*)
+    : ${LIBPATHFLAG=' -L%s'};;
+esac
 
 AC_SUBST(LINK_SO)
 AC_SUBST(LIBPATHFLAG)

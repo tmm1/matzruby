@@ -492,7 +492,9 @@ pack_pack(VALUE ary, VALUE fmt)
 	    }
 	}
 	if (*p == '*') {	/* set data length */
-	    len = strchr("@Xxu", type) ? 0 : items;
+	    len = strchr("@Xxu", type) ? 0
+                : strchr("PMm", type) ? 1
+                : items;
 	    p++;
 	}
 	else if (ISDIGIT(*p)) {
@@ -621,7 +623,7 @@ pack_pack(VALUE ary, VALUE fmt)
 		    long i, j = 0;
 
 		    if (len > plen) {
-			j = (len - plen + 1)/2;
+			j = (len + 1) / 2 - (plen + 1) / 2;
 			len = plen;
 		    }
 		    for (i=0; i++ < len; ptr++) {
@@ -652,7 +654,7 @@ pack_pack(VALUE ary, VALUE fmt)
 		    long i, j = 0;
 
 		    if (len > plen) {
-			j = (len - plen + 1)/2;
+			j = (len + 1) / 2 - (plen + 1) / 2;
 			len = plen;
 		    }
 		    for (i=0; i++ < len; ptr++) {
@@ -897,12 +899,14 @@ pack_pack(VALUE ary, VALUE fmt)
 
 	  case 'u':		/* uuencoded string */
 	  case 'm':		/* base64 encoded string */
+	    enc = rb_enc_compatible(res, rb_enc_from_encoding(rb_usascii_encoding()));
+	    rb_enc_associate(res, enc);
 	    from = NEXTFROM;
 	    StringValue(from);
 	    ptr = RSTRING_PTR(from);
 	    plen = RSTRING_LEN(from);
 
-	    if (len == 0) {
+	    if (len == 0 && type == 'm') {
 		encodes(res, ptr, plen, type, 0);
 		ptr += plen;
 		break;
@@ -925,6 +929,8 @@ pack_pack(VALUE ary, VALUE fmt)
 	    break;
 
 	  case 'M':		/* quoted-printable encoded string */
+	    enc = rb_enc_compatible(res, rb_enc_from_encoding(rb_usascii_encoding()));
+	    rb_enc_associate(res, enc);
 	    from = rb_obj_as_string(NEXTFROM);
 	    if (len <= 1)
 		len = 72;
@@ -1903,6 +1909,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    }
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
+		ENCODING_CODERANGE_SET(buf, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
 		UNPACK_PUSH(buf);
 	    }
 	    break;
@@ -1931,6 +1938,7 @@ pack_unpack(VALUE str, VALUE fmt)
 		    s++;
 		}
 		rb_str_set_len(buf, ptr - RSTRING_PTR(buf));
+		ENCODING_CODERANGE_SET(buf, rb_usascii_encindex(), ENC_CODERANGE_7BIT);
 		UNPACK_PUSH(buf);
 	    }
 	    break;

@@ -54,25 +54,28 @@ VALUE rb_parser_set_yydebug(VALUE, VALUE);
 #define DISABLE_BIT(bit) (1U << disable_##bit)
 enum disable_flag_bits {
     disable_gems,
-    disable_rubyopt
+    disable_rubyopt,
+    disable_flag_count
 };
 
 #define DUMP_BIT(bit) (1U << dump_##bit)
 enum dump_flag_bits {
-    dump_insns
+    dump_version,
+    dump_copyright,
+    dump_usage,
+    dump_yydebug,
+    dump_syntax,
+    dump_insns,
+    dump_flag_count
 };
 
 struct cmdline_options {
     int sflag, xflag;
     int do_loop, do_print;
-    int do_check, do_line;
-    int do_split, do_search;
-    int usage;
-    int version;
-    int copyright;
+    int do_line, do_split;
+    int do_search;
     unsigned int disable;
     int verbose;
-    int yydebug;
     int safe_level;
     unsigned int setids;
     unsigned int dump;
@@ -615,44 +618,41 @@ static void
 dump_option(const char *str, int len, void *arg)
 {
 #define SET_WHEN_DUMP(bit) SET_WHEN(#bit, DUMP_BIT(bit), str, len)
+    SET_WHEN_DUMP(version);
+    SET_WHEN_DUMP(copyright);
+    SET_WHEN_DUMP(usage);
+    SET_WHEN_DUMP(yydebug);
+    SET_WHEN_DUMP(syntax);
     SET_WHEN_DUMP(insns);
-    rb_warn("don't know how to dump `%.*s', (insns)", len, str);
+    rb_warn("don't know how to dump `%.*s',", len, str);
+    rb_warn("but only [version, copyright, usage, yydebug, syntax, insns].");
 }
 
 #define RUBY_VM_OBJECT(vm, name) \
   (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_##name)))
 
 static void
-set_internal_encoding_once(struct cmdline_options *opt, const char *e, int elen)
+set_option_encoding_once(const char *type, VALUE *name, const char *e, int elen)
 {
     VALUE ename;
 
     if (!elen) elen = strlen(e);
     ename = rb_str_new(e, elen);
 
-    if (opt->intern.enc.name &&
-	rb_funcall(ename, rb_intern("casecmp"), 1, opt->intern.enc.name) != INT2FIX(0)) {
+    if (*name &&
+	rb_funcall(ename, rb_intern("casecmp"), 1, *name) != INT2FIX(0)) {
 	rb_raise(rb_eRuntimeError,
-		 "default_internal already set to %s", RSTRING_PTR(opt->intern.enc.name));
+		 "%s already set to %s", type, RSTRING_PTR(*name));
     }
-    opt->intern.enc.name = ename;
+    *name = ename;
 }
 
-static void
-set_external_encoding_once(struct cmdline_options *opt, const char *e, int elen)
-{
-    VALUE ename;
-
-    if (!elen) elen = strlen(e);
-    ename = rb_str_new(e, elen);
-
-    if (opt->ext.enc.name &&
-	rb_funcall(ename, rb_intern("casecmp"), 1, opt->ext.enc.name) != INT2FIX(0)) {
-	rb_raise(rb_eRuntimeError,
-		 "default_external already set to %s", RSTRING_PTR(opt->ext.enc.name));
-    }
-    opt->ext.enc.name = ename;
-}
+#define set_internal_encoding_once(opt, e, elen) \
+    set_option_encoding_once("default_intenal", &opt->intern.enc.name, e, elen)
+#define set_external_encoding_once(opt, e, elen) \
+    set_option_encoding_once("default_extenal", &opt->ext.enc.name, e, elen)
+#define set_source_encoding_once(opt, e, elen) \
+    set_option_encoding_once("source", &opt->src.enc.name, e, elen)
 
 static int
 proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, int envopt)
@@ -664,10 +664,11 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 	return 0;
 
     for (argc--, argv++; argc > 0; argc--, argv++) {
-	if (argv[0][0] != '-' || !argv[0][1])
+	const char *const arg = argv[0];
+	if (arg[0] != '-' || !arg[1])
 	    break;
 
-	s = argv[0] + 1;
+	s = arg + 1;
       reswitch:
 	switch (*s) {
 	  case 'a':
@@ -694,7 +695,7 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 
 	  case 'y':
 	    if (envopt) goto noenvopt;
-	    opt->yydebug = 1;
+	    opt->dump |= DUMP_BIT(yydebug);
 	    s++;
 	    goto reswitch;
 
@@ -737,7 +738,7 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 
 	  case 'c':
 	    if (envopt) goto noenvopt;
-	    opt->do_check = Qtrue;
+	    opt->dump |= DUMP_BIT(syntax);
 	    s++;
 	    goto reswitch;
 
@@ -750,9 +751,8 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 
 	  case 'h':
 	    if (envopt) goto noenvopt;
-	    usage(origarg.argv[0]);
-	    rb_exit(EXIT_SUCCESS);
-	    break;
+	    opt->dump |= DUMP_BIT(usage);
+	    goto switch_end;
 
 	  case 'l':
 	    if (envopt) goto noenvopt;
@@ -941,7 +941,7 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 
 	    if (strcmp("copyright", s) == 0) {
 		if (envopt) goto noenvopt_long;
-		opt->copyright = 1;
+		opt->dump |= DUMP_BIT(copyright);
 	    }
 	    else if (strcmp("debug", s) == 0) {
 		RUBY_VM_OBJECT(vm, debug) = Qtrue;
@@ -956,19 +956,42 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 	    else if (is_option_with_arg("encoding", Qfalse, Qtrue)) {
 		char *p;
 	      encoding:
-		p = strchr(s, ':');
-		if (p) {
-		    if (p > s)
-			set_external_encoding_once(opt, s, p-s);
-		    if (*++p)
-			set_internal_encoding_once(opt, p, 0);
-		}
-		else    
-		    set_external_encoding_once(opt, s, 0);
+		do {
+#	define set_encoding_part(type) \
+		    if (!(p = strchr(s, ':'))) { \
+			set_##type##_encoding_once(opt, s, 0); \
+			break; \
+		    } \
+		    else if (p > s) { \
+			set_##type##_encoding_once(opt, s, p-s); \
+		    }
+		    set_encoding_part(external);
+		    if (!*(s = ++p)) break;
+		    set_encoding_part(internal);
+		    if (!*(s = ++p)) break;
+#if ALLOW_DEFAULT_SOURCE_ENCODING
+		    set_encoding_part(source);
+		    if (!*(s = ++p)) break;
+#endif
+		    rb_raise(rb_eRuntimeError, "extra argument for %s: %s",
+			     (arg[1] == '-' ? "--encoding" : "-E"), s);
+#	undef set_encoding_part
+		} while (0);
 	    }
+	    else if (is_option_with_arg("internal-encoding", Qfalse, Qtrue)) {
+		set_internal_encoding_once(opt, s, 0);
+	    }
+	    else if (is_option_with_arg("external-encoding", Qfalse, Qtrue)) {
+		set_external_encoding_once(opt, s, 0);
+	    }
+#if ALLOW_DEFAULT_SOURCE_ENCODING
+	    else if (is_option_with_arg("source-encoding", Qfalse, Qtrue)) {
+		set_source_encoding_once(opt, s, 0);
+	    }
+#endif
 	    else if (strcmp("version", s) == 0) {
 		if (envopt) goto noenvopt_long;
-		opt->version = 1;
+		opt->dump |= DUMP_BIT(version);
 	    }
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
@@ -976,15 +999,15 @@ proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, in
 	    }
 	    else if (strcmp("yydebug", s) == 0) {
 		if (envopt) goto noenvopt_long;
-		opt->yydebug = 1;
+		opt->dump |= DUMP_BIT(yydebug);
 	    }
 	    else if (is_option_with_arg("dump", Qfalse, Qfalse)) {
 		ruby_each_words(s, dump_option, &opt->dump);
 	    }
 	    else if (strcmp("help", s) == 0) {
 		if (envopt) goto noenvopt_long;
-		usage(origarg.argv[0]);
-		rb_exit(EXIT_SUCCESS);
+		opt->dump |= DUMP_BIT(usage);
+		goto switch_end;
 	    }
 	    else {
 		rb_raise(rb_eRuntimeError,
@@ -1061,6 +1084,21 @@ opt_enc_index(VALUE enc_name)
 VALUE rb_argv0;
 
 static VALUE
+false_value(void)
+{
+    return Qfalse;
+}
+
+static VALUE
+true_value(void)
+{
+    return Qtrue;
+}
+
+#define rb_define_readonly_boolean(name, val) \
+    rb_define_virtual_variable((name), (val) ? true_value : false_value, 0)
+
+static VALUE
 process_options(VALUE arg)
 {
     struct cmdline_arguments *argp = (struct cmdline_arguments *)arg;
@@ -1079,6 +1117,11 @@ process_options(VALUE arg)
     argc -= i;
     argv += i;
 
+    if (opt->dump & DUMP_BIT(usage)) {
+	usage(origarg.argv[0]);
+	return Qtrue;
+    }
+
     if (!(opt->disable & DISABLE_BIT(rubyopt)) &&
 	opt->safe_level == 0 && (s = getenv("RUBYOPT"))) {
 	VALUE src_enc_name = opt->src.enc.name;
@@ -1095,11 +1138,11 @@ process_options(VALUE arg)
 	    opt->intern.enc.name = int_enc_name;
     }
 
-    if (opt->version) {
+    if (opt->dump & DUMP_BIT(version)) {
 	ruby_show_version();
 	return Qtrue;
     }
-    if (opt->copyright) {
+    if (opt->dump & DUMP_BIT(copyright)) {
 	ruby_show_copyright();
     }
 
@@ -1151,7 +1194,9 @@ process_options(VALUE arg)
     rb_enc_associate(rb_progname, lenc);
     opt->script_name = rb_str_new4(rb_progname);
     parser = rb_parser_new();
-    if (opt->yydebug) rb_parser_set_yydebug(parser, Qtrue);
+    if (opt->dump & DUMP_BIT(yydebug)) {
+	rb_parser_set_yydebug(parser, Qtrue);
+    }
     if (opt->ext.enc.name != 0) {
 	opt->ext.enc.index = opt_enc_index(opt->ext.enc.name);
     }
@@ -1195,6 +1240,7 @@ process_options(VALUE arg)
 	}
 	tree = load_file(vm, parser, opt->script, 1, opt);
     }
+    if (opt->dump & DUMP_BIT(yydebug)) return Qtrue;
 
     if (opt->intern.enc.index >= 0) {
 	/* Set in the shebang line */
@@ -1215,7 +1261,7 @@ process_options(VALUE arg)
 	FL_UNSET(GET_VM()->load_path, FL_TAINT);
     }
 
-    if (opt->do_check) {
+    if (opt->dump & DUMP_BIT(syntax)) {
 	printf("Syntax OK\n");
 	return Qtrue;
     }
@@ -1235,6 +1281,10 @@ process_options(VALUE arg)
 	rb_io_flush(rb_stdout);
 	return Qtrue;
     }
+
+    rb_define_readonly_boolean("$-p", opt->do_print);
+    rb_define_readonly_boolean("$-l", opt->do_line);
+    rb_define_readonly_boolean("$-a", opt->do_split);
 
     rb_set_safe_level(opt->safe_level);
 
@@ -1629,21 +1679,6 @@ ruby_set_argv(int argc, char **argv)
 #endif
 }
 
-static VALUE
-false_value(void)
-{
-    return Qfalse;
-}
-
-static VALUE
-true_value(void)
-{
-    return Qtrue;
-}
-
-#define rb_define_readonly_boolean(name, val) \
-    rb_define_virtual_variable((name), (val) ? true_value : false_value, 0)
-
 VALUE
 ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
 {
@@ -1664,10 +1699,6 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     tree = rb_vm_call_cfunc(vm->top_self,
 			    process_options, (VALUE)&args,
 			    0, RUBY_VM_OBJECT(vm, progname));
-
-    rb_define_readonly_boolean("$-p", opt.do_print);
-    rb_define_readonly_boolean("$-l", opt.do_line);
-    rb_define_readonly_boolean("$-a", opt.do_split);
     return tree;
 }
 

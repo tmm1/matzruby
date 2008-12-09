@@ -53,7 +53,7 @@ enum {
   BOP_NOT,
   BOP_NEQ,
 
-  BOP_LAST_,
+  BOP_LAST_
 };
 
 #define ruby_vm_redefined_flag GET_VM()->redefined_flag
