@@ -500,7 +500,9 @@ posix_signal(int signum, sighandler_t handler)
 void
 ruby_install_altstack(rb_thread_t *th)
 {
+#ifdef USE_SIGALTSTACK
     register_sigaltstack();
+#endif
 }
 
 #else /* !POSIX_SIGNAL */

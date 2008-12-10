@@ -1,3 +1,8 @@
+Wed Dec 10 16:03:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* signal.c (ruby_install_altstack): does nothing unless using
+	  sigaltstack.
+
 Tue Dec  9 13:33:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* compile.c (iseq_compile_each), gc.c (assign_heap_slot),
