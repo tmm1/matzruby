@@ -1,3 +1,7 @@
+Wed Dec 17 18:00:15 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* inits.c (rb_vm_call_inits): no longer passes current vm.
+
 Wed Dec 10 16:03:36 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* signal.c (ruby_install_altstack): does nothing unless using

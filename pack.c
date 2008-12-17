@@ -2187,7 +2187,7 @@ Init_pack(void)
 }
 
 void
-InitVM_pack(ruby_vm_t *vm)
+InitVM_pack(void)
 {
     rb_define_method(rb_cArray, "pack", pack_pack, 1);
     rb_define_method(rb_cString, "unpack", pack_unpack, 1);

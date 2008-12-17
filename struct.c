@@ -879,7 +879,7 @@ Init_Struct(void)
 }
 
 void
-InitVM_Struct(ruby_vm_t *vm)
+InitVM_Struct(void)
 {
     rb_cStruct = rb_define_class("Struct", rb_cObject);
     rb_include_module(rb_cStruct, rb_mEnumerable);

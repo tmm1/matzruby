@@ -1283,7 +1283,7 @@ Init_Encoding(void)
 }
 
 void
-InitVM_Encoding(ruby_vm_t *vm)
+InitVM_Encoding(void)
 {
     VALUE list;
     int i;

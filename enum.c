@@ -1813,7 +1813,7 @@ Init_Enumerable(void)
 }
 
 void
-InitVM_Enumerable(ruby_vm_t *vm)
+InitVM_Enumerable(void)
 {
     rb_mEnumerable = rb_define_module("Enumerable");
 

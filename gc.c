@@ -16,6 +16,7 @@
 #include "ruby/re.h"
 #include "ruby/io.h"
 #include "ruby/util.h"
+#include "ruby/vm.h"
 #include "eval_intern.h"
 #include "vm_core.h"
 #include "gc.h"
@@ -2084,7 +2085,7 @@ Init_heap(void)
 }
 
 void
-InitVM_heap(ruby_vm_t *vm)
+InitVM_heap(void)
 {
 #if !(defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE)
     init_heap(vm->objspace);
@@ -2808,7 +2809,7 @@ Init_GC(void)
 }
 
 void
-InitVM_GC(ruby_vm_t *vm)
+InitVM_GC(void)
 {
     VALUE rb_mObSpace;
     VALUE rb_mProfiler;

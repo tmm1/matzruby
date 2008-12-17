@@ -680,10 +680,11 @@ Init_load()
 }
 
 void
-InitVM_load(ruby_vm_t *vm)
+InitVM_load(void)
 {
     static const char var_load_path[] = "$:";
     ID id_load_path = rb_intern2(var_load_path, sizeof(var_load_path)-1);
+    rb_vm_t *vm = GET_VM();
 
     rb_define_hooked_variable(var_load_path, (VALUE*)vm, load_path_getter, 0);
     rb_alias_variable(rb_intern("$-I"), id_load_path);

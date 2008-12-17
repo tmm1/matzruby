@@ -30,7 +30,7 @@ Init_version(void)
 }
 
 void
-InitVM_version(ruby_vm_t *vm)
+InitVM_version(void)
 {
     rb_define_global_const("RUBY_VERSION", MKSTR(version));
     rb_define_global_const("RUBY_RELEASE_DATE", MKSTR(release_date));

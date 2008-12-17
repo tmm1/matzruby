@@ -697,7 +697,7 @@ Init_Math(void)
 }
 
 void
-InitVM_Math(ruby_vm_t *vm)
+InitVM_Math(void)
 {
     rb_mMath = rb_define_module("Math");
 

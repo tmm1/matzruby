@@ -16,8 +16,8 @@
 #include "inits.c"
 #define CALL(n) {void Init_##n(void); Init_##n();}
 #else
-#define CALL(n) {void InitVM_##n(ruby_vm_t *); InitVM_##n(vm);}
-#define rb_call_inits(void) rb_vm_call_inits(ruby_vm_t *vm)
+#define CALL(n) {void InitVM_##n(void); InitVM_##n();}
+#define rb_call_inits(void) rb_vm_call_inits(void)
 #endif
 
 void

@@ -7094,7 +7094,7 @@ Init_String(void)
 }
 
 void
-InitVM_String(ruby_vm_t *vm)
+InitVM_String(void)
 {
     rb_cString  = rb_define_class("String", rb_cObject);
     rb_include_module(rb_cString, rb_mComparable);

@@ -918,7 +918,7 @@ Init_Range(void)
 }
 
 void
-InitVM_Range(ruby_vm_t *vm)
+InitVM_Range(void)
 {
     rb_cRange = rb_struct_define_without_accessor(
         "Range", rb_cObject, range_alloc,

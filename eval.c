@@ -13,6 +13,7 @@
 
 #include "eval_intern.h"
 #include "iseq.h"
+#include "ruby/vm.h"
 
 #define exception_error rb_errReenterError
 
@@ -33,9 +34,9 @@ void rb_call_inits(void);
 void Init_heap(void);
 void Init_ext(void);
 void Init_BareVM(void);
-void rb_vm_call_inits(rb_vm_t *vm);
-void InitVM_heap(rb_vm_t *vm);
-void InitVM_ext(rb_vm_t *vm);
+void rb_vm_call_inits(void);
+void InitVM_heap(void);
+void InitVM_ext(void);
 void ruby_vm_prog_init(rb_vm_t *vm);
 
 VALUE ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv);
@@ -79,7 +80,7 @@ ruby_vm_init(rb_vm_t *vm)
 {
     int state;
 
-    InitVM_heap(vm);
+    InitVM_heap();
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -92,7 +93,7 @@ ruby_vm_init(rb_vm_t *vm)
 	error_print();
 	return state;
     }
-    GET_VM()->running = 1;
+    vm->running = 1;
     return 0;
 }
 
@@ -1156,7 +1157,7 @@ Init_eval(void)
 }
 
 void
-InitVM_eval(ruby_vm_t *vm)
+InitVM_eval(void)
 {
     rb_define_virtual_variable("$@", errat_getter, errat_setter);
     rb_define_virtual_variable("$!", errinfo_getter, 0);

@@ -14,6 +14,7 @@
 #include "ruby/ruby.h"
 #include "ruby/st.h"
 #include "ruby/util.h"
+#include "ruby/vm.h"
 #include "vm_core.h"
 #include "node.h"
 
@@ -31,8 +32,9 @@ Init_var_tables(void)
 }
 
 void
-InitVM_var_tables(ruby_vm_t *vm)
+InitVM_var_tables(void)
 {
+    rb_vm_t *vm = GET_VM();
     vm->mark_object_ary = rb_ary_new();
     vm->global_tbl = st_init_numtable();
 }

@@ -1515,7 +1515,7 @@ Init_Rational(void)
 }
 
 void
-InitVM_Rational(ruby_vm_t *vm)
+InitVM_Rational(void)
 {
     assert(fprintf(stderr, "assert() is now active\n"));
 

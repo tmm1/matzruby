@@ -5222,7 +5222,7 @@ Init_process(void)
 }
 
 void
-InitVM_process(ruby_vm_t *vm)
+InitVM_process(void)
 {
     VALUE rb_mProcUID;
     VALUE rb_mProcGID;

@@ -2371,7 +2371,7 @@ Init_Dir(void)
 }
 
 void
-InitVM_Dir(ruby_vm_t *vm)
+InitVM_Dir(void)
 {
     rb_cDir = rb_define_class("Dir", rb_cObject);
 

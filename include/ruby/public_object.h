@@ -1,10 +1,6 @@
 #ifndef RUBY_PUBLIC_OBJECT_H
 #define RUBY_PUBLIC_OBJECT_H 1
 
-#include "ruby/vm.h"
-
-
-
 VALUE *rb_vm_specific_ptr(int key);
 
 enum ruby_public_object_vmkey {

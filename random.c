@@ -545,17 +545,17 @@ Init_RandomSeed(void)
 }
 
 void
-InitVM_RandomSeed(ruby_vm_t *vm)
+InitVM_RandomSeed(void)
 {
 }
 
 static void
-InitVM_RandomSeed2(ruby_vm_t *vm)
+InitVM_RandomSeed2(void)
 {
     struct Random *r;
     VALUE rv = Data_Make_Struct(rb_cData, struct Random, random_mark, -1, r);
 
-    *(VALUE *)ruby_vm_specific_ptr(vm, vmkey_default_mt) = rv;
+    *rb_vm_specific_ptr(vmkey_default_mt) = rv;
     fill_random_seed(r->seed.initial);
     init_by_array(&r->mt, r->seed.initial, DEFAULT_SEED_CNT);
     r->seed.value = make_seed_value(r->seed.initial);
@@ -576,9 +576,9 @@ Init_Random(void)
 }
 
 void
-InitVM_Random(ruby_vm_t *vm)
+InitVM_Random(void)
 {
-    InitVM_RandomSeed2(vm);
+    InitVM_RandomSeed2();
     rb_define_global_function("srand", rb_f_srand, -1);
     rb_define_global_function("rand", rb_f_rand, -1);
 }

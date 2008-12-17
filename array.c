@@ -3775,7 +3775,7 @@ Init_Array(void)
 }
 
 void
-InitVM_Array(ruby_vm_t *vm)
+InitVM_Array(void)
 {
     rb_cArray  = rb_define_class("Array", rb_cObject);
     rb_include_module(rb_cArray, rb_mEnumerable);

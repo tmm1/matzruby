@@ -9211,13 +9211,13 @@ Init_sym(void)
 }
 
 void
-InitVM_sym(rb_vm_t *vm)
+InitVM_sym(void)
 {
     struct ivar_symbols *isym = ALLOC(struct ivar_symbols);
     VALUE iw = Data_Wrap_Struct(0, ivar2_mark, ivar2_free, isym);
     isym->ivar2_id = st_init_table_with_size(&ivar2_hash_type, 1000);
     isym->id_ivar2 = st_init_numtable_with_size(1000);
-    *(VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_ivar_symbols) = iw;
+    *rb_vm_specific_ptr(rb_vmkey_ivar_symbols) = iw;
 }
 
 void
@@ -10349,7 +10349,7 @@ Init_ripper(void)
 }
 
 void
-InitVM_ripper(rb_vm_t *vm)
+InitVM_ripper(void)
 {
     VALUE Ripper;
 
