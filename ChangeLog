@@ -1,3 +1,10 @@
+Thu Dec 25 01:48:53 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (Init_Thread): separated per-process initialization
+	  from InitVM_Thread.
+
+	* thread_{pthread,win32}.c (Init_native_thread): ditto.
+
 Wed Dec 17 18:00:15 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* inits.c (rb_vm_call_inits): no longer passes current vm.

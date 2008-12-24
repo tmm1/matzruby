@@ -178,19 +178,17 @@ ruby_thread_set_native(rb_thread_t *th)
 }
 
 static void
-init_once_native_thread(void)
+Init_native_thread(void)
 {
     pthread_key_create(&ruby_native_thread_key, NULL);
     posix_signal(SIGVTALRM, null_func);
 }
 
 static void
-Init_native_thread(void)
+InitVM_native_thread(void)
 {
     rb_thread_t *th = GET_THREAD();
-    static pthread_once_t init_for_all_thread = PTHREAD_ONCE_INIT;
 
-    pthread_once(&init_for_all_thread, init_once_native_thread);
     th->thread_id = pthread_self();
     native_cond_initialize(&th->native_thread_data.sleep_cond);
     ruby_thread_set_native(th);
